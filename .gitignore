@@ -1,0 +1,26 @@
+# Database data, backups, and secrets
+deploy/asm-production/data/
+deploy/asm-production/backups/
+deploy/asm-production/secrets/
+deploy/asm-production/sqlserver/
+
+# Java / Maven build files
+**/target/
+**/*.class
+**/*.jar
+**/*.war
+**/*.ear
+**/*.nar
+
+# IDEs and OS files
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+.springBeans
+.sts4-cache
+Thumbs.db
+.DS_Store

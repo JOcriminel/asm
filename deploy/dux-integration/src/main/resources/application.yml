@@ -1,0 +1,15 @@
+server:
+  port: 9090
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ADMIN_URL:https://duxweb.pre-produx.asmtechtn.com/auth/}realms/${KEYCLOAK_ADMIN_REALM:DuxWeb}
+
+dux:
+  token-url: ${KEYCLOAK_ADMIN_URL:https://duxweb.pre-produx.asmtechtn.com/auth/}realms/${KEYCLOAK_ADMIN_REALM:DuxWeb}/protocol/openid-connect/token
+  user-url: ${DUX_USER_URL:https://duxweb-stage.pre-produx.asmtechtn.com/api/Activite/Userbylogin}
+  client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:asm-apis}
+  client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:WIIWVngUsQgSTyXB50AXm1YyeVtaog7V}

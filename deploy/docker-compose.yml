@@ -1,0 +1,48 @@
+services:
+  sqlsrv:
+    container_name: sqlsrv
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-20.04
+    restart: always
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "P5v9yast34Iy9qU"
+    ports:
+      - "1433:1433"
+    volumes:
+      - ./asm-production/data:/var/opt/mssql/data
+      - ./asm-production/sqlserver:/var/opt/mssql/sqlserver
+      - ./asm-production/backups:/var/opt/mssql/backups
+      - ./asm-production/secrets:/var/opt/mssql/secrets
+
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:24.0.5
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak-realm-import.json:/opt/keycloak/data/import/realm-import.json
+    restart: always
+
+  backend:
+    container_name: backend-app
+    build:
+      context: C:/Users/ACHRAF/.gemini/antigravity/scratch/asm-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      # Network communication: connecting to SQL Server container name "sqlsrv"
+      SPRING_DATASOURCE_URL: jdbc:sqlserver://sqlsrv:1433;databaseName=ASM_PREPROD;encrypt=true;trustServerCertificate=true
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: P5v9yast34Iy9qU
+      
+      # Network communication: validating token against Keycloak container name "keycloak"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/asm-realm/protocol/openid-connect/certs
+    depends_on:
+      - sqlsrv
+      - keycloak
+    restart: always
