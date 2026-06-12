@@ -30,7 +30,7 @@ services:
   backend:
     container_name: backend-app
     build:
-      context: C:/Users/ACHRAF/.gemini/antigravity/scratch/asm-backend
+      context: ./deploy/dux-integration
       dockerfile: Dockerfile
     ports:
       - "8081:8081"
