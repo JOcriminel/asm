@@ -40,7 +40,7 @@ class _AppTextFieldState extends State<AppTextField> {
       validator: widget.validator,
       enabled: widget.enabled,
       style: theme.textTheme.bodyLarge?.copyWith(
-        color: widget.enabled ? theme.colorScheme.onBackground : theme.colorScheme.onBackground.withOpacity(0.5),
+        color: widget.enabled ? theme.colorScheme.onSurface : theme.colorScheme.onSurface.withValues(alpha: 0.5),
       ),
       decoration: InputDecoration(
         labelText: widget.labelText,

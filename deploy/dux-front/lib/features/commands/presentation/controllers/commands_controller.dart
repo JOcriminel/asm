@@ -91,8 +91,11 @@ class CommandsController extends StateNotifier<CommandsState> {
       // A full page means there might be more; fewer means we've reached the end
       final hasMore = newCommands.length >= _pageSize;
 
+      final combined = refresh ? newCommands : [...state.commands, ...newCommands];
+      _applySort(combined, state.filter.sortOrder);
+
       state = state.copyWith(
-        commands: refresh ? newCommands : [...state.commands, ...newCommands],
+        commands: combined,
         isLoading: false,
         isLoadMoreLoading: false,
         hasMore: hasMore,
@@ -113,8 +116,57 @@ class CommandsController extends StateNotifier<CommandsState> {
   }
 
   void applyFilter(CommandFilter newFilter) {
+    final oldFilter = state.filter;
+    // Check if only sortOrder changed
+    final onlySortChanged = 
+        oldFilter.dateFrom == newFilter.dateFrom &&
+        oldFilter.dateTo == newFilter.dateTo &&
+        oldFilter.tier == newFilter.tier &&
+        oldFilter.representative == newFilter.representative &&
+        oldFilter.documentCode == newFilter.documentCode &&
+        oldFilter.status == newFilter.status &&
+        oldFilter.allDocuments == newFilter.allDocuments &&
+        oldFilter.articleFilter == newFilter.articleFilter &&
+        oldFilter.advancedFilterActive == newFilter.advancedFilterActive;
+
+    if (onlySortChanged && oldFilter.sortOrder != newFilter.sortOrder) {
+      // Just sort locally
+      state = state.copyWith(filter: newFilter);
+      _sortCommandsLocally();
+      return;
+    }
+
     state = state.copyWith(filter: newFilter, page: 1, commands: []);
     fetchCommands();
+  }
+
+  void _sortCommandsLocally() {
+    final sortedList = List<Command>.from(state.commands);
+    _applySort(sortedList, state.filter.sortOrder);
+    state = state.copyWith(commands: sortedList);
+  }
+
+  void _applySort(List<Command> list, CommandSortOrder sortOrder) {
+    switch (sortOrder) {
+      case CommandSortOrder.dateDesc:
+        list.sort((a, b) => b.date.compareTo(a.date));
+        break;
+      case CommandSortOrder.dateAsc:
+        list.sort((a, b) => a.date.compareTo(b.date));
+        break;
+      case CommandSortOrder.amountDesc:
+        list.sort((a, b) => b.amountTTC.compareTo(a.amountTTC));
+        break;
+      case CommandSortOrder.amountAsc:
+        list.sort((a, b) => a.amountTTC.compareTo(b.amountTTC));
+        break;
+      case CommandSortOrder.nameAsc:
+        list.sort((a, b) => a.customerName.compareTo(b.customerName));
+        break;
+      case CommandSortOrder.nameDesc:
+        list.sort((a, b) => b.customerName.compareTo(a.customerName));
+        break;
+    }
   }
 
   void clearFilters() {

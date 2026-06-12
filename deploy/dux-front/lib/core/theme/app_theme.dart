@@ -7,7 +7,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: lightColorScheme,
-      scaffoldBackgroundColor: lightColorScheme.background,
+      scaffoldBackgroundColor: lightColorScheme.surface,
       fontFamily: 'Inter', // Default system fallback if font not loaded
       textTheme: const TextTheme(
         headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -0.5),
@@ -55,12 +55,12 @@ class AppTheme {
         floatingLabelStyle: TextStyle(color: lightColorScheme.primary),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: lightColorScheme.background,
+        backgroundColor: lightColorScheme.surface,
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: lightColorScheme.onBackground),
+        iconTheme: IconThemeData(color: lightColorScheme.onSurface),
         titleTextStyle: TextStyle(
-          color: lightColorScheme.onBackground,
+          color: lightColorScheme.onSurface,
           fontSize: 20,
           fontWeight: FontWeight.bold,
           fontFamily: 'Inter',
@@ -83,7 +83,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: darkColorScheme,
-      scaffoldBackgroundColor: darkColorScheme.background,
+      scaffoldBackgroundColor: darkColorScheme.surface,
       fontFamily: 'Inter',
       textTheme: const TextTheme(
         headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -0.5, color: Colors.white),
@@ -131,12 +131,12 @@ class AppTheme {
         floatingLabelStyle: TextStyle(color: darkColorScheme.primary),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: darkColorScheme.background,
+        backgroundColor: darkColorScheme.surface,
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: darkColorScheme.onBackground),
+        iconTheme: IconThemeData(color: darkColorScheme.onSurface),
         titleTextStyle: TextStyle(
-          color: darkColorScheme.onBackground,
+          color: darkColorScheme.onSurface,
           fontSize: 20,
           fontWeight: FontWeight.bold,
           fontFamily: 'Inter',

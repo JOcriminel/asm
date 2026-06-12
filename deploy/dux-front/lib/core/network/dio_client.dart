@@ -5,12 +5,13 @@ import 'auth_interceptor.dart';
 class AppConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:9090/api/dux',
+    defaultValue: 'https://skimmed-reapprove-editor.ngrok-free.dev/api/dux',
   );
 
   static const String keycloakTokenUrl = String.fromEnvironment(
     'KEYCLOAK_TOKEN_URL',
-    defaultValue: 'https://duxweb.pre-produx.asmtechtn.com/auth/realms/DuxWeb/protocol/openid-connect/token',
+    defaultValue:
+        'https://duxweb.pre-produx.asmtechtn.com/auth/realms/DuxWeb/protocol/openid-connect/token',
   );
 
   static const String keycloakClientId = String.fromEnvironment(
@@ -38,13 +39,15 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(AuthInterceptor(ref));
 
   // Enable request and response logging for debug and testing visibility
-  dio.interceptors.add(LogInterceptor(
-    requestHeader: true,
-    requestBody: true,
-    responseHeader: false,
-    responseBody: true,
-    error: true,
-  ));
+  dio.interceptors.add(
+    LogInterceptor(
+      requestHeader: true,
+      requestBody: true,
+      responseHeader: false,
+      responseBody: true,
+      error: true,
+    ),
+  );
 
   return dio;
 });

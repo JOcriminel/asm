@@ -6,6 +6,7 @@ import 'route_constants.dart';
 import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/home/presentation/screens/home_shell.dart';
 import '../../features/commands/presentation/screens/commands_list_screen.dart';
 import '../../features/command_details/presentation/screens/command_details_screen.dart';
@@ -23,7 +24,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loginLoc = RoutePaths.login;
       final splashLoc = RoutePaths.splash;
-      final commandsLoc = RoutePaths.commands;
+      final dashboardLoc = RoutePaths.dashboard;
 
       final isLoggedIn = authState.isAuthenticated;
       final isChecking = authState.isChecking;
@@ -43,7 +44,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // If logged in
       if (isGoingToLogin || isGoingToSplash) {
-        return commandsLoc;
+        return dashboardLoc;
       }
 
       return null;
@@ -64,6 +65,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           return HomeShell(navigationShell: navigationShell);
         },
         branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.dashboard,
+                name: RouteNames.dashboard,
+                builder: (context, state) => const DashboardScreen(),
+              ),
+            ],
+          ),
           StatefulShellBranch(
             routes: [
               GoRoute(

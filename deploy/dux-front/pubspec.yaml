@@ -43,6 +43,7 @@ dependencies:
   pdf: ^3.10.8
   printing: ^5.11.1
   barcode: ^2.2.9
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

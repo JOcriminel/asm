@@ -11,6 +11,7 @@ import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/station/presentation/controllers/station_controller.dart';
+import 'package:dux_front/core/theme/theme_controller.dart';
 import '../controllers/profile_controller.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -404,6 +405,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           value: formattedJoined,
                         ),
                       ],
+                    ),
+                  ),
+                  AppSpacing.gapL,
+
+                  // Theme Settings Card
+                  SectionHeader(title: 'Paramètres d\'affichage'),
+                  InfoCard(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final currentTheme = ref.watch(themeControllerProvider);
+                        final themeController = ref.read(themeControllerProvider.notifier);
+
+                        return Column(
+                          children: [
+                            RadioListTile<ThemeMode>(
+                              title: const Text('Système'),
+                              subtitle: const Text('S\'adapte aux paramètres de l\'appareil'),
+                              value: ThemeMode.system,
+                              groupValue: currentTheme,
+                              onChanged: (mode) => themeController.setThemeMode(mode!),
+                              secondary: const Icon(Icons.settings_suggest_rounded),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            const Divider(height: 1),
+                            RadioListTile<ThemeMode>(
+                              title: const Text('Clair'),
+                              value: ThemeMode.light,
+                              groupValue: currentTheme,
+                              onChanged: (mode) => themeController.setThemeMode(mode!),
+                              secondary: const Icon(Icons.light_mode_rounded),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                            const Divider(height: 1),
+                            RadioListTile<ThemeMode>(
+                              title: const Text('Sombre'),
+                              value: ThemeMode.dark,
+                              groupValue: currentTheme,
+                              onChanged: (mode) => themeController.setThemeMode(mode!),
+                              secondary: const Icon(Icons.dark_mode_rounded),
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                   AppSpacing.gapXxl,

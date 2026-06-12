@@ -50,25 +50,25 @@ class StatusBadge extends StatelessWidget {
         case 'validated':
         case 'delivered':
         case 'active':
-          bg = const Color(0xFF065F46).withOpacity(0.2);
+          bg = const Color(0xFF065F46).withValues(alpha: 0.2);
           fg = const Color(0xFF34D399); // Green 400
           break;
         case 'pending':
         case 'in_progress':
         case 'validated_representative':
-          bg = const Color(0xFF92400E).withOpacity(0.2);
+          bg = const Color(0xFF92400E).withValues(alpha: 0.2);
           fg = const Color(0xFFFBBF24); // Yellow 400
           break;
         case 'cancelled':
         case 'rejected':
         case 'inactive':
-          bg = const Color(0xFF991B1B).withOpacity(0.2);
+          bg = const Color(0xFF991B1B).withValues(alpha: 0.2);
           fg = const Color(0xFFF87171); // Red 400
           break;
         case 'created':
         case 'draft':
         default:
-          bg = const Color(0xFF1E40AF).withOpacity(0.2);
+          bg = const Color(0xFF1E40AF).withValues(alpha: 0.2);
           fg = const Color(0xFF60A5FA); // Blue 400
           break;
       }

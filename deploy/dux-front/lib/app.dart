@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 
-// Simple Theme Mode Provider to allow switching modes in the future
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+import 'core/theme/theme_controller.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -12,7 +11,7 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeMode = ref.watch(themeModeProvider);
+    final themeMode = ref.watch(themeControllerProvider);
 
     return MaterialApp.router(
       title: 'AW-Dux',

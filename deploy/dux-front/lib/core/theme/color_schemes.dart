@@ -19,9 +19,7 @@ const ColorScheme lightColorScheme = ColorScheme(
   primary: _lightPrimary,
   onPrimary: _lightOnPrimary,
   secondary: _lightSecondary,
-  onSecondary: Colors.white,
-  background: _lightBackground,
-  onBackground: Color(0xFF111827), // Gray 900
+  onSecondary: Colors.white, // Gray 900
   surface: _lightSurface,
   onSurface: Color(0xFF111827), // Gray 900
   error: _lightError,
@@ -36,9 +34,7 @@ const ColorScheme darkColorScheme = ColorScheme(
   primary: _darkPrimary,
   onPrimary: _darkOnPrimary,
   secondary: _darkSecondary,
-  onSecondary: Color(0xFF111827),
-  background: _darkBackground,
-  onBackground: Color(0xFFF9FAFB), // Gray 50
+  onSecondary: Color(0xFF111827), // Gray 50
   surface: _darkSurface,
   onSurface: Color(0xFFF9FAFB), // Gray 50
   error: _darkError,

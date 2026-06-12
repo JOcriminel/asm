@@ -24,7 +24,7 @@ class AppFilterChip extends StatelessWidget {
     final activeFg = theme.colorScheme.onPrimary;
     
     final inactiveBg = theme.colorScheme.surface;
-    final inactiveFg = theme.colorScheme.onBackground;
+    final inactiveFg = theme.colorScheme.onSurface;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),

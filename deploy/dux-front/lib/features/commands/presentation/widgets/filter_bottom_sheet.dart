@@ -29,6 +29,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   final _articleController = TextEditingController();
   bool _allDocuments = true;
   bool _advancedFilterActive = false;
+  CommandSortOrder _sortOrder = CommandSortOrder.dateDesc;
 
   @override
   void initState() {
@@ -43,6 +44,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     _articleController.text = filter.articleFilter ?? '';
     _allDocuments = filter.allDocuments;
     _advancedFilterActive = filter.advancedFilterActive;
+    _sortOrder = filter.sortOrder;
   }
 
   @override
@@ -138,6 +140,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       _articleController.clear();
                       _allDocuments = true;
                       _advancedFilterActive = false;
+                      _sortOrder = CommandSortOrder.dateDesc;
                     });
                   },
                   child: const Text('Reset All'),
@@ -161,6 +164,34 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
               },
               contentPadding: EdgeInsets.zero,
               activeColor: theme.colorScheme.primary,
+            ),
+            const Divider(),
+
+            // Sorting Selection
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.xs),
+              child: DropdownButtonFormField<CommandSortOrder>(
+                value: _sortOrder,
+                decoration: const InputDecoration(
+                  labelText: 'Trier par',
+                  prefixIcon: Icon(Icons.sort_rounded, size: 20),
+                ),
+                items: const [
+                  DropdownMenuItem(value: CommandSortOrder.dateDesc, child: Text('Date (Plus récent)')),
+                  DropdownMenuItem(value: CommandSortOrder.dateAsc, child: Text('Date (Plus ancien)')),
+                  DropdownMenuItem(value: CommandSortOrder.amountDesc, child: Text('Montant (Décroissant)')),
+                  DropdownMenuItem(value: CommandSortOrder.amountAsc, child: Text('Montant (Croissant)')),
+                  DropdownMenuItem(value: CommandSortOrder.nameAsc, child: Text('Client (A-Z)')),
+                  DropdownMenuItem(value: CommandSortOrder.nameDesc, child: Text('Client (Z-A)')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _sortOrder = value;
+                    });
+                  }
+                },
+              ),
             ),
             const Divider(),
 
@@ -299,6 +330,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                   allDocuments: _allDocuments,
                   articleFilter: _articleController.text,
                   advancedFilterActive: _advancedFilterActive,
+                  sortOrder: _sortOrder,
                 );
                 widget.onApply(applied);
                 Navigator.pop(context);

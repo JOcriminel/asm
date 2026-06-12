@@ -27,7 +27,7 @@ class ErrorStateWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(AppSpacing.l),
               decoration: BoxDecoration(
-                color: theme.colorScheme.error.withOpacity(0.08),
+                color: theme.colorScheme.error.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: Icon(

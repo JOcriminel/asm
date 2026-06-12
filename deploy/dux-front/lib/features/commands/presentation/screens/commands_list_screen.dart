@@ -11,6 +11,7 @@ import 'package:dux_front/core/widgets/empty_state_widget.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import '../controllers/commands_controller.dart';
 import '../widgets/filter_bottom_sheet.dart';
+import 'package:dux_front/core/services/search_history_service.dart';
 
 class CommandsListScreen extends ConsumerStatefulWidget {
   const CommandsListScreen({super.key});
@@ -66,6 +67,7 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = ref.watch(commandsControllerProvider);
+    final recentSearches = ref.watch(searchHistoryProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -94,8 +96,18 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
             child: AppSearchBar(
               controller: _searchController,
               hintText: 'Search code, customer or representative...',
+              recentSearches: recentSearches,
               onChanged: (value) {
                 ref.read(commandsControllerProvider.notifier).updateSearchQuery(value);
+              },
+              onRecentSearchTapped: (value) {
+                ref.read(commandsControllerProvider.notifier).updateSearchQuery(value);
+                ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
+              },
+              onSearchSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
+                }
               },
             ),
           ),

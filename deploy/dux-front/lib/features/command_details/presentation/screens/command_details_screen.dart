@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +12,7 @@ import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/widgets/primary_button.dart';
 import '../controllers/command_details_controller.dart';
 import '../utils/pdf_generation_helper.dart';
+import 'package:dux_front/features/commands/domain/models/command.dart';
 
 class CommandDetailsScreen extends ConsumerWidget {
   final String commandId;
@@ -38,6 +40,19 @@ class CommandDetailsScreen extends ConsumerWidget {
             }
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Copier le lien',
+            onPressed: () {
+              final url = 'duxapp://commands/details/$commandId';
+              Clipboard.setData(ClipboardData(text: url));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Lien copié dans le presse-papiers !')),
+              );
+            },
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -107,7 +122,7 @@ class CommandDetailsScreen extends ConsumerWidget {
 
                   // Timeline Stepper Block
                   SectionHeader(title: 'Order Timeline'),
-                  _buildTimelineWidget(theme, command.timeline),
+                  _buildTimelineWidget(theme, command),
                   AppSpacing.gapL,
 
                   // Details Block (Responsive layout splitting)
@@ -159,11 +174,37 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTimelineWidget(ThemeData theme, dynamic timeline) {
+  Widget _buildTimelineWidget(ThemeData theme, Command command) {
+    final timeline = command.timeline;
+    final statusLower = command.status.toLowerCase();
+
+    // An order is validated if its status indicates validation or delivery
+    final isValidatedStatus = statusLower.contains('valid') ||
+        statusLower.contains('confirm') ||
+        statusLower.contains('deliver') ||
+        statusLower.contains('livr') ||
+        statusLower.contains('activ');
+
+    // An order is delivered if its status indicates delivery
+    final isDeliveredStatus = statusLower.contains('deliver') ||
+        statusLower.contains('livr');
+
     final stages = [
-      {'title': 'Created', 'date': timeline.created},
-      {'title': 'Validated', 'date': timeline.validated},
-      {'title': 'Delivered', 'date': timeline.delivered},
+      {
+        'title': 'Created',
+        'date': timeline.created,
+        'isCompleted': timeline.created != null,
+      },
+      {
+        'title': 'Validated',
+        'date': timeline.validated,
+        'isCompleted': timeline.validated != null && isValidatedStatus,
+      },
+      {
+        'title': 'Delivered',
+        'date': timeline.delivered,
+        'isCompleted': timeline.delivered != null && isDeliveredStatus,
+      },
     ];
 
     return InfoCard(
@@ -173,7 +214,7 @@ class CommandDetailsScreen extends ConsumerWidget {
         children: List.generate(stages.length, (index) {
           final stage = stages[index];
           final date = stage['date'] as DateTime?;
-          final isCompleted = date != null;
+          final isCompleted = stage['isCompleted'] as bool;
 
           return Expanded(
             child: Column(
@@ -197,7 +238,7 @@ class CommandDetailsScreen extends ConsumerWidget {
                       child: Divider(
                         color: index == stages.length - 1
                             ? Colors.transparent
-                            : (stages[index + 1]['date'] != null
+                            : ((stages[index + 1]['isCompleted'] as bool)
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.outline),
                         thickness: 2,
@@ -213,7 +254,7 @@ class CommandDetailsScreen extends ConsumerWidget {
                     color: isCompleted ? theme.colorScheme.onBackground : theme.colorScheme.secondary,
                   ),
                 ),
-                if (isCompleted) ...[
+                if (isCompleted && date != null) ...[
                   AppSpacing.gapXs,
                   Text(
                     DateFormat('MMM dd, HH:mm').format(date),

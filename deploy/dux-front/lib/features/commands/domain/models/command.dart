@@ -375,6 +375,15 @@ class Command {
       };
 }
 
+enum CommandSortOrder {
+  dateDesc,
+  dateAsc,
+  amountDesc,
+  amountAsc,
+  nameAsc,
+  nameDesc,
+}
+
 class CommandFilter {
   final DateTime? dateFrom;
   final DateTime? dateTo;
@@ -385,6 +394,7 @@ class CommandFilter {
   final bool allDocuments;
   final String? articleFilter;
   final bool advancedFilterActive;
+  final CommandSortOrder sortOrder;
 
   const CommandFilter({
     this.dateFrom,
@@ -396,6 +406,7 @@ class CommandFilter {
     this.allDocuments = false,
     this.articleFilter,
     this.advancedFilterActive = false,
+    this.sortOrder = CommandSortOrder.dateDesc,
   });
 
   CommandFilter copyWith({
@@ -408,6 +419,7 @@ class CommandFilter {
     bool? allDocuments,
     String? articleFilter,
     bool? advancedFilterActive,
+    CommandSortOrder? sortOrder,
     bool clearDates = false,
   }) {
     return CommandFilter(
@@ -420,6 +432,7 @@ class CommandFilter {
       allDocuments: allDocuments ?? this.allDocuments,
       articleFilter: articleFilter ?? this.articleFilter,
       advancedFilterActive: advancedFilterActive ?? this.advancedFilterActive,
+      sortOrder: sortOrder ?? this.sortOrder,
     );
   }
 

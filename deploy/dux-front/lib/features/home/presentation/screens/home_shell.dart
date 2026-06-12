@@ -45,6 +45,11 @@ class HomeShell extends StatelessWidget {
               ),
               destinations: const [
                 NavigationRailDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: Text('Dashboard'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.assignment_outlined),
                   selectedIcon: Icon(Icons.assignment),
                   label: Text('Commands'),
@@ -76,6 +81,11 @@ class HomeShell extends StatelessWidget {
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _onBranchSelected,
         destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
           NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
