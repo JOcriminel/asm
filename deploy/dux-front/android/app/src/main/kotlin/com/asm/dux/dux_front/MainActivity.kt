@@ -1,0 +1,5 @@
+package com.asm.dux.dux_front
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

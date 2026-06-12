@@ -4,6 +4,8 @@ import com.asm.dux.service.DuxUserService;
 import com.asm.dux.service.DuxStationService;
 import com.asm.dux.service.DuxDocumentService;
 import com.asm.dux.service.DuxDetailsDocService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClientException;
@@ -25,27 +27,33 @@ public class DuxController {
         this.detailsDocService = detailsDocService;
     }
 
+    private HttpHeaders jsonHeaders() {
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        return h;
+    }
+
     @GetMapping("/user")
     public ResponseEntity<String> user(
             @RequestParam(defaultValue = "admin") String login) {
 
         try {
             String result = userService.getUserByLogin(login);
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok().headers(jsonHeaders()).body(result);
 
         } catch (RestClientException e) {
             // HTTP call failed (timeout, connection refused, 4xx/5xx from remote)
-            String msg = """            
+            String msg = """
                     {"error": "DUX API call failed", "detail": "%s"}
                     """.formatted(e.getMessage().replace("\"", "'"));
-            return ResponseEntity.status(502).body(msg);
+            return ResponseEntity.status(502).headers(jsonHeaders()).body(msg);
 
         } catch (Exception e) {
             // Any other unexpected error
             String msg = """
                     {"error": "Internal error", "detail": "%s"}
                     """.formatted(e.getMessage().replace("\"", "'"));
-            return ResponseEntity.status(500).body(msg);
+            return ResponseEntity.status(500).headers(jsonHeaders()).body(msg);
         }
     }
 
@@ -53,21 +61,21 @@ public class DuxController {
     public ResponseEntity<String> station(@PathVariable String id) {
         try {
             String result = stationService.getStationById(id);
-            return ResponseEntity.ok(result);
+            return ResponseEntity.ok().headers(jsonHeaders()).body(result);
 
         } catch (RestClientException e) {
             // HTTP call failed (timeout, connection refused, 4xx/5xx from remote)
-            String msg = """            
+            String msg = """
                     {"error": "DUX API call failed", "detail": "%s"}
                     """.formatted(e.getMessage().replace("\"", "'"));
-            return ResponseEntity.status(502).body(msg);
+            return ResponseEntity.status(502).headers(jsonHeaders()).body(msg);
 
         } catch (Exception e) {
             // Any other unexpected error
             String msg = """
                     {"error": "Internal error", "detail": "%s"}
                     """.formatted(e.getMessage().replace("\"", "'"));
-            return ResponseEntity.status(500).body(msg);
+            return ResponseEntity.status(500).headers(jsonHeaders()).body(msg);
         }
     }
 
