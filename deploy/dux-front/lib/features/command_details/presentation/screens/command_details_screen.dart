@@ -8,7 +8,9 @@ import 'package:dux_front/core/widgets/section_header.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
+import 'package:dux_front/core/widgets/primary_button.dart';
 import '../controllers/command_details_controller.dart';
+import '../utils/pdf_generation_helper.dart';
 
 class CommandDetailsScreen extends ConsumerWidget {
   final String commandId;
@@ -130,6 +132,12 @@ class CommandDetailsScreen extends ConsumerWidget {
                   // Articles List Section
                   SectionHeader(title: 'Articles & Items'),
                   _buildArticlesList(theme, command.articles),
+                  AppSpacing.gapL,
+                  PrimaryButton(
+                    text: 'Imprimer le Bon de Commande',
+                    icon: Icons.print_rounded,
+                    onPressed: () => PdfGenerationHelper.printCommand(command),
+                  ),
                   AppSpacing.gapXxl,
                 ],
               ),
@@ -222,18 +230,84 @@ class CommandDetailsScreen extends ConsumerWidget {
 
   Widget _buildInfoSection(ThemeData theme, dynamic command) {
     return Column(
+      children: [
+        _buildCommandInfoCard(theme, command),
+        AppSpacing.gapL,
+        _buildClientInfoCard(theme, command),
+      ],
+    );
+  }
+
+  Widget _buildCommandInfoCard(ThemeData theme, dynamic command) {
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final formattedDocDate = dateFormat.format(command.date);
+    final formattedDelivDate = command.timeline.delivered != null
+        ? dateFormat.format(command.timeline.delivered!)
+        : 'N/A';
+    final exchangeRateStr = command.exchangeRate != null
+        ? command.exchangeRate!.toStringAsFixed(3)
+        : '1.000';
+
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(title: 'Logistics Information'),
+        SectionHeader(title: 'Détails du Document'),
         InfoCard(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
           child: Column(
             children: [
-              _buildInfoRow(theme, Icons.trending_up, 'Customer Tier', command.tier),
+              _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
               const Divider(),
-              _buildInfoRow(theme, Icons.badge_outlined, 'Representative', command.representative),
+              _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', command.codePiece ?? command.documentCode),
               const Divider(),
-              _buildInfoRow(theme, Icons.local_shipping_outlined, 'Delivery Address', command.deliveryAddress),
+              _buildInfoRow(theme, Icons.info_outline, 'Etat Document', command.status),
+              const Divider(),
+              _buildInfoRow(theme, Icons.person_outline, 'Préparé par', command.preparedBy ?? 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.assignment_turned_in_outlined, 'Concrétisé Par', command.concretizedBy ?? 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', command.representative),
+              const Divider(),
+              _buildInfoRow(theme, Icons.handshake, 'Apporteur', command.apporteur ?? 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.monetization_on_outlined, 'Devise', command.currency),
+              const Divider(),
+              _buildInfoRow(theme, Icons.currency_exchange_outlined, 'Taux de change', exchangeRateStr),
+              const Divider(),
+              _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
+              const Divider(),
+              _buildInfoRow(theme, Icons.storefront_outlined, 'Station', command.stationName.isNotEmpty ? command.stationName : 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.swap_horiz_outlined, 'Affecter sur', command.affecterSur ?? 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.person_pin_outlined, 'Client', command.customerName),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildClientInfoCard(ThemeData theme, dynamic command) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(title: 'Détails du Client'),
+        InfoCard(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+          child: Column(
+            children: [
+              _buildInfoRow(theme, Icons.business_outlined, 'Raison sociale', command.clientRaisonSociale ?? command.customerName),
+              const Divider(),
+              _buildInfoRow(theme, Icons.gavel_outlined, 'Matricule fiscale', command.clientTaxNumber ?? 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.location_on_outlined, 'Adresse', command.clientAddress ?? command.deliveryAddress),
+              const Divider(),
+              _buildInfoRow(theme, Icons.phone_outlined, 'Téléphone', command.clientPhone ?? (command.phone.isNotEmpty ? command.phone : 'N/A')),
+              const Divider(),
+              _buildInfoRow(theme, Icons.contact_phone_outlined, 'Personne à contacter', command.clientContactPerson ?? 'N/A'),
+              const Divider(),
+              _buildInfoRow(theme, Icons.perm_identity_outlined, 'état personnalisé', command.clientCustomStatus ?? 'N/A'),
             ],
           ),
         ),
@@ -242,7 +316,11 @@ class CommandDetailsScreen extends ConsumerWidget {
   }
 
   Widget _buildSummarySection(ThemeData theme, dynamic command) {
-    final currencyFormat = NumberFormat.currency(symbol: '€', decimalDigits: 2);
+    final currencyFormat = NumberFormat.currency(
+      locale: 'fr_TN',
+      symbol: 'DT',
+      decimalDigits: 3,
+    );
     final ht = currencyFormat.format(command.totalHT);
     final vat = currencyFormat.format(command.vat);
     final ttc = currencyFormat.format(command.totalTTC);
@@ -266,7 +344,7 @@ class CommandDetailsScreen extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('VAT (20%)', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary)),
+                  Text('TVA', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary)),
                   Text(vat, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
                 ],
               ),
@@ -294,52 +372,176 @@ class CommandDetailsScreen extends ConsumerWidget {
   }
 
   Widget _buildArticlesList(ThemeData theme, dynamic articles) {
-    final currencyFormat = NumberFormat.currency(symbol: '€', decimalDigits: 2);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 700;
+        final currencyFormat = NumberFormat.currency(
+          locale: 'fr_TN',
+          symbol: 'DT',
+          decimalDigits: 3,
+        );
 
-    return InfoCard(
-      padding: EdgeInsets.zero,
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: articles.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final item = articles[index];
-          final price = currencyFormat.format(item.unitPrice);
-          final total = currencyFormat.format(item.total);
-
-          return Padding(
-            padding: const EdgeInsets.all(AppSpacing.l),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      AppSpacing.gapXs,
-                      Text(
-                        'SKU: ${item.code} | Qty: ${item.quantity} x $price',
-                        style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
-                      ),
+        if (isWide) {
+          return InfoCard(
+            padding: EdgeInsets.zero,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                columnSpacing: 20,
+                columns: const [
+                  DataColumn(label: Text('Code')),
+                  DataColumn(label: Text('Désignation')),
+                  DataColumn(label: Text('Stock')),
+                  DataColumn(label: Text('Quantité')),
+                  DataColumn(label: Text('Unité')),
+                  DataColumn(label: Text('PUHT/U')),
+                  DataColumn(label: Text('R. %')),
+                  DataColumn(label: Text('Mnt Net HT')),
+                  DataColumn(label: Text('TVA %')),
+                  DataColumn(label: Text('PUTTC')),
+                  DataColumn(label: Text('TTC')),
+                  DataColumn(label: Text('Action')),
+                ],
+                rows: List.generate(articles.length, (index) {
+                  final item = articles[index];
+                  final isStockable = item.stock == '1' || item.stock == 'true';
+                  
+                  return DataRow(
+                    cells: [
+                      DataCell(Text(item.code, style: const TextStyle(fontFamily: 'monospace'))),
+                      DataCell(SizedBox(width: 150, child: Text(item.name, overflow: TextOverflow.ellipsis))),
+                      DataCell(Icon(
+                        isStockable ? Icons.check_circle_outline : Icons.highlight_off,
+                        color: isStockable ? Colors.green : Colors.red,
+                        size: 18,
+                      )),
+                      DataCell(Text('${item.quantity}')),
+                      DataCell(Text(item.unite ?? 'Pièce')),
+                      DataCell(Text(currencyFormat.format(item.unitPrice))),
+                      DataCell(Text('${item.discountPercent ?? 0.0} %')),
+                      DataCell(Text(currencyFormat.format(item.netHT ?? item.total))),
+                      DataCell(Text('${item.tvaPercent ?? 19.0} %')),
+                      DataCell(Text(currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19)))),
+                      DataCell(Text(currencyFormat.format(item.totalTTC ?? (item.total * 1.19)))),
+                      DataCell(IconButton(
+                        icon: const Icon(Icons.info_outline, size: 18),
+                        onPressed: () {
+                          _showItemDetailDialog(context, item);
+                        },
+                      )),
                     ],
-                  ),
-                ),
-                Text(
-                  total,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onBackground,
-                  ),
-                ),
-              ],
+                  );
+                }),
+              ),
             ),
           );
-        },
+        }
+
+        // Mobile list of cards
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: articles.length,
+          itemBuilder: (context, index) {
+            final item = articles[index];
+            final isStockable = item.stock == '1' || item.stock == 'true';
+            
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.m),
+              child: InfoCard(
+                padding: const EdgeInsets.all(AppSpacing.l),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.info_outline),
+                          onPressed: () => _showItemDetailDialog(context, item),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    _buildMobileDetailRow('Code', item.code),
+                    _buildMobileDetailRow('Stockable', isStockable ? 'Oui' : 'Non'),
+                    _buildMobileDetailRow('Quantité', '${item.quantity} ${item.unite ?? 'Pièce'}'),
+                    _buildMobileDetailRow('PUHT/U', currencyFormat.format(item.unitPrice)),
+                    _buildMobileDetailRow('Remise', '${item.discountPercent ?? 0.0} %'),
+                    _buildMobileDetailRow('Mnt Net HT', currencyFormat.format(item.netHT ?? item.total)),
+                    _buildMobileDetailRow('TVA', '${item.tvaPercent ?? 19.0} %'),
+                    _buildMobileDetailRow('PUTTC', currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))),
+                    _buildMobileDetailRow('Total TTC', currencyFormat.format(item.totalTTC ?? (item.total * 1.19)), isHighlight: true),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileDetailRow(String label, String value, {bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: isHighlight ? FontWeight.bold : FontWeight.w500,
+              color: isHighlight ? Colors.blue : null,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showItemDetailDialog(BuildContext context, dynamic item) {
+    final currencyFormat = NumberFormat.currency(
+      locale: 'fr_TN',
+      symbol: 'DT',
+      decimalDigits: 3,
+    );
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(item.name),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: [
+              Text('Code: ${item.code}'),
+              Text('Unité: ${item.unite ?? 'Pièce'}'),
+              Text('Quantité: ${item.quantity}'),
+              Text('PUHT/U: ${currencyFormat.format(item.unitPrice)}'),
+              Text('Remise: ${item.discountPercent ?? 0.0} %'),
+              Text('Net HT: ${currencyFormat.format(item.netHT ?? item.total)}'),
+              Text('TVA: ${item.tvaPercent ?? 19.0} %'),
+              Text('PUTTC: ${currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))}'),
+              Text('Total TTC: ${currencyFormat.format(item.totalTTC ?? (item.total * 1.19))}'),
+              Text('Stockable: ${item.stock == '1' || item.stock == 'true' ? 'Oui' : 'Non'}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Fermer'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
       ),
     );
   }

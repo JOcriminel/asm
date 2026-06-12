@@ -4,12 +4,14 @@ import com.asm.dux.service.DuxUserService;
 import com.asm.dux.service.DuxStationService;
 import com.asm.dux.service.DuxDocumentService;
 import com.asm.dux.service.DuxDetailsDocService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClientException;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/dux")
 public class DuxController {
@@ -19,8 +21,8 @@ public class DuxController {
     private final DuxDocumentService documentService;
     private final DuxDetailsDocService detailsDocService;
 
-    public DuxController(DuxUserService userService, DuxStationService stationService, 
-                         DuxDocumentService documentService, DuxDetailsDocService detailsDocService) {
+    public DuxController(DuxUserService userService, DuxStationService stationService,
+            DuxDocumentService documentService, DuxDetailsDocService detailsDocService) {
         this.userService = userService;
         this.stationService = stationService;
         this.documentService = documentService;
@@ -87,7 +89,7 @@ public class DuxController {
 
         } catch (RestClientException e) {
             // HTTP call failed (timeout, connection refused, 4xx/5xx from remote)
-            String msg = """            
+            String msg = """
                     {"error": "DUX API call failed", "detail": "%s"}
                     """.formatted(e.getMessage().replace("\"", "'"));
             return ResponseEntity.status(502).body(msg);
@@ -101,7 +103,7 @@ public class DuxController {
         }
     }
 
-    @PostMapping("/detailsDoc2/{from}/{to}/{idTier}/{repres}/{codeDoc}/{idEtat}/{all}/{allDocuments}/{idArticle}/{AffichAvanc}")
+    @PostMapping("/list-documents/{from}/{to}/{idTier}/{repres}/{codeDoc}/{idEtat}/{all}/{allDocuments}/{idArticle}/{AffichAvanc}")
     public ResponseEntity<String> detailsDoc2(
             @PathVariable String from,
             @PathVariable String to,
@@ -113,21 +115,34 @@ public class DuxController {
             @PathVariable String allDocuments,
             @PathVariable String idArticle,
             @PathVariable String AffichAvanc,
+            @RequestParam(required = false) String stationId,
             @RequestBody(required = false) String body) {
+        log.info(
+                "detailsDoc2 request - from: {}, to: {}, idTier: {}, repres: {}, codeDoc: {}, idEtat: {}, all: {}, allDocuments: {}, idArticle: {}, AffichAvanc: {}, stationId: {}",
+                from, to, idTier, repres, codeDoc, idEtat, all, allDocuments, idArticle, AffichAvanc, stationId);
+        
+        String requestBody = body;
+        if (requestBody == null || requestBody.trim().isEmpty()) {
+            requestBody = "{\"idDocCommercial\":[],\"idTierModal\":null,\"event\":{\"first\":0,\"rows\":20,\"sortOrder\":1,\"filters\":{},\"globalFilter\":null}}";
+        }
+
         try {
-            String result = detailsDocService.getDetailsDoc(from, to, idTier, repres, codeDoc, 
-                                                            idEtat, all, allDocuments, idArticle, 
-                                                            AffichAvanc, body);
+            String result = detailsDocService.getDetailsDoc(from, to, idTier, repres, codeDoc,
+                    idEtat, all, allDocuments, idArticle,
+                    AffichAvanc, stationId, requestBody);
+            log.info("detailsDoc2 success - response length: {}", result != null ? result.length() : 0);
             return ResponseEntity.ok(result);
 
         } catch (RestClientException e) {
+            log.error("DUX API call failed in detailsDoc2: {}", e.getMessage());
             // HTTP call failed (timeout, connection refused, 4xx/5xx from remote)
-            String msg = """            
+            String msg = """
                     {"error": "DUX API call failed", "detail": "%s"}
                     """.formatted(e.getMessage().replace("\"", "'"));
             return ResponseEntity.status(502).body(msg);
 
         } catch (Exception e) {
+            log.error("Internal error in detailsDoc2: ", e);
             // Any other unexpected error
             String msg = """
                     {"error": "Internal error", "detail": "%s"}

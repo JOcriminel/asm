@@ -30,9 +30,29 @@ class CommandMapper {
                     name: e.name ?? 'Article inconnu',
                     quantity: e.quantity ?? 0,
                     unitPrice: e.unitPrice ?? 0.0,
+                    unite: e.unite,
+                    discountPercent: e.discountPercent,
+                    netHT: e.netHT,
+                    tvaPercent: e.tvaPercent,
+                    puTTC: e.puTTC,
+                    totalTTC: e.totalTTC,
+                    stock: e.stock,
                   ))
               .toList() ??
           [],
+      // New detailed fields
+      codePiece: dto.codePiece,
+      preparedBy: dto.preparedBy,
+      concretizedBy: dto.concretizedBy,
+      apporteur: dto.apporteur,
+      exchangeRate: dto.exchangeRate,
+      affecterSur: dto.affecterSur,
+      clientRaisonSociale: dto.clientRaisonSociale,
+      clientTaxNumber: dto.clientTaxNumber,
+      clientAddress: dto.clientAddress,
+      clientPhone: dto.clientPhone,
+      clientContactPerson: dto.clientContactPerson,
+      clientCustomStatus: dto.clientCustomStatus,
       timeline: CommandTimeline(
         created: dto.timeline?.created != null
             ? _parseDate(dto.timeline!.created)

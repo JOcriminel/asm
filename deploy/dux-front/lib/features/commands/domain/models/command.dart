@@ -4,6 +4,13 @@ class ArticleItem {
   final String name;
   final int quantity;
   final double unitPrice;
+  final String? unite;
+  final double? discountPercent;
+  final double? netHT;
+  final double? tvaPercent;
+  final double? puTTC;
+  final double? totalTTC;
+  final String? stock;
 
   double get total => quantity * unitPrice;
 
@@ -13,6 +20,13 @@ class ArticleItem {
     required this.name,
     required this.quantity,
     required this.unitPrice,
+    this.unite,
+    this.discountPercent,
+    this.netHT,
+    this.tvaPercent,
+    this.puTTC,
+    this.totalTTC,
+    this.stock,
   });
 
   factory ArticleItem.fromJson(Map<String, dynamic> json) {
@@ -22,6 +36,13 @@ class ArticleItem {
       name: json['name'] as String? ?? '',
       quantity: json['quantity'] as int? ?? 0,
       unitPrice: (json['unitPrice'] as num? ?? 0.0).toDouble(),
+      unite: json['unite'] as String?,
+      discountPercent: (json['discountPercent'] as num?)?.toDouble(),
+      netHT: (json['netHT'] as num?)?.toDouble(),
+      tvaPercent: (json['tvaPercent'] as num?)?.toDouble(),
+      puTTC: (json['puTTC'] as num?)?.toDouble(),
+      totalTTC: (json['totalTTC'] as num?)?.toDouble(),
+      stock: json['stock'] as String?,
     );
   }
 
@@ -31,6 +52,13 @@ class ArticleItem {
         'name': name,
         'quantity': quantity,
         'unitPrice': unitPrice,
+        'unite': unite,
+        'discountPercent': discountPercent,
+        'netHT': netHT,
+        'tvaPercent': tvaPercent,
+        'puTTC': puTTC,
+        'totalTTC': totalTTC,
+        'stock': stock,
       };
 }
 
@@ -204,6 +232,20 @@ class Command {
   final CommandTimeline timeline;
   final ClasseDocument? classeDocument;
 
+  // New detailed fields
+  final String? codePiece;
+  final String? preparedBy;
+  final String? concretizedBy;
+  final String? apporteur;
+  final double? exchangeRate;
+  final String? affecterSur;
+  final String? clientRaisonSociale;
+  final String? clientTaxNumber;
+  final String? clientAddress;
+  final String? clientPhone;
+  final String? clientContactPerson;
+  final String? clientCustomStatus;
+
   // Computed
   double get totalHT => amount;
   double get vat => amountTVA > 0 ? amountTVA : amount * 0.19;
@@ -232,6 +274,19 @@ class Command {
     required this.articles,
     required this.timeline,
     this.classeDocument,
+    // New fields
+    this.codePiece,
+    this.preparedBy,
+    this.concretizedBy,
+    this.apporteur,
+    this.exchangeRate,
+    this.affecterSur,
+    this.clientRaisonSociale,
+    this.clientTaxNumber,
+    this.clientAddress,
+    this.clientPhone,
+    this.clientContactPerson,
+    this.clientCustomStatus,
   });
 
   factory Command.fromJson(Map<String, dynamic> json) {
@@ -265,6 +320,19 @@ class Command {
       classeDocument: json['classeDocument'] != null
           ? ClasseDocument.fromJson(json['classeDocument'] as Map<String, dynamic>)
           : null,
+      // New fields
+      codePiece: json['codePiece'] as String?,
+      preparedBy: json['preparedBy'] as String?,
+      concretizedBy: json['concretizedBy'] as String?,
+      apporteur: json['apporteur'] as String?,
+      exchangeRate: (json['exchangeRate'] as num?)?.toDouble(),
+      affecterSur: json['affecterSur'] as String?,
+      clientRaisonSociale: json['clientRaisonSociale'] as String?,
+      clientTaxNumber: json['clientTaxNumber'] as String?,
+      clientAddress: json['clientAddress'] as String?,
+      clientPhone: json['clientPhone'] as String?,
+      clientContactPerson: json['clientContactPerson'] as String?,
+      clientCustomStatus: json['clientCustomStatus'] as String?,
     );
   }
 
@@ -291,6 +359,19 @@ class Command {
         'articles': articles.map((e) => e.toJson()).toList(),
         'timeline': timeline.toJson(),
         'classeDocument': classeDocument?.toJson(),
+        // New fields
+        'codePiece': codePiece,
+        'preparedBy': preparedBy,
+        'concretizedBy': concretizedBy,
+        'apporteur': apporteur,
+        'exchangeRate': exchangeRate,
+        'affecterSur': affecterSur,
+        'clientRaisonSociale': clientRaisonSociale,
+        'clientTaxNumber': clientTaxNumber,
+        'clientAddress': clientAddress,
+        'clientPhone': clientPhone,
+        'clientContactPerson': clientContactPerson,
+        'clientCustomStatus': clientCustomStatus,
       };
 }
 

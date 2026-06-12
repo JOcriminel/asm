@@ -1,4 +1,4 @@
-// ─── Safe numeric helpers ──────────────────────────────────────────────────
+// ─── Safe numeric and boolean helpers ──────────────────────────────────────
 
 double? _toDouble(dynamic v) {
   if (v == null) return null;
@@ -11,7 +11,17 @@ int? _toInt(dynamic v) {
   if (v == null) return null;
   if (v is int) return v;
   if (v is num) return v.toInt();
-  return int.tryParse(v.toString().trim());
+  final s = v.toString().trim();
+  final d = double.tryParse(s);
+  if (d != null) return d.toInt();
+  return int.tryParse(s);
+}
+
+bool? _toBool(dynamic v) {
+  if (v == null) return null;
+  if (v is bool) return v;
+  final s = v.toString().trim().toLowerCase();
+  return s == '1' || s == 'true';
 }
 
 // ─── Article line item ─────────────────────────────────────────────────────
@@ -22,8 +32,28 @@ class ArticleItemDto {
   final String? name;
   final int? quantity;
   final double? unitPrice;
+  final String? unite;
+  final double? discountPercent;
+  final double? netHT;
+  final double? tvaPercent;
+  final double? puTTC;
+  final double? totalTTC;
+  final String? stock;
 
-  ArticleItemDto({this.id, this.code, this.name, this.quantity, this.unitPrice});
+  ArticleItemDto({
+    this.id,
+    this.code,
+    this.name,
+    this.quantity,
+    this.unitPrice,
+    this.unite,
+    this.discountPercent,
+    this.netHT,
+    this.tvaPercent,
+    this.puTTC,
+    this.totalTTC,
+    this.stock,
+  });
 
   factory ArticleItemDto.fromJson(Map<String, dynamic> json) {
     return ArticleItemDto(
@@ -33,15 +63,25 @@ class ArticleItemDto {
           json['ref']?.toString(),
       name: json['name']?.toString() ??
           json['libelle']?.toString() ??
+          json['libelleArticle']?.toString() ??
+          json['libelleCourte']?.toString() ??
           json['designation']?.toString() ??
           json['libArticle']?.toString(),
       quantity: _toInt(json['quantity']) ??
           _toInt(json['qte']) ??
           _toInt(json['quantite']),
       unitPrice: _toDouble(json['unitPrice']) ??
+          _toDouble(json['puht']) ??
           _toDouble(json['prix']) ??
           _toDouble(json['pu']) ??
           _toDouble(json['prixUnitaire']),
+      unite: json['libelleUnite']?.toString() ?? json['unite']?.toString(),
+      discountPercent: _toDouble(json['tauxRemise']) ?? _toDouble(json['discountPercent']),
+      netHT: _toDouble(json['mntNetht']) ?? _toDouble(json['netHT']),
+      tvaPercent: _toDouble(json['tauxTva']) ?? _toDouble(json['tvaPercent']),
+      puTTC: _toDouble(json['puttc']) ?? _toDouble(json['puTTC']),
+      totalTTC: _toDouble(json['mntttc']) ?? _toDouble(json['totalTTC']),
+      stock: json['isStockable']?.toString() ?? json['stock']?.toString(),
     );
   }
 
@@ -51,6 +91,13 @@ class ArticleItemDto {
         'name': name,
         'quantity': quantity,
         'unitPrice': unitPrice,
+        'unite': unite,
+        'discountPercent': discountPercent,
+        'netHT': netHT,
+        'tvaPercent': tvaPercent,
+        'puTTC': puTTC,
+        'totalTTC': totalTTC,
+        'stock': stock,
       };
 }
 
@@ -150,25 +197,25 @@ class ClasseDocumentDto {
       libelle: json['libelle']?.toString(),
       titre: json['titre']?.toString(),
       titreImprimable: json['titreImprimable']?.toString(),
-      affecteStock: json['affecteStock'] as bool?,
-      affecteSolde: json['affecteSolde'] as bool?,
-      affectecmp: json['affectecmp'] as bool?,
-      isInput: json['isInput'] as bool?,
-      isOutput: json['isOutput'] as bool?,
+      affecteStock: _toBool(json['affecteStock']),
+      affecteSolde: _toBool(json['affecteSolde']),
+      affectecmp: _toBool(json['affectecmp']),
+      isInput: _toBool(json['isInput']),
+      isOutput: _toBool(json['isOutput']),
       idTypeCalcul: json['idTypeCalcul']?.toString(),
-      isAchat: json['isAchat'] as bool?,
-      isVente: json['isVente'] as bool?,
-      useMainStationRegime: json['useMainStationRegime'] as bool?,
+      isAchat: _toBool(json['isAchat']),
+      isVente: _toBool(json['isVente']),
+      useMainStationRegime: _toBool(json['useMainStationRegime']),
       prefixe: json['prefixe']?.toString(),
       numAtteint: _toInt(json['numAtteint']),
-      isTvaConsider: json['isTvaConsider'] as bool?,
-      isReglable: json['isReglable'] as bool?,
-      isFacturable: json['isFacturable'] as bool?,
-      useDestination: json['useDestination'] as bool?,
-      isFacture: json['isFacture'] as bool?,
-      isAvoir: json['isAvoir'] as bool?,
-      isRepDachat: json['isRep_Dachat'] as bool?,
-      transformable: json['transformable'] as bool?,
+      isTvaConsider: _toBool(json['isTvaConsider']),
+      isReglable: _toBool(json['isReglable']),
+      isFacturable: _toBool(json['isFacturable']),
+      useDestination: _toBool(json['useDestination']),
+      isFacture: _toBool(json['isFacture']),
+      isAvoir: _toBool(json['isAvoir']),
+      isRepDachat: _toBool(json['isRep_Dachat']),
+      transformable: _toBool(json['transformable']),
       couleur: json['couleur']?.toString(),
     );
   }
@@ -229,6 +276,20 @@ class CommandDto {
   final CommandTimelineDto? timeline;
   final ClasseDocumentDto? classeDocument;
 
+  // New detailed fields
+  final String? codePiece;
+  final String? preparedBy;
+  final String? concretizedBy;
+  final String? apporteur;
+  final double? exchangeRate;
+  final String? affecterSur;
+  final String? clientRaisonSociale;
+  final String? clientTaxNumber;
+  final String? clientAddress;
+  final String? clientPhone;
+  final String? clientContactPerson;
+  final String? clientCustomStatus;
+
   CommandDto({
     this.id,
     this.documentCode,
@@ -254,11 +315,25 @@ class CommandDto {
     this.articles,
     this.timeline,
     this.classeDocument,
+    // New fields
+    this.codePiece,
+    this.preparedBy,
+    this.concretizedBy,
+    this.apporteur,
+    this.exchangeRate,
+    this.affecterSur,
+    this.clientRaisonSociale,
+    this.clientTaxNumber,
+    this.clientAddress,
+    this.clientPhone,
+    this.clientContactPerson,
+    this.clientCustomStatus,
   });
 
   factory CommandDto.fromJson(Map<String, dynamic> json) {
     // Article lines — not included in list response, only in detail response
     final rawArticles = json['articles'] as List? ??
+        json['listeArticles'] as List? ??
         json['lignes'] as List? ??
         json['details'] as List? ??
         json['lignesDoc'] as List?;
@@ -273,9 +348,11 @@ class CommandDto {
       created: json['dateDocument']?.toString() ??
           json['dateCreation']?.toString() ??
           json['dateSaisie']?.toString(),
-      validated: json['dateValidation']?.toString(),
+      validated: json['dateValidation']?.toString() ?? json['datevalidite']?.toString(),
       delivered: json['dateLivraison']?.toString(),
     );
+
+    final tierMap = json['tier'] is Map ? json['tier'] as Map<String, dynamic> : null;
 
     return CommandDto(
       // ── Identity ──────────────────────────────────────────
@@ -307,12 +384,18 @@ class CommandDto {
       // ── Status ────────────────────────────────────────────
       // DUX list response uses libelleEtatDoc
       status: json['libelleEtatDoc']?.toString() ??
+          (json['etatDocument'] is List && (json['etatDocument'] as List).isNotEmpty
+              ? (json['etatDocument'] as List).first['libelle']?.toString()
+              : null) ??
           json['status']?.toString() ??
           json['etat']?.toString() ??
           json['idEtat']?.toString(),
 
       // Status badge color from the API (e.g. "rgba(15, 11, 238, 1.00)")
-      statusColor: json['couleurEtatDoc']?.toString(),
+      statusColor: json['couleurEtatDoc']?.toString() ??
+          (json['etatDocument'] is List && (json['etatDocument'] as List).isNotEmpty
+              ? (json['etatDocument'] as List).first['CouleurWeb']?.toString()
+              : null),
 
       // ── Amounts ───────────────────────────────────────────
       // DUX returns mntNetht (net HT), mntTtc (TTC), mntTva (TVA)
@@ -360,21 +443,38 @@ class CommandDto {
       documentTypeCode: json['codeClasseDocument']?.toString(),
 
       // ── Station ───────────────────────────────────────────
-      stationName: json['libelleStation']?.toString(),
+      stationName: json['libelleStation']?.toString() ??
+          (json['station'] is Map ? (json['station'] as Map)['libelle']?.toString() : null),
       idStation: json['idStation']?.toString(),
 
       // ── Currency ──────────────────────────────────────────
       // symbole: "DT", codeDev: "TND"
       currency: json['symbole']?.toString() ??
-          json['codeDev']?.toString(),
+          json['codeDev']?.toString() ??
+          (json['devise'] is Map ? (json['devise'] as Map)['symbole']?.toString() : null) ??
+          (json['devise'] is Map ? (json['devise'] as Map)['code']?.toString() : null),
 
-      isVente: json['isVente'] as bool?,
+      isVente: _toBool(json['isVente']),
 
       articles: articlesDtos,
       timeline: timeline,
       classeDocument: json['classeDocument'] != null
           ? ClasseDocumentDto.fromJson(json['classeDocument'] as Map<String, dynamic>)
           : null,
+      // New fields mapping
+      codePiece: json['codePiece']?.toString(),
+      preparedBy: json['preparePar']?.toString() ?? json['userSaisie']?.toString() ?? json['j_codeUser']?.toString(),
+      concretizedBy: json['concretisePar']?.toString() ?? json['nomPrenomTechnicien']?.toString() ?? json['technicien']?.toString() ?? json['Id_Technicien']?.toString(),
+      apporteur: json['nomPrenomApporteur']?.toString() ?? json['apporteur']?.toString() ?? json['id_Apporteur']?.toString(),
+      exchangeRate: _toDouble(json['tauxChange']),
+      affecterSur: json['affecterSur']?.toString() ?? json['affecteSur']?.toString() ?? json['idVehicule']?.toString(),
+
+      clientRaisonSociale: tierMap?['raisonSociale']?.toString() ?? tierMap?['nomPrenomTier']?.toString() ?? json['raisonSociale']?.toString() ?? json['nomPrenomTier']?.toString(),
+      clientTaxNumber: tierMap?['matriculeFiscal']?.toString() ?? tierMap?['matriculeFiscale']?.toString() ?? json['matriculeFiscal']?.toString() ?? json['matriculeFiscale']?.toString(),
+      clientAddress: tierMap?['adresseTier']?.toString() ?? tierMap?['adresse']?.toString() ?? json['adresseTier']?.toString() ?? json['adresse']?.toString(),
+      clientPhone: tierMap?['telTier']?.toString() ?? tierMap?['tel']?.toString() ?? tierMap?['telephone']?.toString() ?? json['telTier']?.toString() ?? json['tel']?.toString(),
+      clientContactPerson: tierMap?['responsableContact']?.toString() ?? tierMap?['contact']?.toString() ?? tierMap?['personneContacter']?.toString() ?? json['responsableContact']?.toString() ?? json['contact']?.toString(),
+      clientCustomStatus: tierMap?['etatPersonnalise']?.toString() ?? tierMap?['etatTier']?.toString() ?? tierMap?['etatClient']?.toString() ?? json['etatPersonnalise']?.toString() ?? json['etatTier']?.toString(),
     );
   }
 
@@ -402,5 +502,18 @@ class CommandDto {
         'articles': articles?.map((e) => e.toJson()).toList(),
         'timeline': timeline?.toJson(),
         'classeDocument': classeDocument?.toJson(),
+        // New fields
+        'codePiece': codePiece,
+        'preparedBy': preparedBy,
+        'concretizedBy': concretizedBy,
+        'apporteur': apporteur,
+        'exchangeRate': exchangeRate,
+        'affecterSur': affecterSur,
+        'clientRaisonSociale': clientRaisonSociale,
+        'clientTaxNumber': clientTaxNumber,
+        'clientAddress': clientAddress,
+        'clientPhone': clientPhone,
+        'clientContactPerson': clientContactPerson,
+        'clientCustomStatus': clientCustomStatus,
       };
 }

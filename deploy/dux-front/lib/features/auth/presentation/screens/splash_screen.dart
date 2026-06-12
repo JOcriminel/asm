@@ -13,28 +13,15 @@ class SplashScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Simulating a premium, sleek logo
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.6)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: AppBorderRadius.roundedL,
-                boxShadow: AppShadows.softShadow(context),
-              ),
-              child: const Icon(
-                Icons.bolt_rounded,
-                size: 44,
-                color: Colors.white,
-              ),
+            Image.asset(
+              'assets/images/logo.png',
+              width: 120,
+              height: 120,
+              fit: BoxFit.contain,
             ),
             AppSpacing.gapXl,
             Text(
-              'DUX',
+              'AW-Dux',
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w900,
                 letterSpacing: 2,

@@ -10,6 +10,7 @@ import 'package:dux_front/core/widgets/app_text_field.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:dux_front/features/station/presentation/controllers/station_controller.dart';
 import '../controllers/profile_controller.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -155,6 +156,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = ref.watch(profileControllerProvider);
+    final stationState = ref.watch(stationControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -186,6 +188,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
           final profile = state.profile!;
           final formattedJoined = DateFormat('dd MMMM yyyy, HH:mm').format(profile.joinedDate);
+          final stationName = stationState.station?.name ?? (stationState.isLoading ? 'Chargement...' : profile.station);
 
           Widget content = RefreshIndicator(
             onRefresh: () => ref.read(profileControllerProvider.notifier).fetchProfile(),
@@ -261,7 +264,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         Chip(
                           avatar: const Icon(Icons.business_rounded, size: 16, color: Colors.white),
                           label: Text(
-                            profile.station,
+                            stationName,
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                           ),
                           backgroundColor: Colors.white.withOpacity(0.2),
@@ -376,9 +379,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       children: [
                         _buildDetailRow(
                           icon: Icons.business_rounded,
-                          label: 'Station',
-                          value: profile.station,
-                          onCopy: () => _copyToClipboard(profile.station, 'Station'),
+                          label: 'Nom de la Station',
+                          value: stationName,
+                          onCopy: () => _copyToClipboard(stationName, 'Nom de la Station'),
                         ),
                         const Divider(),
                         _buildDetailRow(

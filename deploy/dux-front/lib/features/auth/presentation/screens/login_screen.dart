@@ -77,26 +77,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Center(
                           child: Column(
                             children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.6)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: AppBorderRadius.roundedM,
-                                ),
-                                child: const Icon(
-                                  Icons.bolt_rounded,
-                                  size: 36,
-                                  color: Colors.white,
-                                ),
+                              Image.asset(
+                                'assets/images/logo.png',
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.contain,
                               ),
                               AppSpacing.gapL,
                               Text(
-                                'Welcome Back',
+                                'Welcome to AW-Dux',
                                 style: theme.textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -206,16 +195,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           text: 'Sign In',
                           isLoading: authState.isLoading,
                           onPressed: _onLoginPressed,
-                        ),
-                        AppSpacing.gapM,
-                        Center(
-                          child: Text(
-                            'Password is "error" to simulate invalid login',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: theme.colorScheme.secondary.withOpacity(0.6),
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
                         ),
                       ],
                     ),
