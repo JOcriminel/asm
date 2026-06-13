@@ -119,12 +119,13 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             }
 
             if (nextEmptyIndex != null) {
+              final index = nextEmptyIndex; // Assign to local non-nullable to help flow analysis
               setState(() {
-                _controllers[nextEmptyIndex].text = scannedCode;
+                _controllers[index].text = scannedCode;
                 _validationError = null;
               });
               // Optional: move focus to next empty for visual cue
-              _focusNextEmpty(nextEmptyIndex);
+              _focusNextEmpty(index);
             }
           },
         ),
