@@ -12,6 +12,7 @@ import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/station/presentation/controllers/station_controller.dart';
 import 'package:dux_front/core/theme/theme_controller.dart';
+import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import '../controllers/profile_controller.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -161,7 +162,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profil Utilisateur'),
+        title: const DuxAppBarTitle(title: 'Profil Utilisateur'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_rounded),

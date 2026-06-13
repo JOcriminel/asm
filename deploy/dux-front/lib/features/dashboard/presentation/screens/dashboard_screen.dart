@@ -5,11 +5,16 @@ import 'package:intl/intl.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
+import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/features/commands/presentation/controllers/commands_controller.dart';
-import 'package:dux_front/features/commands/domain/models/command.dart';
+import 'package:dux_front/features/dashboard/domain/usecases/get_dashboard_stats_use_case.dart';
 
+/// Pure UI screen — all KPI computation is delegated to [GetDashboardStatsUseCase].
+/// The build() method contains zero business logic (Single Responsibility).
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  static const _statsUseCase = GetDashboardStatsUseCase();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,46 +22,24 @@ class DashboardScreen extends ConsumerWidget {
     final commandsState = ref.watch(commandsControllerProvider);
     final commands = commandsState.commands;
 
-    // Calculate KPIs
-    final totalCommands = commands.length;
-    final totalRevenue = commands.fold(0.0, (sum, cmd) => sum + cmd.amountTTC);
-    
-    // Status counts
-    int pending = 0;
-    int validated = 0;
-    int delivered = 0;
-    int cancelled = 0;
-    int others = 0;
-
-    for (var c in commands) {
-      final s = c.status.toLowerCase();
-      if (s.contains('pending') || s.contains('en attente')) {
-        pending++;
-      } else if (s.contains('valid') || s.contains('confirmé')) {
-        validated++;
-      } else if (s.contains('deliver') || s.contains('livré')) {
-        delivered++;
-      } else if (s.contains('cancel') || s.contains('annulé')) {
-        cancelled++;
-      } else {
-        others++;
-      }
-    }
+    // All computation delegated — screen has no business logic
+    final stats = _statsUseCase(commands);
 
     final formattedRevenue = NumberFormat.currency(
       locale: 'fr_TN',
       symbol: 'TND',
       decimalDigits: 3,
-    ).format(totalRevenue);
+    ).format(stats.totalAmountTTC);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: const DuxAppBarTitle(title: 'Dashboard'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualiser',
-            onPressed: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
+            onPressed: () =>
+                ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
           ),
         ],
       ),
@@ -73,7 +56,7 @@ class DashboardScreen extends ConsumerWidget {
                       Expanded(
                         child: _KpiCard(
                           title: 'Total Commandes',
-                          value: totalCommands.toString(),
+                          value: stats.totalCommands.toString(),
                           icon: Icons.assignment_rounded,
                           color: theme.colorScheme.primary,
                         ),
@@ -81,7 +64,7 @@ class DashboardScreen extends ConsumerWidget {
                       AppSpacing.gapL,
                       Expanded(
                         child: _KpiCard(
-                          title: 'Chiffre d\'affaires',
+                          title: "Chiffre d'affaires",
                           value: formattedRevenue,
                           icon: Icons.payments_rounded,
                           color: Colors.green,
@@ -92,7 +75,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   AppSpacing.gapXxl,
                   SectionHeader(title: 'Répartition par Statut'),
-                  if (totalCommands == 0)
+                  if (stats.totalCommands == 0)
                     const Center(child: Text('Aucune donnée à afficher'))
                   else
                     SizedBox(
@@ -102,51 +85,44 @@ class DashboardScreen extends ConsumerWidget {
                           sectionsSpace: 2,
                           centerSpaceRadius: 40,
                           sections: [
-                            if (pending > 0)
+                            if (stats.pending > 0)
                               PieChartSectionData(
-                                value: pending.toDouble(),
-                                title: '$pending',
+                                value: stats.pending.toDouble(),
+                                title: '${stats.pending}',
                                 color: Colors.orange,
                                 radius: 50,
-                                titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                titleStyle: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
                               ),
-                            if (validated > 0)
+                            if (stats.validated > 0)
                               PieChartSectionData(
-                                value: validated.toDouble(),
-                                title: '$validated',
+                                value: stats.validated.toDouble(),
+                                title: '${stats.validated}',
                                 color: Colors.blue,
                                 radius: 50,
-                                titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                titleStyle: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
                               ),
-                            if (delivered > 0)
+                            if (stats.delivered > 0)
                               PieChartSectionData(
-                                value: delivered.toDouble(),
-                                title: '$delivered',
+                                value: stats.delivered.toDouble(),
+                                title: '${stats.delivered}',
                                 color: Colors.green,
                                 radius: 50,
-                                titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                            if (cancelled > 0)
-                              PieChartSectionData(
-                                value: cancelled.toDouble(),
-                                title: '$cancelled',
-                                color: Colors.red,
-                                radius: 50,
-                                titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                              ),
-                            if (others > 0)
-                              PieChartSectionData(
-                                value: others.toDouble(),
-                                title: '$others',
-                                color: Colors.grey,
-                                radius: 50,
-                                titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                titleStyle: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
                               ),
                           ],
                         ),
                       ),
                     ),
-                  if (totalCommands > 0) ...[
+                  if (stats.totalCommands > 0) ...[
                     AppSpacing.gapM,
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -156,8 +132,6 @@ class DashboardScreen extends ConsumerWidget {
                         _LegendItem(color: Colors.blue, text: 'Validé'),
                         AppSpacing.gapM,
                         _LegendItem(color: Colors.green, text: 'Livré'),
-                        AppSpacing.gapM,
-                        _LegendItem(color: Colors.red, text: 'Annulé'),
                       ],
                     ),
                   ],
@@ -195,7 +169,7 @@ class _KpiCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -203,12 +177,13 @@ class _KpiCard extends StatelessWidget {
           AppSpacing.gapM,
           Text(
             title,
-            style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.secondary),
+            style:
+                theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.secondary),
           ),
           AppSpacing.gapXs,
           Text(
             value,
-            style: isSmallValue 
+            style: isSmallValue
                 ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
                 : theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             maxLines: 1,

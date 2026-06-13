@@ -12,6 +12,9 @@ import '../../features/commands/presentation/screens/commands_list_screen.dart';
 import '../../features/command_details/presentation/screens/command_details_screen.dart';
 import '../../features/station/presentation/screens/station_details_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/bon_preparation/presentation/screens/bon_preparation_list_screen.dart';
+import '../../features/bon_preparation/presentation/screens/bon_preparation_detail_screen.dart';
+import '../../features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -22,6 +25,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: RoutePaths.splash,
     redirect: (context, state) {
+      debugPrint('Router Global Redirect: matchedLocation = ${state.matchedLocation}, uri = ${state.uri}');
       final loginLoc = RoutePaths.login;
       final splashLoc = RoutePaths.splash;
       final dashboardLoc = RoutePaths.dashboard;
@@ -88,6 +92,48 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final id = state.pathParameters['id'] ?? '';
                       return CommandDetailsScreen(commandId: id);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/pages/bon-preparation',
+                redirect: (context, state) {
+                  debugPrint('Router BonPrep Redirect: matchedLocation = ${state.matchedLocation}, uri = ${state.uri}');
+                  final path = state.uri.path;
+                  if (path == '/pages/bon-preparation' || path == '/pages/bon-preparation/') {
+                    return '/pages/bon-preparation/list';
+                  }
+                  return null;
+                },
+                builder: (context, state) => const SizedBox.shrink(),
+                routes: [
+                  GoRoute(
+                    path: 'list',
+                    name: RouteNames.bonPreparationList,
+                    builder: (context, state) => const BonPreparationListScreen(),
+                  ),
+                  GoRoute(
+                    path: 'detail/:id',
+                    name: RouteNames.bonPreparationDetail,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) {
+                      final id = state.pathParameters['id'] ?? '';
+                      debugPrint('Router: Building detail page with id: $id');
+                      return BonPreparationDetailScreen(preparationId: id);
+                    },
+                  ),
+                  GoRoute(
+                    path: 'serial-number',
+                    name: RouteNames.bonPreparationSerialNumber,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) {
+                      final args = state.extra as SerialNumberArgs;
+                      return SerialNumberEntryScreen(args: args);
                     },
                   ),
                 ],

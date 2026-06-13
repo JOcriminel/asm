@@ -9,6 +9,7 @@ import 'package:dux_front/core/widgets/status_badge.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/empty_state_widget.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
+import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import '../controllers/commands_controller.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import 'package:dux_front/core/services/search_history_service.dart';
@@ -71,7 +72,7 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Liste des Commandes'),
+        title: const DuxAppBarTitle(title: 'Commandes'),
         actions: [
           IconButton(
             icon: Icon(

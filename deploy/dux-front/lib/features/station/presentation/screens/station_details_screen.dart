@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
+import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
@@ -30,7 +31,7 @@ class StationDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Détails de la Station'),
+        title: const DuxAppBarTitle(title: 'Détails de la Station'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

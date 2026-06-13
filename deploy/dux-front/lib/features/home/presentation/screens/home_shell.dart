@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
+import 'package:dux_front/core/widgets/dux_footer.dart';
 
 class HomeShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -55,6 +56,11 @@ class HomeShell extends StatelessWidget {
                   label: Text('Commands'),
                 ),
                 NavigationRailDestination(
+                  icon: Icon(Icons.inventory_2_outlined),
+                  selectedIcon: Icon(Icons.inventory_2),
+                  label: Text('Préparations'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.storefront_outlined),
                   selectedIcon: Icon(Icons.storefront),
                   label: Text('Station'),
@@ -65,6 +71,15 @@ class HomeShell extends StatelessWidget {
                   label: Text('Profile'),
                 ),
               ],
+              trailing: const Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: AppSpacing.l),
+                    child: DuxFooter(),
+                  ),
+                ),
+              ),
             ),
             const VerticalDivider(width: 1, thickness: 1),
             Expanded(
@@ -76,7 +91,12 @@ class HomeShell extends StatelessWidget {
     }
 
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          Expanded(child: navigationShell),
+          const DuxFooter(),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _onBranchSelected,
@@ -90,6 +110,11 @@ class HomeShell extends StatelessWidget {
             icon: Icon(Icons.assignment_outlined),
             selectedIcon: Icon(Icons.assignment),
             label: 'Commands',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.inventory_2_outlined),
+            selectedIcon: Icon(Icons.inventory_2),
+            label: 'Préparations',
           ),
           NavigationDestination(
             icon: Icon(Icons.storefront_outlined),

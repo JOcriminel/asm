@@ -1,17 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/station.dart';
+import '../../domain/repositories/station_repository.dart';
 import '../services/station_api_service.dart';
 import '../models/station_dto.dart';
 import '../mappers/station_mapper.dart';
 
-abstract class StationRepository {
-  Future<Station> getStation(String id);
-}
-
-class HttpStationRepository implements StationRepository {
+/// Concrete implementation of [StationRepository].
+class StationRepositoryImpl implements StationRepository {
   final StationApiService _apiService;
 
-  HttpStationRepository(this._apiService);
+  const StationRepositoryImpl(this._apiService);
 
   @override
   Future<Station> getStation(String id) async {
@@ -22,6 +20,5 @@ class HttpStationRepository implements StationRepository {
 }
 
 final stationRepositoryProvider = Provider<StationRepository>((ref) {
-  final apiService = ref.watch(stationApiServiceProvider);
-  return HttpStationRepository(apiService);
+  return StationRepositoryImpl(ref.watch(stationApiServiceProvider));
 });

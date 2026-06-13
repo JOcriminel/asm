@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../commands/domain/models/command.dart';
+import '../../domain/usecases/get_command_details_use_case.dart';
 import '../../data/repositories/command_details_repository.dart';
 
 class CommandDetailsState {
@@ -26,17 +27,19 @@ class CommandDetailsState {
   }
 }
 
+/// Depends on [GetCommandDetailsUseCase] — not on the repository directly.
 class CommandDetailsController extends StateNotifier<CommandDetailsState> {
-  final CommandDetailsRepository _repository;
+  final GetCommandDetailsUseCase _getCommandDetailsUseCase;
 
-  CommandDetailsController(this._repository, String id) : super(const CommandDetailsState()) {
+  CommandDetailsController(this._getCommandDetailsUseCase, String id)
+      : super(const CommandDetailsState()) {
     fetchDetails(id);
   }
 
   Future<void> fetchDetails(String id) async {
     state = state.copyWith(isLoading: true);
     try {
-      final command = await _repository.getCommandDetails(id);
+      final command = await _getCommandDetailsUseCase(id);
       state = CommandDetailsState(command: command, isLoading: false);
     } catch (e) {
       state = CommandDetailsState(isLoading: false, error: e.toString());
@@ -44,8 +47,17 @@ class CommandDetailsController extends StateNotifier<CommandDetailsState> {
   }
 }
 
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+final _getCommandDetailsUseCaseProvider = Provider<GetCommandDetailsUseCase>((ref) {
+  return GetCommandDetailsUseCase(ref.watch(commandDetailsRepositoryProvider));
+});
+
 final commandDetailsControllerProvider =
-    StateNotifierProvider.family<CommandDetailsController, CommandDetailsState, String>((ref, id) {
-  final repository = ref.watch(commandDetailsRepositoryProvider);
-  return CommandDetailsController(repository, id);
+    StateNotifierProvider.family<CommandDetailsController, CommandDetailsState, String>(
+        (ref, id) {
+  return CommandDetailsController(
+    ref.watch(_getCommandDetailsUseCaseProvider),
+    id,
+  );
 });

@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/profile.dart';
-import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../domain/usecases/get_profile_use_case.dart';
 import '../../data/repositories/profile_repository.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 class ProfileState {
   final Profile? profile;
@@ -32,20 +33,20 @@ class ProfileState {
   }
 }
 
+/// Depends on [GetProfileUseCase] — Dependency Inversion applied.
 class ProfileController extends StateNotifier<ProfileState> {
   final Ref _ref;
+  final GetProfileUseCase _getProfileUseCase;
 
-  ProfileController(this._ref) : super(const ProfileState()) {
+  ProfileController(this._ref, this._getProfileUseCase) : super(const ProfileState()) {
     fetchProfile();
   }
 
   Future<void> fetchProfile() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final authState = _ref.read(authControllerProvider);
-      final login = authState.user?.username ?? 'admin';
-
-      final profile = await _ref.read(profileRepositoryProvider).getProfile(login);
+      final login = _ref.read(authControllerProvider).user?.username ?? 'admin';
+      final profile = await _getProfileUseCase(login);
       state = state.copyWith(profile: profile, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -59,12 +60,10 @@ class ProfileController extends StateNotifier<ProfileState> {
     required String location,
   }) async {
     if (state.profile == null) return false;
-    
     state = state.copyWith(isSaving: true, clearError: true);
     try {
-      // Backend does not expose updateProfile API, simulate local change
+      // Backend does not expose updateProfile API — simulate local change
       await Future.delayed(const Duration(milliseconds: 500));
-      
       final updated = state.profile!.copyWith(
         fullName: fullName,
         email: email,
@@ -72,7 +71,6 @@ class ProfileController extends StateNotifier<ProfileState> {
         location: location,
         cellule: location,
       );
-
       state = state.copyWith(profile: updated, isSaving: false);
       return true;
     } catch (e) {
@@ -82,6 +80,13 @@ class ProfileController extends StateNotifier<ProfileState> {
   }
 }
 
-final profileControllerProvider = StateNotifierProvider<ProfileController, ProfileState>((ref) {
-  return ProfileController(ref);
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+final _getProfileUseCaseProvider = Provider<GetProfileUseCase>((ref) {
+  return GetProfileUseCase(ref.watch(profileRepositoryProvider));
+});
+
+final profileControllerProvider =
+    StateNotifierProvider<ProfileController, ProfileState>((ref) {
+  return ProfileController(ref, ref.watch(_getProfileUseCaseProvider));
 });

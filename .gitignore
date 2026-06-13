@@ -24,3 +24,5 @@ deploy/asm-production/sqlserver/
 .sts4-cache
 Thumbs.db
 .DS_Store
+
+asm-production/

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
+import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
@@ -13,6 +14,7 @@ import 'package:dux_front/core/widgets/primary_button.dart';
 import '../controllers/command_details_controller.dart';
 import '../utils/pdf_generation_helper.dart';
 import 'package:dux_front/features/commands/domain/models/command.dart';
+import '../widgets/timeline_widget.dart';
 
 class CommandDetailsScreen extends ConsumerWidget {
   final String commandId;
@@ -29,7 +31,7 @@ class CommandDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Command Details'),
+        title: const DuxAppBarTitle(title: 'Détails Commande'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -122,7 +124,7 @@ class CommandDetailsScreen extends ConsumerWidget {
 
                   // Timeline Stepper Block
                   SectionHeader(title: 'Order Timeline'),
-                  _buildTimelineWidget(theme, command),
+                  TimelineWidget(command: command),
                   AppSpacing.gapL,
 
                   // Details Block (Responsive layout splitting)
@@ -174,102 +176,8 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTimelineWidget(ThemeData theme, Command command) {
-    final timeline = command.timeline;
-    final statusLower = command.status.toLowerCase();
 
-    // An order is validated if its status indicates validation or delivery
-    final isValidatedStatus = statusLower.contains('valid') ||
-        statusLower.contains('confirm') ||
-        statusLower.contains('deliver') ||
-        statusLower.contains('livr') ||
-        statusLower.contains('activ');
-
-    // An order is delivered if its status indicates delivery
-    final isDeliveredStatus = statusLower.contains('deliver') ||
-        statusLower.contains('livr');
-
-    final stages = [
-      {
-        'title': 'Created',
-        'date': timeline.created,
-        'isCompleted': timeline.created != null,
-      },
-      {
-        'title': 'Validated',
-        'date': timeline.validated,
-        'isCompleted': timeline.validated != null && isValidatedStatus,
-      },
-      {
-        'title': 'Delivered',
-        'date': timeline.delivered,
-        'isCompleted': timeline.delivered != null && isDeliveredStatus,
-      },
-    ];
-
-    return InfoCard(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.l, horizontal: AppSpacing.s),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(stages.length, (index) {
-          final stage = stages[index];
-          final date = stage['date'] as DateTime?;
-          final isCompleted = stage['isCompleted'] as bool;
-
-          return Expanded(
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Divider(
-                        color: index == 0
-                            ? Colors.transparent
-                            : (isCompleted ? theme.colorScheme.primary : theme.colorScheme.outline),
-                        thickness: 2,
-                      ),
-                    ),
-                    Icon(
-                      isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-                      color: isCompleted ? theme.colorScheme.primary : theme.colorScheme.secondary,
-                      size: 24,
-                    ),
-                    Expanded(
-                      child: Divider(
-                        color: index == stages.length - 1
-                            ? Colors.transparent
-                            : ((stages[index + 1]['isCompleted'] as bool)
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outline),
-                        thickness: 2,
-                      ),
-                    ),
-                  ],
-                ),
-                AppSpacing.gapS,
-                Text(
-                  stage['title'] as String,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: isCompleted ? FontWeight.bold : FontWeight.normal,
-                    color: isCompleted ? theme.colorScheme.onBackground : theme.colorScheme.secondary,
-                  ),
-                ),
-                if (isCompleted && date != null) ...[
-                  AppSpacing.gapXs,
-                  Text(
-                    DateFormat('MMM dd, HH:mm').format(date),
-                    style: theme.textTheme.labelMedium?.copyWith(fontSize: 10, color: theme.colorScheme.secondary),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildInfoSection(ThemeData theme, dynamic command) {
+  Widget _buildInfoSection(ThemeData theme, Command command) {
     return Column(
       children: [
         _buildCommandInfoCard(theme, command),
@@ -279,7 +187,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCommandInfoCard(ThemeData theme, dynamic command) {
+  Widget _buildCommandInfoCard(ThemeData theme, Command command) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final formattedDocDate = dateFormat.format(command.date);
     final formattedDelivDate = command.timeline.delivered != null
@@ -329,7 +237,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildClientInfoCard(ThemeData theme, dynamic command) {
+  Widget _buildClientInfoCard(ThemeData theme, Command command) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -356,7 +264,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSummarySection(ThemeData theme, dynamic command) {
+  Widget _buildSummarySection(ThemeData theme, Command command) {
     final currencyFormat = NumberFormat.currency(
       locale: 'fr_TN',
       symbol: 'DT',
@@ -412,7 +320,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildArticlesList(ThemeData theme, dynamic articles) {
+  Widget _buildArticlesList(ThemeData theme, List<ArticleItem> articles) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 700;
@@ -551,7 +459,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _showItemDetailDialog(BuildContext context, dynamic item) {
+  void _showItemDetailDialog(BuildContext context, ArticleItem item) {
     final currencyFormat = NumberFormat.currency(
       locale: 'fr_TN',
       symbol: 'DT',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'color_schemes.dart';
 import 'app_sizes.dart';
 
@@ -8,16 +9,18 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: lightColorScheme,
       scaffoldBackgroundColor: lightColorScheme.surface,
-      fontFamily: 'Inter', // Default system fallback if font not loaded
+      fontFamily: GoogleFonts.inter().fontFamily,
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -0.5),
-        headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: -0.5),
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: -0.2),
+        headlineLarge: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h1
+        headlineMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h2
+        titleLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.2), // KPI
         titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2),
         bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.normal, height: 1.5),
-        bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, height: 1.4),
+        bodyMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.4), // Cellule
+        bodySmall: TextStyle(fontSize: 11, fontWeight: FontWeight.normal, height: 1.4), // Mini-cellule
         labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+        labelMedium: TextStyle(fontSize: 10, fontWeight: FontWeight.w600), // Label tableau
+        labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600), // Badge
       ),
       cardTheme: CardThemeData(
         color: lightColorScheme.surface,
@@ -61,9 +64,9 @@ class AppTheme {
         iconTheme: IconThemeData(color: lightColorScheme.onSurface),
         titleTextStyle: TextStyle(
           color: lightColorScheme.onSurface,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Inter',
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          fontFamily: GoogleFonts.inter().fontFamily,
         ),
       ),
       tabBarTheme: TabBarThemeData(
@@ -84,16 +87,18 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: darkColorScheme,
       scaffoldBackgroundColor: darkColorScheme.surface,
-      fontFamily: 'Inter',
+      fontFamily: GoogleFonts.inter().fontFamily,
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: -0.5, color: Colors.white),
-        headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: -0.5, color: Colors.white),
-        titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: Colors.white),
+        headlineLarge: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
+        headlineMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
+        titleLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white),
         titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: Colors.white),
         bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.normal, height: 1.5, color: Color(0xFF94A3B8)), // Slate 400
-        bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
+        bodyMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
+        bodySmall: TextStyle(fontSize: 11, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
         labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-        labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+        labelMedium: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+        labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: darkColorScheme.surface,
@@ -137,9 +142,9 @@ class AppTheme {
         iconTheme: IconThemeData(color: darkColorScheme.onSurface),
         titleTextStyle: TextStyle(
           color: darkColorScheme.onSurface,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          fontFamily: 'Inter',
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          fontFamily: GoogleFonts.inter().fontFamily,
         ),
       ),
       tabBarTheme: TabBarThemeData(

@@ -2,16 +2,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../commands/domain/models/command.dart';
 import '../../../commands/data/models/command_dto.dart';
 import '../../../commands/data/mappers/command_mapper.dart';
+import '../../domain/repositories/command_details_repository.dart';
 import '../services/command_details_api_service.dart';
 
-abstract class CommandDetailsRepository {
-  Future<Command> getCommandDetails(String id);
-}
-
-class ApiCommandDetailsRepository implements CommandDetailsRepository {
+/// Concrete implementation of [CommandDetailsRepository].
+class CommandDetailsRepositoryImpl implements CommandDetailsRepository {
   final CommandDetailsApiService _apiService;
 
-  ApiCommandDetailsRepository(this._apiService);
+  const CommandDetailsRepositoryImpl(this._apiService);
 
   @override
   Future<Command> getCommandDetails(String id) async {
@@ -22,6 +20,5 @@ class ApiCommandDetailsRepository implements CommandDetailsRepository {
 }
 
 final commandDetailsRepositoryProvider = Provider<CommandDetailsRepository>((ref) {
-  final apiService = ref.watch(commandDetailsApiServiceProvider);
-  return ApiCommandDetailsRepository(apiService);
+  return CommandDetailsRepositoryImpl(ref.watch(commandDetailsApiServiceProvider));
 });

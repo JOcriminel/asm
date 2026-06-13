@@ -13,8 +13,6 @@ class CommandApiService {
 
   Future<List<dynamic>> fetchCommandsList({
     required CommandFilter filter,
-    required int page,
-    int limit = 20,
     String? userStationId,
     String? userId,
     String? userTierId,
@@ -74,7 +72,6 @@ class CommandApiService {
             : null,
       );
 
-
       if (response.data == null) return [];
 
       dynamic data = response.data;
@@ -86,24 +83,6 @@ class CommandApiService {
         } catch (_) {
           return [];
         }
-      }
-
-      // Helper function to apply local filters
-      List<dynamic> applyLocalFilters(List<dynamic> list) {
-        var res = list;
-        // Station ID filtering is now handled securely on the backend
-
-        if (filter.documentCode != null && filter.documentCode!.isNotEmpty) {
-          final query = filter.documentCode!.toLowerCase();
-          res = res.where((e) {
-            if (e is Map<String, dynamic>) {
-              final code = (e['code']?.toString() ?? e['documentCode']?.toString() ?? '').toLowerCase();
-              return code.contains(query);
-            }
-            return false;
-          }).toList();
-        }
-        return res;
       }
 
       // Check for API-level error/success envelope from the DUX PHP API
@@ -127,26 +106,14 @@ class CommandApiService {
         // The records list is always in the "data" field
         final inner = data['data'] ?? data['content'] ?? data['results'] ?? data['documents'];
         if (inner is List) {
-          final filteredList = applyLocalFilters(inner);
-
-          // Client-side pagination on the filtered slice
-          final start = (page - 1) * limit;
-          if (start >= filteredList.length) return [];
-          final end = (start + limit).clamp(0, filteredList.length);
-          return filteredList.sublist(start, end);
+          return inner;
         }
         // Single result wrapped in a map — treat as a one-item list
         return [data];
       }
 
       if (data is List) {
-        final filteredList = applyLocalFilters(data);
-
-        // Client-side pagination: slice the page we need
-        final start = (page - 1) * limit;
-        if (start >= filteredList.length) return [];
-        final end = (start + limit).clamp(0, filteredList.length);
-        return filteredList.sublist(start, end);
+        return data;
       }
 
       return [];
@@ -160,3 +127,4 @@ final commandApiServiceProvider = Provider<CommandApiService>((ref) {
   final dio = ref.watch(dioProvider);
   return CommandApiService(dio);
 });
+

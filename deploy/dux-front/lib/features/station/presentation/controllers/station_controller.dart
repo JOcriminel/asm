@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/station.dart';
-import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../domain/usecases/get_station_use_case.dart';
 import '../../data/repositories/station_repository.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 
 class StationState {
   final Station? station;
@@ -28,13 +29,14 @@ class StationState {
   }
 }
 
+/// Depends on [GetStationUseCase] — Dependency Inversion applied.
 class StationController extends StateNotifier<StationState> {
   final Ref _ref;
+  final GetStationUseCase _getStationUseCase;
   bool _waitingForAuth = false;
 
-  StationController(this._ref) : super(const StationState()) {
-    // Defer fetch by one microtask so the auth controller's checkSession()
-    // has a chance to run first (they both initialize via Riverpod providers).
+  StationController(this._ref, this._getStationUseCase)
+      : super(const StationState()) {
     Future.microtask(fetchStationDetails);
   }
 
@@ -43,8 +45,6 @@ class StationController extends StateNotifier<StationState> {
     try {
       final authState = _ref.read(authControllerProvider);
 
-      // If auth is still checking session, register a one-time listener and return.
-      // Once auth finishes, we'll be called again automatically.
       if (authState.isChecking) {
         if (!_waitingForAuth) {
           _waitingForAuth = true;
@@ -58,14 +58,12 @@ class StationController extends StateNotifier<StationState> {
         return;
       }
 
-      // Extract the numeric station ID from user profile (e.g. "1")
       String stationId = authState.user?.station ?? '1';
-      // Sanitise: fall back to "1" if not a valid integer string
       if (stationId.isEmpty || int.tryParse(stationId) == null) {
         stationId = '1';
       }
 
-      final station = await _ref.read(stationRepositoryProvider).getStation(stationId);
+      final station = await _getStationUseCase(stationId);
       state = StationState(station: station, isLoading: false);
     } catch (e) {
       state = StationState(isLoading: false, error: e.toString());
@@ -73,7 +71,13 @@ class StationController extends StateNotifier<StationState> {
   }
 }
 
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+final _getStationUseCaseProvider = Provider<GetStationUseCase>((ref) {
+  return GetStationUseCase(ref.watch(stationRepositoryProvider));
+});
+
 final stationControllerProvider =
     StateNotifierProvider<StationController, StationState>((ref) {
-  return StationController(ref);
+  return StationController(ref, ref.watch(_getStationUseCaseProvider));
 });

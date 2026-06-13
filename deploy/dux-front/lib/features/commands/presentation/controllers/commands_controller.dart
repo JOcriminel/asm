@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/command.dart';
+import '../../domain/usecases/get_commands_use_case.dart';
 import '../../data/repositories/commands_repository.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 
@@ -48,13 +49,16 @@ class CommandsState {
   }
 }
 
+/// Presentation controller for the commands list.
+/// Depends only on [GetCommandsUseCase] — Dependency Inversion applied.
 class CommandsController extends StateNotifier<CommandsState> {
   final Ref _ref;
+  final GetCommandsUseCase _getCommandsUseCase;
 
-  // Page size for client-side pagination
   static const int _pageSize = 10;
 
-  CommandsController(this._ref) : super(const CommandsState(commands: [])) {
+  CommandsController(this._ref, this._getCommandsUseCase)
+      : super(const CommandsState(commands: [])) {
     fetchCommands();
   }
 
@@ -68,29 +72,21 @@ class CommandsController extends StateNotifier<CommandsState> {
     }
 
     try {
-      final repo = _ref.read(commandsRepositoryProvider);
-
-      // If there's a search query, use it as the document code filter
       final searchFilter = state.searchQuery.isNotEmpty
           ? state.filter.copyWith(documentCode: state.searchQuery)
           : state.filter;
 
       final authState = _ref.read(authControllerProvider);
-      final userStationId = authState.user?.station;
-      final userId = authState.user?.id;
-      final userTierId = authState.user?.tierId;
 
-      final newCommands = await repo.getCommands(
+      final newCommands = await _getCommandsUseCase(
         filter: searchFilter,
         page: state.page,
-        userStationId: userStationId,
-        userId: userId,
-        userTierId: userTierId,
+        userStationId: authState.user?.station,
+        userId: authState.user?.id,
+        userTierId: authState.user?.tierId,
       );
 
-      // A full page means there might be more; fewer means we've reached the end
       final hasMore = newCommands.length >= _pageSize;
-
       final combined = refresh ? newCommands : [...state.commands, ...newCommands];
       _applySort(combined, state.filter.sortOrder);
 
@@ -116,21 +112,18 @@ class CommandsController extends StateNotifier<CommandsState> {
   }
 
   void applyFilter(CommandFilter newFilter) {
-    final oldFilter = state.filter;
-    // Check if only sortOrder changed
-    final onlySortChanged = 
-        oldFilter.dateFrom == newFilter.dateFrom &&
-        oldFilter.dateTo == newFilter.dateTo &&
-        oldFilter.tier == newFilter.tier &&
-        oldFilter.representative == newFilter.representative &&
-        oldFilter.documentCode == newFilter.documentCode &&
-        oldFilter.status == newFilter.status &&
-        oldFilter.allDocuments == newFilter.allDocuments &&
-        oldFilter.articleFilter == newFilter.articleFilter &&
-        oldFilter.advancedFilterActive == newFilter.advancedFilterActive;
+    final old = state.filter;
+    final onlySortChanged = old.dateFrom == newFilter.dateFrom &&
+        old.dateTo == newFilter.dateTo &&
+        old.tier == newFilter.tier &&
+        old.representative == newFilter.representative &&
+        old.documentCode == newFilter.documentCode &&
+        old.status == newFilter.status &&
+        old.allDocuments == newFilter.allDocuments &&
+        old.articleFilter == newFilter.articleFilter &&
+        old.advancedFilterActive == newFilter.advancedFilterActive;
 
-    if (onlySortChanged && oldFilter.sortOrder != newFilter.sortOrder) {
-      // Just sort locally
+    if (onlySortChanged && old.sortOrder != newFilter.sortOrder) {
       state = state.copyWith(filter: newFilter);
       _sortCommandsLocally();
       return;
@@ -138,35 +131,6 @@ class CommandsController extends StateNotifier<CommandsState> {
 
     state = state.copyWith(filter: newFilter, page: 1, commands: []);
     fetchCommands();
-  }
-
-  void _sortCommandsLocally() {
-    final sortedList = List<Command>.from(state.commands);
-    _applySort(sortedList, state.filter.sortOrder);
-    state = state.copyWith(commands: sortedList);
-  }
-
-  void _applySort(List<Command> list, CommandSortOrder sortOrder) {
-    switch (sortOrder) {
-      case CommandSortOrder.dateDesc:
-        list.sort((a, b) => b.date.compareTo(a.date));
-        break;
-      case CommandSortOrder.dateAsc:
-        list.sort((a, b) => a.date.compareTo(b.date));
-        break;
-      case CommandSortOrder.amountDesc:
-        list.sort((a, b) => b.amountTTC.compareTo(a.amountTTC));
-        break;
-      case CommandSortOrder.amountAsc:
-        list.sort((a, b) => a.amountTTC.compareTo(b.amountTTC));
-        break;
-      case CommandSortOrder.nameAsc:
-        list.sort((a, b) => a.customerName.compareTo(b.customerName));
-        break;
-      case CommandSortOrder.nameDesc:
-        list.sort((a, b) => b.customerName.compareTo(a.customerName));
-        break;
-    }
   }
 
   void clearFilters() {
@@ -179,9 +143,38 @@ class CommandsController extends StateNotifier<CommandsState> {
     state = state.copyWith(page: state.page + 1);
     fetchCommands();
   }
+
+  void _sortCommandsLocally() {
+    final sorted = List<Command>.from(state.commands);
+    _applySort(sorted, state.filter.sortOrder);
+    state = state.copyWith(commands: sorted);
+  }
+
+  void _applySort(List<Command> list, CommandSortOrder sortOrder) {
+    switch (sortOrder) {
+      case CommandSortOrder.dateDesc:
+        list.sort((a, b) => b.date.compareTo(a.date));
+      case CommandSortOrder.dateAsc:
+        list.sort((a, b) => a.date.compareTo(b.date));
+      case CommandSortOrder.amountDesc:
+        list.sort((a, b) => b.amountTTC.compareTo(a.amountTTC));
+      case CommandSortOrder.amountAsc:
+        list.sort((a, b) => a.amountTTC.compareTo(b.amountTTC));
+      case CommandSortOrder.nameAsc:
+        list.sort((a, b) => a.customerName.compareTo(b.customerName));
+      case CommandSortOrder.nameDesc:
+        list.sort((a, b) => b.customerName.compareTo(a.customerName));
+    }
+  }
 }
+
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+final _getCommandsUseCaseProvider = Provider<GetCommandsUseCase>((ref) {
+  return GetCommandsUseCase(ref.watch(commandsRepositoryProvider));
+});
 
 final commandsControllerProvider =
     StateNotifierProvider<CommandsController, CommandsState>((ref) {
-  return CommandsController(ref);
+  return CommandsController(ref, ref.watch(_getCommandsUseCaseProvider));
 });

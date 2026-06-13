@@ -1,12 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/features/auth/domain/models/user.dart';
 import 'package:dux_front/features/auth/data/repositories/auth_repository.dart';
+import 'package:dux_front/features/auth/domain/usecases/login_use_case.dart';
+import 'package:dux_front/features/auth/domain/usecases/logout_use_case.dart';
+import 'package:dux_front/features/auth/domain/usecases/check_session_use_case.dart';
 import 'package:dux_front/core/services/storage_service.dart';
 
 class AuthState {
   final User? user;
   final bool isLoading;
-  final bool isChecking; // Initial startup session verification state
+  final bool isChecking;
   final String? errorMessage;
 
   bool get isAuthenticated => user != null;
@@ -35,36 +38,27 @@ class AuthState {
   }
 }
 
+/// Presentation controller — depends on use-cases, never on repositories directly.
+/// Dependency Inversion: wired to [LoginUseCase], [LogoutUseCase], [CheckSessionUseCase].
 class AuthController extends StateNotifier<AuthState> {
-  final AuthRepository _authRepository;
-  final StorageService _storageService;
+  final LoginUseCase _loginUseCase;
+  final LogoutUseCase _logoutUseCase;
+  final CheckSessionUseCase _checkSessionUseCase;
 
-  static const _tokenKey = 'auth_token';
-
-  AuthController(this._authRepository, this._storageService) : super(const AuthState()) {
+  AuthController(
+    this._loginUseCase,
+    this._logoutUseCase,
+    this._checkSessionUseCase,
+  ) : super(const AuthState()) {
     checkSession();
   }
 
   Future<void> checkSession() async {
     state = state.copyWith(isChecking: true, clearError: true);
     try {
-      final persist = await _storageService.read('persist_session');
-      final token = await _storageService.read(_tokenKey);
-
-      if (persist == 'false') {
-        await _storageService.delete(_tokenKey);
-        await _storageService.delete('persist_session');
-        state = state.copyWith(isChecking: false, clearUser: true);
-        return;
-      }
-
-      if (token != null && token.isNotEmpty) {
-        final user = await _authRepository.getCurrentUser(token);
-        state = state.copyWith(user: user, isChecking: false);
-      } else {
-        state = state.copyWith(isChecking: false, clearUser: true);
-      }
-    } catch (e) {
+      final user = await _checkSessionUseCase();
+      state = state.copyWith(user: user, isChecking: false, clearUser: user == null);
+    } catch (_) {
       state = state.copyWith(isChecking: false, clearUser: true);
     }
   }
@@ -72,14 +66,7 @@ class AuthController extends StateNotifier<AuthState> {
   Future<bool> login(String username, String password, bool rememberMe) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final user = await _authRepository.login(username, password);
-      
-      if (rememberMe) {
-        await _storageService.write('persist_session', 'true');
-      } else {
-        await _storageService.write('persist_session', 'false');
-      }
-      
+      final user = await _loginUseCase(username, password, rememberMe: rememberMe);
       state = state.copyWith(user: user, isLoading: false);
       return true;
     } catch (e) {
@@ -94,8 +81,7 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
     try {
-      await _authRepository.logout();
-      await _storageService.delete(_tokenKey);
+      await _logoutUseCase();
       state = const AuthState(isChecking: false);
     } catch (_) {
       state = state.copyWith(isLoading: false);
@@ -103,8 +89,29 @@ class AuthController extends StateNotifier<AuthState> {
   }
 }
 
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  final authRepository = ref.watch(authRepositoryProvider);
-  final storageService = ref.watch(storageServiceProvider);
-  return AuthController(authRepository, storageService);
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+final _loginUseCaseProvider = Provider<LoginUseCase>((ref) => LoginUseCase(
+      ref.watch(authRepositoryProvider),
+      ref.watch(storageServiceProvider),
+    ));
+
+final _logoutUseCaseProvider = Provider<LogoutUseCase>((ref) => LogoutUseCase(
+      ref.watch(authRepositoryProvider),
+      ref.watch(storageServiceProvider),
+    ));
+
+final _checkSessionUseCaseProvider =
+    Provider<CheckSessionUseCase>((ref) => CheckSessionUseCase(
+          ref.watch(authRepositoryProvider),
+          ref.watch(storageServiceProvider),
+        ));
+
+final authControllerProvider =
+    StateNotifierProvider<AuthController, AuthState>((ref) {
+  return AuthController(
+    ref.watch(_loginUseCaseProvider),
+    ref.watch(_logoutUseCaseProvider),
+    ref.watch(_checkSessionUseCaseProvider),
+  );
 });
