@@ -97,24 +97,39 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
   }
 
 
-  Future<void> _openScanner(int index) async {
-    final scannedCode = await Navigator.of(context).push<String>(
+  Future<void> _openScanner(int startIndex) async {
+    final initialScanned = _controllers.where((c) => c.text.trim().isNotEmpty).length;
+
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (context) => ScannerOverlay(
-          title: '${widget.args.productName} (Serial ${index + 1}/${widget.args.quantity})',
+          title: widget.args.productName,
+          continuousMode: true,
+          expectedCount: widget.args.quantity,
+          initialScannedCount: initialScanned,
+          onBarcodeScanned: (scannedCode) {
+            // Find next empty input starting from startIndex
+            int? nextEmptyIndex;
+            for (int i = 0; i < _controllers.length; i++) {
+              final checkIndex = (startIndex + i) % _controllers.length;
+              if (_controllers[checkIndex].text.trim().isEmpty) {
+                nextEmptyIndex = checkIndex;
+                break;
+              }
+            }
+
+            if (nextEmptyIndex != null) {
+              setState(() {
+                _controllers[nextEmptyIndex].text = scannedCode;
+                _validationError = null;
+              });
+              // Optional: move focus to next empty for visual cue
+              _focusNextEmpty(nextEmptyIndex);
+            }
+          },
         ),
       ),
     );
-
-    if (scannedCode != null && scannedCode.isNotEmpty) {
-      setState(() {
-        _controllers[index].text = scannedCode;
-        _validationError = null; // Reset validation on edit
-      });
-
-      // Move to next empty input field
-      _focusNextEmpty(index);
-    }
   }
 
   void _focusNextEmpty(int currentIndex) {

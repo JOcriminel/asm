@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 
 class ScannerOverlay extends StatefulWidget {
   final String title;
+  final bool continuousMode;
+  final int? expectedCount;
+  final int initialScannedCount;
+  final void Function(String barcode)? onBarcodeScanned;
 
   const ScannerOverlay({
     super.key,
     required this.title,
+    this.continuousMode = false,
+    this.expectedCount,
+    this.initialScannedCount = 0,
+    this.onBarcodeScanned,
   });
 
   @override
@@ -19,6 +28,15 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
   final _inputController = TextEditingController();
   bool _hasScanned = false;
   bool _isSimulatorMode = false;
+  
+  DateTime? _lastScanTime;
+  late int _currentCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentCount = widget.initialScannedCount;
+  }
 
   @override
   void dispose() {
@@ -28,9 +46,40 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
   }
 
   void _onScanned(String barcode) {
-    if (_hasScanned || barcode.trim().isEmpty) return;
-    _hasScanned = true;
-    Navigator.of(context).pop(barcode.trim());
+    if (barcode.trim().isEmpty) return;
+
+    // Debounce to avoid rapid duplicate scans
+    final now = DateTime.now();
+    if (_lastScanTime != null && now.difference(_lastScanTime!).inMilliseconds < 1000) {
+      return; 
+    }
+    _lastScanTime = now;
+
+    // Haptic & Audio Feedback
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.click);
+
+    if (widget.continuousMode) {
+      if (widget.onBarcodeScanned != null) {
+        widget.onBarcodeScanned!(barcode.trim());
+      }
+      
+      setState(() {
+        _currentCount++;
+      });
+      _inputController.clear(); // Clear simulator input if used
+
+      // Auto-close if we reached the goal
+      if (widget.expectedCount != null && _currentCount >= widget.expectedCount!) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) Navigator.of(context).pop();
+        });
+      }
+    } else {
+      if (_hasScanned) return;
+      _hasScanned = true;
+      Navigator.of(context).pop(barcode.trim());
+    }
   }
 
   @override
@@ -111,7 +160,7 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
             child: Column(
               children: [
                 Text(
-                  'Scanner de Code',
+                  widget.continuousMode ? 'Scan Continu' : 'Scanner de Code',
                   style: theme.textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -125,6 +174,20 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                if (widget.continuousMode && widget.expectedCount != null) ...[
+                  AppSpacing.gapL,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      'Scanné : $_currentCount / ${widget.expectedCount}',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ]
               ],
             ),
           ),
@@ -170,7 +233,7 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
                             enabledBorder: const OutlineInputBorder(
                               borderSide: BorderSide(color: Colors.white54),
                             ),
-                            focusedBorder: OutlineInputBorder(
+                            focusedBorder: const OutlineInputBorder(
                               borderSide: BorderSide(color: Colors.blue),
                             ),
                           ),
@@ -197,8 +260,8 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
                       },
                     ),
                     IconButton.filledTonal(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.check_circle),
+                      onPressed: () => Navigator.of(context).pop(), // Done button essentially
                     ),
                   ],
                 ),

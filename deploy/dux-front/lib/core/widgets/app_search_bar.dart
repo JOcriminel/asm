@@ -10,6 +10,7 @@ class AppSearchBar extends StatefulWidget {
   final List<String> recentSearches;
   final ValueChanged<String>? onRecentSearchTapped;
   final ValueChanged<String>? onSearchSubmitted;
+  final VoidCallback? onScanPressed;
 
   const AppSearchBar({
     super.key,
@@ -21,6 +22,7 @@ class AppSearchBar extends StatefulWidget {
     this.recentSearches = const [],
     this.onRecentSearchTapped,
     this.onSearchSubmitted,
+    this.onScanPressed,
   });
 
   @override
@@ -101,16 +103,27 @@ class _AppSearchBarState extends State<AppSearchBar> {
                 color: theme.colorScheme.secondary,
                 size: 20,
               ),
-              suffixIcon: _showClear
-                  ? IconButton(
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (_showClear)
+                    IconButton(
                       icon: const Icon(Icons.clear, size: 18),
                       onPressed: () {
                         _controller.clear();
                         widget.onChanged?.call('');
                         widget.onClear?.call();
                       },
-                    )
-                  : null,
+                    ),
+                  if (widget.onScanPressed != null)
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, size: 18, color: Colors.blueGrey),
+                      onPressed: widget.onScanPressed,
+                    ),
+                  const SizedBox(width: 4), // Small padding
+                ],
+              ),
               filled: true,
               fillColor: Colors.transparent,
               contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.m),

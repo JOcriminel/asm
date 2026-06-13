@@ -18,6 +18,7 @@ import '../controllers/bon_preparation_list_controller.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
 import '../../domain/models/bon_preparation.dart';
 import '../widgets/preparation_filter_bottom_sheet.dart';
+import '../widgets/scanner_overlay.dart';
 
 class BonPreparationListScreen extends ConsumerStatefulWidget {
   const BonPreparationListScreen({super.key});
@@ -114,6 +115,20 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
               onSearchSubmitted: (value) {
                 if (value.isNotEmpty) {
                   ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
+                }
+              },
+              onScanPressed: () async {
+                final scannedCode = await Navigator.of(context).push<String>(
+                  MaterialPageRoute(
+                    builder: (context) => const ScannerOverlay(
+                      title: 'Scanner un Bon de Préparation',
+                    ),
+                  ),
+                );
+                if (scannedCode != null && scannedCode.isNotEmpty) {
+                  _searchController.text = scannedCode;
+                  ref.read(bonPreparationListControllerProvider.notifier).updateSearchQuery(scannedCode);
+                  ref.read(searchHistoryProvider.notifier).addSearchQuery(scannedCode);
                 }
               },
             ),
