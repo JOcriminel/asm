@@ -16,7 +16,12 @@ class DuxAppBarTitle extends StatelessWidget {
           errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
         ),
         const SizedBox(width: 10),
-        Text(title),
+        Expanded(
+          child: Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
