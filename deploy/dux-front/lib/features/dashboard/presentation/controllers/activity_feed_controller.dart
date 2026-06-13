@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../data/repositories/activity_feed_repository.dart';
+import '../../data/repositories/activity_feed_repository.dart';
 
 class ActivityFeedState {
   final bool isLoading;

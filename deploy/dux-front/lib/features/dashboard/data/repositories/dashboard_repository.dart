@@ -43,7 +43,7 @@ class DashboardRepository {
       if (response.data != null && response.data is Map<String, dynamic>) {
         return DashboardStats.fromJson(response.data);
       }
-      return DashboardStats(scansToday: 0, deletionsToday: 0, scansLast7Days: []);
+      return DashboardStats(scansToday: 0, deletionsToday: 0, scansLast7Days: [], scansByHour: []);
     } catch (e) {
       AppLogger.e('DashboardRepository', 'Failed to fetch stats', e);
       throw ApiExceptionHandler.handle(e);
