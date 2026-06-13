@@ -6,6 +6,7 @@ import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
+import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/commands/presentation/controllers/commands_controller.dart';
 import 'package:dux_front/features/dashboard/domain/usecases/get_dashboard_stats_use_case.dart';
 
@@ -32,6 +33,7 @@ class DashboardScreen extends ConsumerWidget {
     ).format(stats.totalAmountTTC);
 
     return Scaffold(
+      drawer: const DuxDrawer(),
       appBar: AppBar(
         title: const DuxAppBarTitle(title: 'Dashboard'),
         actions: [

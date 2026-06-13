@@ -11,6 +11,7 @@ import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/empty_state_widget.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
+import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/core/services/search_history_service.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
 import '../controllers/bon_preparation_list_controller.dart';
@@ -73,6 +74,7 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
     final recentSearches = ref.watch(searchHistoryProvider);
 
     return Scaffold(
+      drawer: const DuxDrawer(),
       appBar: AppBar(
         title: const DuxAppBarTitle(title: 'Bons de Préparation'),
         actions: [
@@ -311,26 +313,31 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              preparation.documentCode,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            if (preparation.documentType.isNotEmpty)
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                preparation.documentType,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.secondary,
+                                preparation.documentCode,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                          ],
+                              if (preparation.documentType.isNotEmpty)
+                                Text(
+                                  preparation.documentType,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.secondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
                         ),
+                        AppSpacing.gapS,
                         _StatusBadge(
                           label: preparation.status,
                           apiColor: preparation.statusColor,

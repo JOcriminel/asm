@@ -8,6 +8,7 @@ import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
+import 'package:dux_front/core/widgets/dux_drawer.dart';
 import '../controllers/station_controller.dart';
 
 class StationDetailsScreen extends ConsumerWidget {
@@ -30,6 +31,7 @@ class StationDetailsScreen extends ConsumerWidget {
     final state = ref.watch(stationControllerProvider);
 
     return Scaffold(
+      drawer: const DuxDrawer(),
       appBar: AppBar(
         title: const DuxAppBarTitle(title: 'Détails de la Station'),
         actions: [

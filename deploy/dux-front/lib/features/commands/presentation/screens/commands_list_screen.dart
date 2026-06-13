@@ -10,6 +10,7 @@ import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/empty_state_widget.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
+import 'package:dux_front/core/widgets/dux_drawer.dart';
 import '../controllers/commands_controller.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import 'package:dux_front/core/services/search_history_service.dart';
@@ -71,6 +72,7 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
     final recentSearches = ref.watch(searchHistoryProvider);
 
     return Scaffold(
+      drawer: const DuxDrawer(),
       appBar: AppBar(
         title: const DuxAppBarTitle(title: 'Commandes'),
         actions: [

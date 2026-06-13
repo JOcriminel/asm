@@ -100,13 +100,17 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              preparation.documentCode,
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Courier',
+                            Expanded(
+                              child: Text(
+                                preparation.documentCode,
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Courier',
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            AppSpacing.gapS,
                             StatusBadge(status: preparation.status),
                           ],
                         ),
