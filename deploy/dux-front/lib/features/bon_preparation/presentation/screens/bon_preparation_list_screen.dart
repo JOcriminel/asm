@@ -15,6 +15,7 @@ import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/core/services/search_history_service.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
 import '../controllers/bon_preparation_list_controller.dart';
+import '../../data/repositories/bon_preparation_repository_impl.dart';
 import '../widgets/preparation_filter_bottom_sheet.dart';
 
 class BonPreparationListScreen extends ConsumerStatefulWidget {
@@ -369,33 +370,50 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
                             ),
                           ],
                         ),
-                        Row(
-                          children: [
-                            if (preparation.requiresSerialNumbers) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                  borderRadius: AppBorderRadius.roundedS,
-                                  border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
-                                ),
-                                child: Text(
-                                  'SN (${preparation.totalScannedSerialNumbers}/${preparation.totalRequiredSerialNumbers})',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final snCountAsync = ref.watch(snCountProvider(preparation.id));
+                            return snCountAsync.when(
+                              data: (snCount) {
+                                if (snCount == null) return const SizedBox.shrink();
+                                return Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                        borderRadius: AppBorderRadius.roundedS,
+                                        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
+                                      ),
+                                      child: Text(
+                                        snCount,
+                                        style: theme.textTheme.labelSmall?.copyWith(
+                                          color: theme.colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    AppSpacing.gapM,
+                                  ],
+                                );
+                              },
+                              loading: () => const Padding(
+                                padding: EdgeInsets.only(right: AppSpacing.m),
+                                child: SizedBox(
+                                  width: 12, 
+                                  height: 12, 
+                                  child: CircularProgressIndicator(strokeWidth: 2)
                                 ),
                               ),
-                              AppSpacing.gapM,
-                            ],
-                            Text(
-                              formattedDate,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                          ],
+                              error: (_, __) => const SizedBox.shrink(),
+                            );
+                          },
+                        ),
+                        Text(
+                          formattedDate,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.secondary,
+                          ),
                         ),
                       ],
                     ),
@@ -502,6 +520,13 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
     );
   }
 }
+
+final snCountProvider = FutureProvider.family<String?, String>((ref, id) async {
+  final repo = ref.read(bonPreparationRepositoryProvider);
+  final details = await repo.getBonPreparationDetails(id);
+  if (!details.requiresSerialNumbers) return null;
+  return 'SN (${details.totalScannedSerialNumbers}/${details.totalRequiredSerialNumbers})';
+});
 
 class _StatusBadge extends StatelessWidget {
   final String label;
