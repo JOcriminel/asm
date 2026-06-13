@@ -24,7 +24,11 @@ class ScannerOverlay extends StatefulWidget {
 }
 
 class _ScannerOverlayState extends State<ScannerOverlay> {
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _scannerController = MobileScannerController(
+    formats: const [BarcodeFormat.all],
+    returnImage: false,
+    detectionSpeed: DetectionSpeed.normal,
+  );
   final _inputController = TextEditingController();
   bool _hasScanned = false;
   bool _isSimulatorMode = false;
@@ -96,6 +100,25 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
           if (!_isSimulatorMode)
             MobileScanner(
               controller: _scannerController,
+              errorBuilder: (context, error, child) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.downloading_rounded, color: Colors.orange, size: 48),
+                        AppSpacing.gapM,
+                        Text(
+                          'Chargement du module de scan...\n(Veuillez patienter ou relancer l\'application si c\'est la première installation)',
+                          style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
               onDetect: (capture) {
                 final List<Barcode> barcodes = capture.barcodes;
                 for (final barcode in barcodes) {
