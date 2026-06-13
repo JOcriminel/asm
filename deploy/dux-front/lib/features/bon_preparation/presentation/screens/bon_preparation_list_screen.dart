@@ -16,6 +16,7 @@ import 'package:dux_front/core/services/search_history_service.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
 import '../controllers/bon_preparation_list_controller.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
+import '../../domain/models/bon_preparation.dart';
 import '../widgets/preparation_filter_bottom_sheet.dart';
 
 class BonPreparationListScreen extends ConsumerStatefulWidget {
@@ -374,21 +375,34 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
                           builder: (context, ref, child) {
                             final snCountAsync = ref.watch(snCountProvider(preparation.id));
                             return snCountAsync.when(
-                              data: (snCount) {
-                                if (snCount == null) return const SizedBox.shrink();
+                              data: (updatedPrep) {
+                                if (updatedPrep == null) return const SizedBox.shrink();
+                                
+                                final scanned = updatedPrep.totalScannedSerialNumbers;
+                                final required = updatedPrep.totalRequiredSerialNumbers;
+                                
+                                Color snColor;
+                                if (scanned == 0) {
+                                  snColor = const Color(0xFFEF5350); // Red
+                                } else if (scanned >= required) {
+                                  snColor = const Color(0xFF4CAF50); // Green
+                                } else {
+                                  snColor = const Color(0xFFFF9800); // Orange
+                                }
+
                                 return Row(
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
                                       decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                        color: snColor.withValues(alpha: 0.1),
                                         borderRadius: AppBorderRadius.roundedS,
-                                        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
+                                        border: Border.all(color: snColor.withValues(alpha: 0.3)),
                                       ),
                                       child: Text(
-                                        snCount,
+                                        'SN ($scanned/$required)',
                                         style: theme.textTheme.labelSmall?.copyWith(
-                                          color: theme.colorScheme.primary,
+                                          color: snColor,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -521,7 +535,7 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
   }
 }
 
-final snCountProvider = FutureProvider.family<String?, String>((ref, id) async {
+final snCountProvider = FutureProvider.family<BonPreparation?, String>((ref, id) async {
   final repo = ref.read(bonPreparationRepositoryProvider);
   final details = await repo.getBonPreparationDetails(id);
   
@@ -544,9 +558,7 @@ final snCountProvider = FutureProvider.family<String?, String>((ref, id) async {
     return article;
   }));
 
-  final updatedDetails = details.copyWith(articles: updatedArticles);
-
-  return 'SN (${updatedDetails.totalScannedSerialNumbers}/${updatedDetails.totalRequiredSerialNumbers})';
+  return details.copyWith(articles: updatedArticles);
 });
 
 class _StatusBadge extends StatelessWidget {
