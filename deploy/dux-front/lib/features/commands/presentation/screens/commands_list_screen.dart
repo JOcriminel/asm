@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/app_search_bar.dart';
 import 'package:dux_front/core/widgets/filter_chip.dart';
@@ -100,45 +99,6 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualiser',
             onPressed: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
-          ),
-        ],
-      ),
-      floatingActionButton: SpeedDial(
-        icon: Icons.add,
-        activeIcon: Icons.close,
-        spacing: 3,
-        childPadding: const EdgeInsets.all(5),
-        spaceBetweenChildren: 4,
-        tooltip: 'Menu Rapide',
-        heroTag: 'speed-dial-hero-tag',
-        elevation: 8.0,
-        animationCurve: Curves.elasticInOut,
-        isOpenOnStart: false,
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.refresh),
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            label: 'Actualiser',
-            onTap: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.qr_code_scanner),
-            backgroundColor: Colors.deepOrange,
-            foregroundColor: Colors.white,
-            label: 'Scanner',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scanner non implémenté')));
-            },
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.filter_list),
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-            label: 'Filtrer',
-            onTap: _showFilterSheet,
           ),
         ],
       ),
