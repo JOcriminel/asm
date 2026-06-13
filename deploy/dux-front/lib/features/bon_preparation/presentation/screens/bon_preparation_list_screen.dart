@@ -434,7 +434,10 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
                                   child: CircularProgressIndicator(strokeWidth: 2)
                                 ),
                               ),
-                              error: (_, __) => const SizedBox.shrink(),
+                              error: (e, __) {
+                                debugPrint('SN Error for ${preparation.documentCode}: $e');
+                                return Text('Err', style: TextStyle(color: Colors.red, fontSize: 10));
+                              },
                             );
                           },
                         ),
