@@ -412,49 +412,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   AppSpacing.gapL,
 
-                  // Theme Settings Card
-                  SectionHeader(title: 'Paramètres d\'affichage'),
-                  InfoCard(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-                    child: Consumer(
-                      builder: (context, ref, _) {
-                        final currentTheme = ref.watch(themeControllerProvider);
-                        final themeController = ref.read(themeControllerProvider.notifier);
-
-                        return Column(
-                          children: [
-                            RadioListTile<ThemeMode>(
-                              title: const Text('Système'),
-                              subtitle: const Text('S\'adapte aux paramètres de l\'appareil'),
-                              value: ThemeMode.system,
-                              groupValue: currentTheme,
-                              onChanged: (mode) => themeController.setThemeMode(mode!),
-                              secondary: const Icon(Icons.settings_suggest_rounded),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            const Divider(height: 1),
-                            RadioListTile<ThemeMode>(
-                              title: const Text('Clair'),
-                              value: ThemeMode.light,
-                              groupValue: currentTheme,
-                              onChanged: (mode) => themeController.setThemeMode(mode!),
-                              secondary: const Icon(Icons.light_mode_rounded),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            const Divider(height: 1),
-                            RadioListTile<ThemeMode>(
-                              title: const Text('Sombre'),
-                              value: ThemeMode.dark,
-                              groupValue: currentTheme,
-                              onChanged: (mode) => themeController.setThemeMode(mode!),
-                              secondary: const Icon(Icons.dark_mode_rounded),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
+                  // (Theme Settings Card removed)
                   AppSpacing.gapXxl,
                 ],
               ),
