@@ -21,6 +21,7 @@ class RouteNames {
   static const String commandDetails = 'commandDetails';
   static const String station = 'station';
   static const String profile = 'profile';
+  static const String activityFeed = 'activityFeed';
   
   // Bon de Préparation names
   static const String bonPreparationList = 'bonPreparationList';

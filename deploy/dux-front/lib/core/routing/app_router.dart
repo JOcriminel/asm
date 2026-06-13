@@ -7,6 +7,7 @@ import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/dashboard/presentation/screens/activity_feed_screen.dart';
 import '../../features/home/presentation/screens/home_shell.dart';
 import '../../features/commands/presentation/screens/commands_list_screen.dart';
 import '../../features/command_details/presentation/screens/command_details_screen.dart';
@@ -75,6 +76,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: RoutePaths.dashboard,
                 name: RouteNames.dashboard,
                 builder: (context, state) => const DashboardScreen(),
+              ),
+              GoRoute(
+                path: '/activity-feed',
+                name: RouteNames.activityFeed,
+                builder: (context, state) => const ActivityFeedScreen(),
               ),
             ],
           ),

@@ -16,6 +16,8 @@ class DashboardState {
     bool? isLoading,
     String? error,
     DashboardStats? stats,
+    DateTime? startDate,
+    DateTime? endDate,
   }) {
     return DashboardState(
       isLoading: isLoading ?? this.isLoading,
@@ -32,10 +34,12 @@ class DashboardController extends StateNotifier<DashboardState> {
     fetchStats();
   }
 
-  Future<void> fetchStats() async {
+  Future<void> fetchStats({DateTime? startDate, DateTime? endDate}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final stats = await _repository.getStats();
+      final startStr = startDate?.toIso8601String().split('T').first;
+      final endStr = endDate?.toIso8601String().split('T').first;
+      final stats = await _repository.getStats(startDate: startStr, endDate: endStr);
       state = state.copyWith(isLoading: false, stats: stats);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

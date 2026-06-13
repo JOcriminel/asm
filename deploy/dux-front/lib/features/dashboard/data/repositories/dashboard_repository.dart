@@ -9,11 +9,13 @@ class DashboardStats {
   final int scansToday;
   final int deletionsToday;
   final List<Map<String, dynamic>> scansLast7Days;
+  final List<Map<String, dynamic>> scansByHour;
 
   DashboardStats({
     required this.scansToday,
     required this.deletionsToday,
     required this.scansLast7Days,
+    required this.scansByHour,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
@@ -21,6 +23,7 @@ class DashboardStats {
       scansToday: json['scansToday'] ?? 0,
       deletionsToday: json['deletionsToday'] ?? 0,
       scansLast7Days: List<Map<String, dynamic>>.from(json['scansLast7Days'] ?? []),
+      scansByHour: List<Map<String, dynamic>>.from(json['scansByHour'] ?? []),
     );
   }
 }
@@ -30,9 +33,13 @@ class DashboardRepository {
 
   DashboardRepository(this._dio);
 
-  Future<DashboardStats> getStats() async {
+  Future<DashboardStats> getStats({String? startDate, String? endDate}) async {
     try {
-      final response = await _dio.get('/dashboard/stats');
+      final queryParams = <String, dynamic>{};
+      if (startDate != null) queryParams['startDate'] = startDate;
+      if (endDate != null) queryParams['endDate'] = endDate;
+
+      final response = await _dio.get('/dashboard/stats', queryParameters: queryParams);
       if (response.data != null && response.data is Map<String, dynamic>) {
         return DashboardStats.fromJson(response.data);
       }

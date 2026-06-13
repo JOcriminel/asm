@@ -103,6 +103,12 @@ class DuxDrawer extends ConsumerWidget {
                   pathPrefix: '/dashboard',
                 ),
                 buildDrawerItem(
+                  icon: Icons.history_outlined,
+                  label: 'Journal d\'Activité',
+                  routeName: RouteNames.activityFeed,
+                  pathPrefix: '/activity-feed',
+                ),
+                buildDrawerItem(
                   icon: Icons.assignment_outlined,
                   label: 'Commands',
                   routeName: RouteNames.commands,
