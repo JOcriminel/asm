@@ -369,11 +369,33 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
                             ),
                           ],
                         ),
-                        Text(
-                          formattedDate,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.secondary,
-                          ),
+                        Row(
+                          children: [
+                            if (preparation.requiresSerialNumbers) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                  borderRadius: AppBorderRadius.roundedS,
+                                  border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
+                                ),
+                                child: Text(
+                                  'SN (${preparation.totalScannedSerialNumbers}/${preparation.totalRequiredSerialNumbers})',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              AppSpacing.gapM,
+                            ],
+                            Text(
+                              formattedDate,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.secondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

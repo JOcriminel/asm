@@ -123,6 +123,16 @@ class BonPreparation {
   double get vat => amountTVA > 0 ? amountTVA : amount * 0.19;
   double get totalTTC => amountTTC > 0 ? amountTTC : amount + vat;
 
+  int get totalRequiredSerialNumbers {
+    return articles.where((a) => a.hasSerialNumbers).fold(0, (sum, a) => sum + a.quantity);
+  }
+
+  int get totalScannedSerialNumbers {
+    return articles.where((a) => a.hasSerialNumbers).fold(0, (sum, a) => sum + a.serialNumbers.length);
+  }
+
+  bool get requiresSerialNumbers => articles.any((a) => a.hasSerialNumbers);
+
   const BonPreparation({
     required this.id,
     required this.documentCode,

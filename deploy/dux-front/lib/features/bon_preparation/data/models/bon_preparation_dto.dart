@@ -52,17 +52,21 @@ class PreparationArticleDto {
 
   factory PreparationArticleDto.fromJson(Map<String, dynamic> json) {
     // Parse serial numbers which can be list of items or comma-separated string
-    final rawSn = json['serialNumbers'] ??
+    final rawSn = json['listNumSerie'] ??
+        json['serialNumbers'] ??
         json['numSeries'] ??
-        json['numSerie'] ??
         json['numerosSerie'] ??
         json['numsSerie'] ??
-        json['num_serie'] ??
         json['serial_numbers'];
         
     List<String> serials = [];
     if (rawSn is List) {
-      serials = rawSn.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      serials = rawSn.map((e) {
+        if (e is Map) {
+          return (e['NumSerie'] ?? e['numSerie'] ?? e['num_serie'] ?? '').toString().trim();
+        }
+        return e.toString().trim();
+      }).where((e) => e.isNotEmpty).toList();
     } else if (rawSn is String) {
       serials = rawSn.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     }
