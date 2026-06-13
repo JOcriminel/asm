@@ -176,8 +176,9 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildFilterChips(CommandsState state) {
     final activeFilters = <Widget>[];
