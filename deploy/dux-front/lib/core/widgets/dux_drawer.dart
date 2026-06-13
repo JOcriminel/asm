@@ -105,7 +105,7 @@ class DuxDrawer extends ConsumerWidget {
                 buildDrawerItem(
                   icon: Icons.assignment_outlined,
                   label: 'Commands',
-                  routeName: RouteNames.commandsList,
+                  routeName: RouteNames.commands,
                   pathPrefix: '/commands',
                 ),
                 buildDrawerItem(
@@ -117,7 +117,7 @@ class DuxDrawer extends ConsumerWidget {
                 buildDrawerItem(
                   icon: Icons.storefront_outlined,
                   label: 'Station',
-                  routeName: RouteNames.stationDetails,
+                  routeName: RouteNames.station,
                   pathPrefix: '/station',
                 ),
                 buildDrawerItem(
