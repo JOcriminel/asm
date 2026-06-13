@@ -11,16 +11,16 @@ class AppTheme {
       scaffoldBackgroundColor: lightColorScheme.surface,
       fontFamily: GoogleFonts.inter().fontFamily,
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h1
-        headlineMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h2
-        titleLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.2), // KPI
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2),
-        bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.normal, height: 1.5),
-        bodyMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.4), // Cellule
-        bodySmall: TextStyle(fontSize: 11, fontWeight: FontWeight.normal, height: 1.4), // Mini-cellule
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        labelMedium: TextStyle(fontSize: 10, fontWeight: FontWeight.w600), // Label tableau
-        labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600), // Badge
+        headlineLarge: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h1
+        headlineMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h2
+        titleLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.2), // KPI
+        titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2),
+        bodyLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.5),
+        bodyMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, height: 1.4), // Cellule
+        bodySmall: TextStyle(fontSize: 10, fontWeight: FontWeight.normal, height: 1.4), // Mini-cellule
+        labelLarge: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        labelMedium: TextStyle(fontSize: 9, fontWeight: FontWeight.w600), // Label tableau
+        labelSmall: TextStyle(fontSize: 10, fontWeight: FontWeight.w600), // Badge
       ),
       cardTheme: CardThemeData(
         color: lightColorScheme.surface,
@@ -53,7 +53,7 @@ class AppTheme {
           borderRadius: AppBorderRadius.roundedM,
           borderSide: BorderSide(color: lightColorScheme.error, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.m),
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.s),
         labelStyle: TextStyle(color: lightColorScheme.secondary),
         floatingLabelStyle: TextStyle(color: lightColorScheme.primary),
       ),
@@ -89,16 +89,16 @@ class AppTheme {
       scaffoldBackgroundColor: darkColorScheme.surface,
       fontFamily: GoogleFonts.inter().fontFamily,
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
-        headlineMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
-        titleLarge: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white),
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: Colors.white),
-        bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.normal, height: 1.5, color: Color(0xFF94A3B8)), // Slate 400
-        bodyMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
-        bodySmall: TextStyle(fontSize: 11, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
-        labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
-        labelMedium: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-        labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+        headlineLarge: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
+        headlineMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
+        titleLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white),
+        titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: Colors.white),
+        bodyLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.5, color: Color(0xFF94A3B8)), // Slate 400
+        bodyMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
+        bodySmall: TextStyle(fontSize: 10, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
+        labelLarge: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+        labelMedium: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+        labelSmall: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: darkColorScheme.surface,
@@ -131,7 +131,7 @@ class AppTheme {
           borderRadius: AppBorderRadius.roundedM,
           borderSide: BorderSide(color: darkColorScheme.error, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.m),
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.s),
         labelStyle: TextStyle(color: darkColorScheme.secondary),
         floatingLabelStyle: TextStyle(color: darkColorScheme.primary),
       ),
