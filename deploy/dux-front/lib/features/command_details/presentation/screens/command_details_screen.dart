@@ -83,41 +83,47 @@ class CommandDetailsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header Block
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(AppSpacing.l),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: AppBorderRadius.roundedL,
-                      border: Border.all(color: theme.colorScheme.outline),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Hero(
+                    tag: 'command_${command.id}',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(AppSpacing.l),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: AppBorderRadius.roundedL,
+                          border: Border.all(color: theme.colorScheme.outline),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              command.documentCode,
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Courier',
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  command.documentCode,
+                                  style: theme.textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Courier',
+                                  ),
+                                ),
+                                StatusBadge(status: command.status),
+                              ],
                             ),
-                            StatusBadge(status: command.status),
+                            AppSpacing.gapS,
+                            Text(
+                              command.customerName,
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            AppSpacing.gapXs,
+                            Text(
+                              'Ordered on $formattedDate',
+                              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
+                            ),
                           ],
                         ),
-                        AppSpacing.gapS,
-                        Text(
-                          command.customerName,
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        AppSpacing.gapXs,
-                        Text(
-                          'Ordered on $formattedDate',
-                          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                   AppSpacing.gapL,

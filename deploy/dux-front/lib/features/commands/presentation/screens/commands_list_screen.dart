@@ -1,12 +1,15 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/app_search_bar.dart';
 import 'package:dux_front/core/widgets/filter_chip.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
-import 'package:dux_front/core/widgets/loading_skeleton.dart';
+import 'package:dux_front/core/widgets/skeleton_card.dart';
 import 'package:dux_front/core/widgets/empty_state_widget.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
@@ -72,9 +75,18 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
     final recentSearches = ref.watch(searchHistoryProvider);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       drawer: const DuxDrawer(),
       appBar: AppBar(
         title: const DuxAppBarTitle(title: 'Commandes'),
+        backgroundColor: theme.colorScheme.surface.withOpacity(0.7),
+        elevation: 0,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         actions: [
           IconButton(
             icon: Icon(
@@ -91,9 +103,49 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
           ),
         ],
       ),
-      body: Column(
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        spacing: 3,
+        childPadding: const EdgeInsets.all(5),
+        spaceBetweenChildren: 4,
+        tooltip: 'Menu Rapide',
+        heroTag: 'speed-dial-hero-tag',
+        elevation: 8.0,
+        animationCurve: Curves.elasticInOut,
+        isOpenOnStart: false,
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
         children: [
-          // Search Bar block
+          SpeedDialChild(
+            child: const Icon(Icons.refresh),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            label: 'Actualiser',
+            onTap: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.qr_code_scanner),
+            backgroundColor: Colors.deepOrange,
+            foregroundColor: Colors.white,
+            label: 'Scanner',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Scanner non implémenté')));
+            },
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.filter_list),
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            label: 'Filtrer',
+            onTap: _showFilterSheet,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Search Bar block
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.m),
             child: AppSearchBar(
@@ -287,134 +339,189 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
 
           return Container(
             margin: const EdgeInsets.only(bottom: AppSpacing.l),
-            child: InkWell(
-              onTap: () {
-                context.go('/commands/details/${command.id}');
-              },
-              borderRadius: AppBorderRadius.roundedL,
-              child: Container(
-                padding: const EdgeInsets.all(AppSpacing.l),
-                decoration: BoxDecoration(
-                  color: theme.cardTheme.color,
-                  borderRadius: AppBorderRadius.roundedL,
-                  border: Border.all(color: theme.colorScheme.outline, width: 1),
-                  boxShadow: AppShadows.softShadow(context),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Header row: doc code + type badge ─────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              command.documentCode,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontFamily: 'monospace',
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.2,
-                              ),
+            child: Slidable(
+              key: ValueKey(command.id),
+              startActionPane: ActionPane(
+                motion: const ScrollMotion(),
+                children: [
+                  SlidableAction(
+                    onPressed: (context) {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Valider Commande'),
+                          content: const Text('Êtes-vous sûr de vouloir valider cette commande ?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commande validée')));
+                              },
+                              child: const Text('Confirmer'),
                             ),
-                            if (command.documentType.isNotEmpty)
+                          ],
+                        ),
+                      );
+                    },
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    icon: Icons.check_circle_outline,
+                    label: 'Valider',
+                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
+                  ),
+                ],
+              ),
+              endActionPane: ActionPane(
+                motion: const ScrollMotion(),
+                children: [
+                  SlidableAction(
+                    onPressed: (context) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commande archivée')));
+                    },
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    icon: Icons.archive_outlined,
+                    label: 'Archiver',
+                    borderRadius: const BorderRadius.only(topRight: Radius.circular(16), bottomRight: Radius.circular(16)),
+                  ),
+                ],
+              ),
+              child: InkWell(
+                onTap: () {
+                  context.go('/commands/details/${command.id}');
+                },
+                borderRadius: AppBorderRadius.roundedL,
+                child: Hero(
+                  tag: 'command_${command.id}',
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Container(
+                      padding: const EdgeInsets.all(AppSpacing.l),
+                      decoration: BoxDecoration(
+                        color: theme.cardTheme.color,
+                        borderRadius: AppBorderRadius.roundedL,
+                        border: Border.all(color: theme.colorScheme.outline, width: 1),
+                        boxShadow: AppShadows.softShadow(context),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ── Header row: doc code + type badge ─────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    command.documentCode,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  if (command.documentType.isNotEmpty)
+                                    Text(
+                                      command.documentType,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.secondary,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              // Status badge using the API color
+                              _StatusBadge(
+                                label: command.status,
+                                apiColor: command.statusColor,
+                              ),
+                            ],
+                          ),
+                          AppSpacing.gapM,
+                          // ── Customer name ──────────────────────────────────────
+                          Text(
+                            command.customerName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          AppSpacing.gapS,
+                          // ── Rep + date ─────────────────────────────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.badge_outlined, size: 14, color: theme.colorScheme.secondary),
+                                  AppSpacing.gapXs,
+                                  Text(
+                                    command.representative.isNotEmpty
+                                        ? command.representative
+                                        : '—',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.secondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
                               Text(
-                                command.documentType,
-                                style: theme.textTheme.bodySmall?.copyWith(
+                                formattedDate,
+                                style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.secondary,
                                 ),
                               ),
-                          ],
-                        ),
-                        // Status badge using the API color
-                        _StatusBadge(
-                          label: command.status,
-                          apiColor: command.statusColor,
-                        ),
-                      ],
-                    ),
-                    AppSpacing.gapM,
-                    // ── Customer name ──────────────────────────────────────
-                    Text(
-                      command.customerName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                            ],
+                          ),
+                          AppSpacing.gapL,
+                          const Divider(height: 1),
+                          AppSpacing.gapM,
+                          // ── Amounts ────────────────────────────────────────────
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Montant HT',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.secondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    formattedAmount,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    'Total TTC',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.secondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    formattedTTC,
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    AppSpacing.gapS,
-                    // ── Rep + date ─────────────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.badge_outlined, size: 14, color: theme.colorScheme.secondary),
-                            AppSpacing.gapXs,
-                            Text(
-                              command.representative.isNotEmpty
-                                  ? command.representative
-                                  : '—',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          formattedDate,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.secondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    AppSpacing.gapL,
-                    const Divider(height: 1),
-                    AppSpacing.gapM,
-                    // ── Amounts ────────────────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Montant HT',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                            Text(
-                              formattedAmount,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Total TTC',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                            Text(
-                              formattedTTC,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -429,47 +536,7 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
       padding: const EdgeInsets.all(AppSpacing.l),
       itemCount: 4,
       itemBuilder: (context, index) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: AppSpacing.l),
-          padding: const EdgeInsets.all(AppSpacing.l),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardTheme.color,
-            borderRadius: AppBorderRadius.roundedL,
-            border: Border.all(color: Theme.of(context).colorScheme.outline),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  LoadingSkeleton(height: 20, width: 120),
-                  LoadingSkeleton(height: 20, width: 80),
-                ],
-              ),
-              AppSpacing.gapL,
-              const LoadingSkeleton(height: 18, width: 200),
-              AppSpacing.gapM,
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  LoadingSkeleton(height: 14, width: 100),
-                  LoadingSkeleton(height: 14, width: 80),
-                ],
-              ),
-              AppSpacing.gapL,
-              const Divider(height: 1),
-              AppSpacing.gapM,
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  LoadingSkeleton(height: 14, width: 80),
-                  LoadingSkeleton(height: 22, width: 100),
-                ],
-              ),
-            ],
-          ),
-        );
+        return const SkeletonCard();
       },
     );
   }
