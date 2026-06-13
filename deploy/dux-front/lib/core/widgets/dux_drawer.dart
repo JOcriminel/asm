@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/dux_footer.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
+import 'package:dux_front/core/theme/theme_controller.dart';
 import 'package:dux_front/features/profile/presentation/controllers/profile_controller.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 
@@ -15,6 +16,11 @@ class DuxDrawer extends ConsumerWidget {
     final theme = Theme.of(context);
     final profileState = ref.watch(profileControllerProvider);
     final currentRoute = GoRouterState.of(context).uri.toString();
+    final themeMode = ref.watch(themeControllerProvider);
+    
+    // Determine if we are currently in dark mode
+    final isDark = themeMode == ThemeMode.dark || 
+        (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
 
     Widget buildDrawerItem({
       required IconData icon,
@@ -58,16 +64,32 @@ class DuxDrawer extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Image.network(
-                    'https://new.dux-erp.com/assets/Img/duxlogo01.png',
-                    height: 48,
-                    errorBuilder: (context, error, stackTrace) => Text(
-                      'DUX',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Image.network(
+                        'https://new.dux-erp.com/assets/Img/duxlogo01.png',
+                        height: 48,
+                        errorBuilder: (context, error, stackTrace) => Text(
+                          'DUX',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
                       ),
-                    ),
+                      IconButton(
+                        icon: Text(
+                          isDark ? '🌞' : '🌙',
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                        tooltip: isDark ? 'Passer au thème clair' : 'Passer au thème sombre',
+                        onPressed: () {
+                          final nextTheme = isDark ? ThemeMode.light : ThemeMode.dark;
+                          ref.read(themeControllerProvider.notifier).setThemeMode(nextTheme);
+                        },
+                      ),
+                    ],
                   ),
                   AppSpacing.gapL,
                   TextField(
