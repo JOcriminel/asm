@@ -524,8 +524,29 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
 final snCountProvider = FutureProvider.family<String?, String>((ref, id) async {
   final repo = ref.read(bonPreparationRepositoryProvider);
   final details = await repo.getBonPreparationDetails(id);
+  
   if (!details.requiresSerialNumbers) return null;
-  return 'SN (${details.totalScannedSerialNumbers}/${details.totalRequiredSerialNumbers})';
+
+  // Fetch actual SNs for the lines
+  final updatedArticles = await Future.wait(details.articles.map((article) async {
+    if (article.hasSerialNumbers) {
+      try {
+        final sns = await repo.getSerialNumbersByBonSort(
+          article.id, 
+          productCode: article.code,
+          lineId: article.id,
+        );
+        return article.copyWith(serialNumbers: sns);
+      } catch (_) {
+        return article;
+      }
+    }
+    return article;
+  }));
+
+  final updatedDetails = details.copyWith(articles: updatedArticles);
+
+  return 'SN (${updatedDetails.totalScannedSerialNumbers}/${updatedDetails.totalRequiredSerialNumbers})';
 });
 
 class _StatusBadge extends StatelessWidget {
