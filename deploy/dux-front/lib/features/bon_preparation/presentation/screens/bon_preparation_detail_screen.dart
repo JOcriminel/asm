@@ -134,16 +134,16 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: _buildInfoSection(theme, preparation)),
+                            Expanded(child: _buildDocDetailsCard(theme, preparation)),
                             AppSpacing.gapL,
-                            Expanded(child: _buildSummarySection(theme, preparation)),
+                            Expanded(child: _buildClientDetailsCard(theme, preparation)),
                           ],
                         )
                       : Column(
                           children: [
-                            _buildInfoSection(theme, preparation),
+                            _buildDocDetailsCard(theme, preparation),
                             AppSpacing.gapL,
-                            _buildSummarySection(theme, preparation),
+                            _buildClientDetailsCard(theme, preparation),
                           ],
                         ),
                   AppSpacing.gapL,
@@ -151,6 +151,10 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                   // Articles / Product Lines Section
                   SectionHeader(title: 'Articles & Lignes de Préparation'),
                   _buildArticlesList(context, ref, theme, preparation.articles),
+                  AppSpacing.gapL,
+                  
+                  // Summary Section at the bottom
+                  _buildSummarySection(theme, preparation),
                   AppSpacing.gapXxl,
                 ],
               ),
@@ -172,16 +176,6 @@ class BonPreparationDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildInfoSection(ThemeData theme, BonPreparation preparation) {
-    return Column(
-      children: [
-        _buildDocDetailsCard(theme, preparation),
-        AppSpacing.gapL,
-        _buildClientDetailsCard(theme, preparation),
-      ],
-    );
-  }
-
   Widget _buildDocDetailsCard(ThemeData theme, BonPreparation preparation) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final formattedDocDate = dateFormat.format(preparation.date);
@@ -189,54 +183,62 @@ class BonPreparationDetailScreen extends ConsumerWidget {
         ? dateFormat.format(preparation.timeline.delivered!)
         : 'N/A';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: 'Détails du Document'),
-        InfoCard(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-          child: Column(
-            children: [
-              _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
-              const Divider(),
-              _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', preparation.codePiece ?? preparation.documentCode),
-              const Divider(),
-              _buildInfoRow(theme, Icons.info_outline, 'Etat Document', preparation.status),
-              const Divider(),
-              _buildInfoRow(theme, Icons.person_outline, 'Préparé par', preparation.preparedBy ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', preparation.representative),
-              const Divider(),
-              _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
-              const Divider(),
-              _buildInfoRow(theme, Icons.storefront_outlined, 'Station', preparation.stationName.isNotEmpty ? preparation.stationName : 'N/A'),
-            ],
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        initiallyExpanded: false,
+        title: const SectionHeader(title: 'Détails du Document'),
+        children: [
+          InfoCard(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+            child: Column(
+              children: [
+                _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
+                const Divider(),
+                _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', preparation.codePiece ?? preparation.documentCode),
+                const Divider(),
+                _buildInfoRow(theme, Icons.info_outline, 'Etat Document', preparation.status),
+                const Divider(),
+                _buildInfoRow(theme, Icons.person_outline, 'Préparé par', preparation.preparedBy ?? 'N/A'),
+                const Divider(),
+                _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', preparation.representative),
+                const Divider(),
+                _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
+                const Divider(),
+                _buildInfoRow(theme, Icons.storefront_outlined, 'Station', preparation.stationName.isNotEmpty ? preparation.stationName : 'N/A'),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildClientDetailsCard(ThemeData theme, BonPreparation preparation) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: 'Détails du Client'),
-        InfoCard(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-          child: Column(
-            children: [
-              _buildInfoRow(theme, Icons.business_outlined, 'Raison sociale', preparation.clientRaisonSociale ?? preparation.customerName),
-              const Divider(),
-              _buildInfoRow(theme, Icons.gavel_outlined, 'Matricule fiscale', preparation.clientTaxNumber ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.location_on_outlined, 'Adresse', preparation.clientAddress ?? preparation.deliveryAddress),
-              const Divider(),
-              _buildInfoRow(theme, Icons.phone_outlined, 'Téléphone', preparation.clientPhone ?? (preparation.phone.isNotEmpty ? preparation.phone : 'N/A')),
-            ],
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        initiallyExpanded: false,
+        title: const SectionHeader(title: 'Détails du Client'),
+        children: [
+          InfoCard(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+            child: Column(
+              children: [
+                _buildInfoRow(theme, Icons.business_outlined, 'Raison sociale', preparation.clientRaisonSociale ?? preparation.customerName),
+                const Divider(),
+                _buildInfoRow(theme, Icons.gavel_outlined, 'Matricule fiscale', preparation.clientTaxNumber ?? 'N/A'),
+                const Divider(),
+                _buildInfoRow(theme, Icons.location_on_outlined, 'Adresse', preparation.clientAddress ?? preparation.deliveryAddress),
+                const Divider(),
+                _buildInfoRow(theme, Icons.phone_outlined, 'Téléphone', preparation.clientPhone ?? (preparation.phone.isNotEmpty ? preparation.phone : 'N/A')),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
