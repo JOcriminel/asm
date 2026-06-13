@@ -436,7 +436,32 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
                               ),
                               error: (e, __) {
                                 debugPrint('SN Error for ${preparation.documentCode}: $e');
-                                return Text('Err', style: TextStyle(color: Colors.red, fontSize: 10));
+                                return Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.error.withValues(alpha: 0.1),
+                                        borderRadius: AppBorderRadius.roundedS,
+                                        border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.3)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.error_outline_rounded, size: 12, color: theme.colorScheme.error),
+                                          AppSpacing.gapXs,
+                                          Text(
+                                            'SN Err',
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              color: theme.colorScheme.error,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    AppSpacing.gapM,
+                                  ],
+                                );
                               },
                             );
                           },
@@ -555,22 +580,39 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
 
 final snCountProvider = FutureProvider.family<BonPreparation?, String>((ref, id) async {
   final repo = ref.read(bonPreparationRepositoryProvider);
-  final details = await repo.getBonPreparationDetails(id);
   
-  if (!details.requiresSerialNumbers) return null;
+  BonPreparation? details;
+  int retries = 3;
+  while (retries > 0) {
+    try {
+      details = await repo.getBonPreparationDetails(id);
+      break;
+    } catch (e) {
+      retries--;
+      if (retries == 0) rethrow;
+      await Future.delayed(Duration(milliseconds: 300 * (4 - retries)));
+    }
+  }
+  
+  if (details == null || !details.requiresSerialNumbers) return null;
 
   // Fetch actual SNs for the lines
   final updatedArticles = await Future.wait(details.articles.map((article) async {
     if (article.hasSerialNumbers) {
-      try {
-        final sns = await repo.getSerialNumbersByBonSort(
-          article.id, 
-          productCode: article.code,
-          lineId: article.id,
-        );
-        return article.copyWith(serialNumbers: sns);
-      } catch (_) {
-        return article;
+      int snRetries = 3;
+      while (snRetries > 0) {
+        try {
+          final sns = await repo.getSerialNumbersByBonSort(
+            article.id, 
+            productCode: article.code,
+            lineId: article.id,
+          );
+          return article.copyWith(serialNumbers: sns);
+        } catch (_) {
+          snRetries--;
+          if (snRetries == 0) return article;
+          await Future.delayed(Duration(milliseconds: 200));
+        }
       }
     }
     return article;

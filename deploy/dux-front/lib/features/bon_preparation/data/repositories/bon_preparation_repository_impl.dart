@@ -302,6 +302,19 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
               }
             }
           }
+        } else if (data is Map<String, dynamic>) {
+          final list = data['data'] ?? data['content'] ?? data['results'] ?? data['serialNumbers'] ?? data['numSeries'];
+          if (list is List) {
+            for (var item in list) {
+              if (item is Map<String, dynamic>) {
+                final id = item['id']?.toString();
+                final sn = item['NumSerie'] ?? item['numSerie'] ?? item['num_serie'];
+                if (id != null && sn != null) {
+                  results[sn.toString().trim()] = id.toString();
+                }
+              }
+            }
+          }
         }
       }
       return results;
