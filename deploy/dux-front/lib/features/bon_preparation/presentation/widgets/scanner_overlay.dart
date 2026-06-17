@@ -24,22 +24,24 @@ class ScannerOverlay extends StatefulWidget {
 }
 
 class _ScannerOverlayState extends State<ScannerOverlay> {
-  final MobileScannerController _scannerController = MobileScannerController(
-    formats: const [BarcodeFormat.all],
-    returnImage: false,
-    detectionSpeed: DetectionSpeed.normal,
-  );
+  late final MobileScannerController _scannerController;
   final _inputController = TextEditingController();
   bool _hasScanned = false;
   bool _isSimulatorMode = false;
-  
   DateTime? _lastScanTime;
-  late int _currentCount;
+  int _currentCount = 0;
+  bool _isScanningPaused = false;
 
   @override
   void initState() {
     super.initState();
     _currentCount = widget.initialScannedCount;
+    _scannerController = MobileScannerController(
+      formats: const [BarcodeFormat.all],
+      returnImage: false,
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+    );
   }
 
   @override
@@ -50,6 +52,7 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
   }
 
   void _onScanned(String barcode) {
+    if (_isScanningPaused) return;
     if (barcode.trim().isEmpty) return;
 
     // Debounce to avoid rapid duplicate scans
@@ -78,6 +81,45 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) Navigator.of(context).pop();
         });
+      } else {
+        // Pause scanning and ask user if they want to scan the next one
+        setState(() {
+          _isScanningPaused = true;
+        });
+        showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Succès'),
+              ],
+            ),
+            content: Text(
+              'Code enregistré avec succès ($_currentCount/${widget.expectedCount ?? "?"}).\n\nVoulez-vous scanner le suivant ?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Terminer'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Suivant'),
+              ),
+            ],
+          ),
+        ).then((scanNext) {
+          if (scanNext == true) {
+            setState(() {
+              _isScanningPaused = false;
+            });
+          } else {
+            if (mounted) Navigator.of(context).pop(); // Exit scanner
+          }
+        });
       }
     } else {
       if (_hasScanned) return;
@@ -100,19 +142,45 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
           if (!_isSimulatorMode)
             MobileScanner(
               controller: _scannerController,
-              errorBuilder: (context, error, child) {
+              errorBuilder: (context, error) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(20.0),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.downloading_rounded, color: Colors.orange, size: 48),
+                        const Icon(Icons.videocam_off, color: Colors.redAccent, size: 48),
                         AppSpacing.gapM,
                         Text(
-                          'Chargement du module de scan...\n(Veuillez patienter ou relancer l\'application si c\'est la première installation)',
-                          style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white),
+                          'Caméra indisponible ou erreur',
+                          style: theme.textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
+                        ),
+                        AppSpacing.gapS,
+                        Text(
+                          'Raison: ${error.errorDetails?.message ?? error.toString()}',
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                        AppSpacing.gapS,
+                        Text(
+                          'Vérifiez que l\'application a l\'autorisation d\'utiliser l\'appareil photo dans les paramètres Android, ou si vous utilisez une caisse tactile, passez en mode Douchette.',
+                          style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                        AppSpacing.gapL,
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.keyboard),
+                          label: const Text('Utiliser Douchette / Clavier'),
+                          onPressed: () {
+                            setState(() {
+                              _isSimulatorMode = true;
+                            });
+                          },
                         ),
                       ],
                     ),
@@ -235,19 +303,20 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'Saisie Manuelle',
+                          'Mode Douchette / Clavier',
                           style: TextStyle(
                             color: Colors.grey,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 14,
                           ),
                         ),
                         AppSpacing.gapM,
                         TextField(
                           controller: _inputController,
                           style: const TextStyle(color: Colors.white),
+                          autofocus: true, // Auto-focus so the scanner types directly!
                           decoration: InputDecoration(
-                            hintText: 'e.g. SN-98234-X',
+                            hintText: 'Scannez ou tapez ici...',
                             hintStyle: const TextStyle(color: Colors.white30),
                             suffixIcon: IconButton(
                               icon: const Icon(Icons.check_circle, color: Colors.green),

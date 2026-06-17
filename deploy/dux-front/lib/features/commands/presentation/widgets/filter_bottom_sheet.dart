@@ -172,7 +172,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.xs),
               child: DropdownButtonFormField<CommandSortOrder>(
-                value: _sortOrder,
+                initialValue: _sortOrder,
                 decoration: const InputDecoration(
                   labelText: 'Trier par',
                   prefixIcon: Icon(Icons.sort_rounded, size: 20),
@@ -278,7 +278,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
               // Tier Dropdown
               DropdownButtonFormField<String>(
-                value: _selectedTier,
+                initialValue: _selectedTier,
                 decoration: const InputDecoration(
                   labelText: 'Customer Tier',
                   prefixIcon: Icon(Icons.trending_up, size: 20),
@@ -298,7 +298,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
               // Status Dropdown
               DropdownButtonFormField<String>(
-                value: _selectedStatus,
+                initialValue: _selectedStatus,
                 decoration: const InputDecoration(
                   labelText: 'Order Status',
                   prefixIcon: Icon(Icons.verified_outlined, size: 20),

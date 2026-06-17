@@ -33,7 +33,7 @@ class BonPreparationDetailScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'Détails du Bon de Préparation'),
+        title: const DuxAppBarTitle(title: 'BP-D'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -46,16 +46,12 @@ class BonPreparationDetailScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.copy_rounded),
-            tooltip: 'Copier la référence',
-            onPressed: () {
-              if (state.preparation != null) {
-                Clipboard.setData(ClipboardData(text: state.preparation!.documentCode));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Référence copiée !')),
-                );
-              }
-            },
+            icon: const Icon(Icons.wifi, color: Colors.green),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.home_outlined),
+            onPressed: () => context.go('/dashboard'),
           ),
         ],
       ),
@@ -106,6 +102,7 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                                 style: theme.textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                   fontFamily: 'Courier',
+                                  fontSize: 32, // Make it bigger
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -117,7 +114,10 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                         AppSpacing.gapS,
                         Text(
                           preparation.customerName,
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 26, // Make it bigger
+                          ),
                         ),
                         AppSpacing.gapXs,
                         Text(
@@ -155,6 +155,65 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                   
                   // Summary Section at the bottom
                   _buildSummarySection(theme, preparation),
+                  AppSpacing.gapXxl,
+                  
+                  // Finaliser la préparation button
+                  if (preparation.totalScannedSerialNumbers == preparation.totalRequiredSerialNumbers)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                          shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                        ),
+                        onPressed: () {
+                          context.pushNamed(
+                            RouteNames.bonPreparationChecklist,
+                            extra: {'preparationId': preparation.id},
+                          );
+                        },
+                        child: const Text(
+                          'Finaliser la préparation',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  if (preparation.totalScannedSerialNumbers < preparation.totalRequiredSerialNumbers)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                          backgroundColor: Colors.grey.shade400,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                        ),
+                        onPressed: null, // disabled
+                        child: const Text(
+                          'Scannez tous les SN pour finaliser',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  if (preparation.totalScannedSerialNumbers > preparation.totalRequiredSerialNumbers)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                          backgroundColor: theme.colorScheme.errorContainer,
+                          foregroundColor: theme.colorScheme.onErrorContainer,
+                          shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                        ),
+                        onPressed: null, // disabled
+                        child: const Text(
+                          'Trop de numéros de série scannés !',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
                   AppSpacing.gapXxl,
                 ],
               ),
@@ -319,19 +378,21 @@ class BonPreparationDetailScreen extends ConsumerWidget {
           snButtonColor = const Color(0xFFEF5350); // Red
         } else if (count < totalQte) {
           snButtonColor = const Color(0xFFFF9800); // Orange
-        } else {
+        } else if (count == totalQte) {
           snButtonColor = const Color(0xFF4CAF50); // Green
+        } else {
+          snButtonColor = const Color(0xFFD32F2F); // Dark Red for overscan
         }
 
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.m),
           child: InfoCard(
-            padding: const EdgeInsets.all(AppSpacing.l),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: EdgeInsets.zero,
+            child: Theme(
+              data: theme.copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                title: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
@@ -341,65 +402,96 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    
-                    // The Colorful SN Button
-                    if (item.hasSerialNumbers)
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: snButtonColor,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                    if (item.hasSerialNumbers) ...[
+                      AppSpacing.gapS,
+                      SizedBox(
+                        height: 36,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: snButtonColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        ),
-                        onPressed: () async {
-                          final args = SerialNumberArgs(
-                            documentId: preparationId,
-                            lineId: item.id,
-                            productCode: item.code,
-                            productName: item.name,
-                            quantity: totalQte,
-                            initialSerialNumbers: item.serialNumbers,
-                          );
-                          final updated = await context.pushNamed<bool>(
-                            RouteNames.bonPreparationSerialNumber,
-                            extra: args,
-                          );
-                          if (updated == true) {
-                            ref.read(bonPreparationDetailControllerProvider(preparationId).notifier).fetchDetails();
-                          }
-                        },
-                        child: Text(
-                          'SN ($count/$totalQte)',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          onPressed: () async {
+                            final args = SerialNumberArgs(
+                              documentId: preparationId,
+                              lineId: item.id,
+                              productCode: item.code,
+                              productName: item.name,
+                              quantity: totalQte,
+                              initialSerialNumbers: item.serialNumbers,
+                            );
+                            final updated = await context.pushNamed<bool>(
+                              RouteNames.bonPreparationSerialNumber,
+                              extra: args,
+                            );
+                            if (updated == true) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle, color: Colors.white),
+                                      AppSpacing.gapS,
+                                      const Expanded(child: Text('Numéros de série enregistrés')),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.green,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              );
+                              ref.read(bonPreparationDetailControllerProvider(preparationId).notifier).fetchDetails();
+                            }
+                          },
+                          child: Text(
+                            'SN ($count/$totalQte)',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
                         ),
                       ),
+                    ],
                   ],
                 ),
-                const Divider(height: 20),
-                _buildFieldRow('Code Article', item.code),
-                _buildFieldRow('Quantité commandée', '$totalQte ${item.unite ?? "U"}'),
-                if (item.hasSerialNumbers && item.serialNumbers.isNotEmpty) ...[
-                  AppSpacing.gapS,
-                  Text(
-                    'Serial Numbers entered:',
-                    style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.secondary),
-                  ),
-                  AppSpacing.gapXs,
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: item.serialNumbers.map((sn) {
-                      return Chip(
-                        label: Text(sn, style: const TextStyle(fontSize: 10)),
-                        padding: EdgeInsets.zero,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      );
-                    }).toList(),
-                  ),
+                subtitle: (item.hasSerialNumbers && item.serialNumbers.isNotEmpty)
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.s),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Saisis:',
+                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.secondary),
+                            ),
+                            AppSpacing.gapXs,
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: item.serialNumbers.map((sn) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(sn, style: const TextStyle(fontSize: 11, fontFamily: 'Courier')),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      )
+                    : null,
+                childrenPadding: const EdgeInsets.all(AppSpacing.l).copyWith(top: 0),
+                children: [
+                  const Divider(height: 20),
+                  _buildFieldRow('Code Article', item.code),
+                  _buildFieldRow('Quantité commandée', '$totalQte ${item.unite ?? "U"}'),
                 ],
-              ],
+              ),
             ),
           ),
         );

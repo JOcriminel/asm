@@ -7,15 +7,19 @@ import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/dashboard/presentation/screens/kpi_dashboard_screen.dart';
 import '../../features/dashboard/presentation/screens/activity_feed_screen.dart';
 import '../../features/home/presentation/screens/home_shell.dart';
 import '../../features/commands/presentation/screens/commands_list_screen.dart';
 import '../../features/command_details/presentation/screens/command_details_screen.dart';
 import '../../features/station/presentation/screens/station_details_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/clients/presentation/screens/client_list_screen.dart';
+import '../../features/clients/presentation/screens/client_details_screen.dart';
 import '../../features/bon_preparation/presentation/screens/bon_preparation_list_screen.dart';
 import '../../features/bon_preparation/presentation/screens/bon_preparation_detail_screen.dart';
 import '../../features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
+import '../../features/bon_preparation/presentation/screens/preparation_checklist_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -78,9 +82,30 @@ final routerProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const DashboardScreen(),
               ),
               GoRoute(
+                path: RoutePaths.kpiDashboard,
+                name: RouteNames.kpiDashboard,
+                builder: (context, state) => const KpiDashboardScreen(),
+              ),
+              GoRoute(
                 path: '/activity-feed',
                 name: RouteNames.activityFeed,
                 builder: (context, state) => const ActivityFeedScreen(),
+              ),
+              GoRoute(
+                path: RoutePaths.clients,
+                name: RouteNames.clients,
+                builder: (context, state) => const ClientsListScreen(),
+                routes: [
+                  GoRoute(
+                    path: RoutePaths.clientDetails,
+                    name: RouteNames.clientDetails,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) {
+                      final id = state.pathParameters['id'] ?? '';
+                      return ClientDetailsScreen(clientId: id);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -140,6 +165,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final args = state.extra as SerialNumberArgs;
                       return SerialNumberEntryScreen(args: args);
+                    },
+                  ),
+                  GoRoute(
+                    path: 'checklist',
+                    name: RouteNames.bonPreparationChecklist,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) {
+                      final args = state.extra as Map<String, dynamic>;
+                      return PreparationChecklistScreen(
+                        preparationId: args['preparationId'] as String,
+                      );
                     },
                   ),
                 ],

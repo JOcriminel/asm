@@ -119,10 +119,22 @@ class DuxDrawer extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s),
               children: [
                 buildDrawerItem(
-                  icon: Icons.dashboard_outlined,
-                  label: 'Dashboard',
+                  icon: Icons.home_outlined,
+                  label: 'Accueil',
                   routeName: RouteNames.dashboard,
                   pathPrefix: '/dashboard',
+                ),
+                buildDrawerItem(
+                  icon: Icons.dashboard_outlined,
+                  label: 'KPI Dashboard',
+                  routeName: RouteNames.kpiDashboard,
+                  pathPrefix: '/kpi-dashboard',
+                ),
+                buildDrawerItem(
+                  icon: Icons.people_outline,
+                  label: 'Clients',
+                  routeName: RouteNames.clients,
+                  pathPrefix: '/clients',
                 ),
                 buildDrawerItem(
                   icon: Icons.history_outlined,

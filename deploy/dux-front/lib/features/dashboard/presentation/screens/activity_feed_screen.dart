@@ -93,7 +93,7 @@ class _ActivityFeedScreenState extends ConsumerState<ActivityFeedScreen> {
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: isScan ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
+              backgroundColor: isScan ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
               child: Icon(
                 isScan ? Icons.qr_code_scanner : Icons.delete_outline,
                 color: isScan ? Colors.green : Colors.orange,

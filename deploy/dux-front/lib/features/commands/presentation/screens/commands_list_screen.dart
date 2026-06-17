@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -16,6 +17,8 @@ import 'package:dux_front/core/widgets/dux_drawer.dart';
 import '../controllers/commands_controller.dart';
 import '../widgets/filter_bottom_sheet.dart';
 import 'package:dux_front/core/services/search_history_service.dart';
+import '../../../command_details/presentation/utils/pdf_generation_helper.dart';
+import '../../../command_details/data/repositories/command_details_repository.dart';
 
 class CommandsListScreen extends ConsumerStatefulWidget {
   const CommandsListScreen({super.key});
@@ -77,8 +80,8 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
       extendBodyBehindAppBar: true,
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'Commandes'),
-        backgroundColor: theme.colorScheme.surface.withOpacity(0.7),
+        title: const DuxAppBarTitle(title: 'BC'),
+        backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.7),
         elevation: 0,
         flexibleSpace: ClipRect(
           child: BackdropFilter(
@@ -99,6 +102,14 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualiser',
             onPressed: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
+          ),
+          IconButton(
+            icon: const Icon(Icons.wifi, color: Colors.green),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.home_outlined),
+            onPressed: () => context.go('/dashboard'),
           ),
         ],
       ),
@@ -272,7 +283,10 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
+      onRefresh: () async {
+        HapticFeedback.mediumImpact();
+        await ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true);
+      },
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.all(AppSpacing.l),
@@ -299,190 +313,161 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
           ).format(command.amountTTC);
 
           return Container(
-            margin: const EdgeInsets.only(bottom: AppSpacing.l),
-            child: Slidable(
-              key: ValueKey(command.id),
-              startActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                children: [
-                  SlidableAction(
-                    onPressed: (context) {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Valider Commande'),
-                          content: const Text('Êtes-vous sûr de vouloir valider cette commande ?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commande validée')));
-                              },
-                              child: const Text('Confirmer'),
+            margin: const EdgeInsets.only(bottom: AppSpacing.m),
+            child: InkWell(
+              onTap: () {
+                context.go('/commands/details/${command.id}');
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title row with Status dot
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6.0, right: 8.0),
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _StatusBadge.parseColor(command.statusColor) ?? Colors.greenAccent.shade200,
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    icon: Icons.check_circle_outline,
-                    label: 'Valider',
-                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)),
-                  ),
-                ],
-              ),
-              endActionPane: ActionPane(
-                motion: const ScrollMotion(),
-                children: [
-                  SlidableAction(
-                    onPressed: (context) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Commande archivée')));
-                    },
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    icon: Icons.archive_outlined,
-                    label: 'Archiver',
-                    borderRadius: const BorderRadius.only(topRight: Radius.circular(16), bottomRight: Radius.circular(16)),
-                  ),
-                ],
-              ),
-              child: InkWell(
-                onTap: () {
-                  context.go('/commands/details/${command.id}');
-                },
-                borderRadius: AppBorderRadius.roundedL,
-                child: Hero(
-                  tag: 'command_${command.id}',
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: Container(
-                      padding: const EdgeInsets.all(AppSpacing.l),
-                      decoration: BoxDecoration(
-                        color: theme.cardTheme.color,
-                        borderRadius: AppBorderRadius.roundedL,
-                        border: Border.all(color: theme.colorScheme.outline, width: 1),
-                        boxShadow: AppShadows.softShadow(context),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ── Header row: doc code + type badge ─────────────────
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    command.documentCode,
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontFamily: 'monospace',
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                  if (command.documentType.isNotEmpty)
-                                    Text(
-                                      command.documentType,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.secondary,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              // Status badge using the API color
-                              _StatusBadge(
-                                label: command.status,
-                                apiColor: command.statusColor,
-                              ),
-                            ],
                           ),
-                          AppSpacing.gapM,
-                          // ── Customer name ──────────────────────────────────────
-                          Text(
-                            command.customerName,
+                        ),
+                        Expanded(
+                          child: Text(
+                            command.customerName.toUpperCase(),
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors.black87,
                             ),
                           ),
-                          AppSpacing.gapS,
-                          // ── Rep + date ─────────────────────────────────────────
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.badge_outlined, size: 14, color: theme.colorScheme.secondary),
-                                  AppSpacing.gapXs,
-                                  Text(
-                                    command.representative.isNotEmpty
-                                        ? command.representative
-                                        : '—',
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: theme.colorScheme.secondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                formattedDate,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.secondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          AppSpacing.gapL,
-                          const Divider(height: 1),
-                          AppSpacing.gapM,
-                          // ── Amounts ────────────────────────────────────────────
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Montant HT',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.secondary,
-                                    ),
-                                  ),
-                                  Text(
-                                    formattedAmount,
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    'Total TTC',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: theme.colorScheme.secondary,
-                                    ),
-                                  ),
-                                  Text(
-                                    formattedTTC,
-                                    style: theme.textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Key-Value rows
+                    Text.rich(
+                      TextSpan(
+                        text: 'Code: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: command.documentCode,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Représentant: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: command.representative.isNotEmpty ? command.representative : '—',
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Statut: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: command.status,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Date: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: formattedDate,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Prix TTC: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: formattedTTC,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+                    
+                    // Action Buttons (Bottom Right)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _ActionButton(
+                          icon: Icons.visibility_outlined,
+                          color: const Color(0xFF62A0EA), // Blue
+                          onTap: () => context.go('/commands/details/${command.id}'),
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionButton(
+                          icon: Icons.print_rounded,
+                          color: const Color(0xFFF6D32D), // Yellow
+                          onTap: () async {
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            scaffoldMessenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Préparation du document PDF...'),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                            try {
+                              final repo = ref.read(commandDetailsRepositoryProvider);
+                              final details = await repo.getCommandDetails(command.id);
+                              await PdfGenerationHelper.printCommand(details);
+                            } catch (e) {
+                              scaffoldMessenger.showSnackBar(
+                                const SnackBar(content: Text('Erreur: Impossible de charger les détails')),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -509,41 +494,9 @@ class _StatusBadge extends StatelessWidget {
 
   const _StatusBadge({
     required this.label,
-    this.apiColor,
-  });
+  }) : apiColor = null;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final parsedColor = _parseColor(apiColor);
-    
-    if (parsedColor == null) {
-      return StatusBadge(status: label);
-    }
-
-    final bg = parsedColor.withOpacity(0.12);
-    final fg = parsedColor;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: AppBorderRadius.roundedFull,
-        border: Border.all(color: fg.withOpacity(0.3), width: 1),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: fg,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-          fontSize: 10,
-        ),
-      ),
-    );
-  }
-
-  Color? _parseColor(String? colorStr) {
+  static Color? parseColor(String? colorStr) {
     if (colorStr == null || colorStr.isEmpty) return null;
     final clean = colorStr.trim().toLowerCase();
     
@@ -584,5 +537,55 @@ class _StatusBadge extends StatelessWidget {
     }
 
     return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = parseColor(apiColor) ?? theme.colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: AppBorderRadius.roundedS,
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
   }
 }

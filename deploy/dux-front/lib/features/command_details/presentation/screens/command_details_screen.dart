@@ -31,7 +31,7 @@ class CommandDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'Détails Commande'),
+        title: const DuxAppBarTitle(title: 'BC-D'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -44,15 +44,12 @@ class CommandDetailsScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share_rounded),
-            tooltip: 'Copier le lien',
-            onPressed: () {
-              final url = 'duxapp://commands/details/$commandId';
-              Clipboard.setData(ClipboardData(text: url));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Lien copié dans le presse-papiers !')),
-              );
-            },
+            icon: const Icon(Icons.wifi, color: Colors.green),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.home_outlined),
+            onPressed: () => context.go('/dashboard'),
           ),
         ],
       ),
@@ -106,6 +103,7 @@ class CommandDetailsScreen extends ConsumerWidget {
                                   style: theme.textTheme.headlineMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     fontFamily: 'Courier',
+                                    fontSize: 32, // Make it bigger
                                   ),
                                 ),
                                 StatusBadge(status: command.status),
@@ -114,7 +112,10 @@ class CommandDetailsScreen extends ConsumerWidget {
                             AppSpacing.gapS,
                             Text(
                               command.customerName,
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 26, // Make it bigger
+                              ),
                             ),
                             AppSpacing.gapXs,
                             Text(
@@ -139,15 +140,11 @@ class CommandDetailsScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(child: _buildInfoSection(theme, command)),
-                            AppSpacing.gapL,
-                            Expanded(child: _buildSummarySection(theme, command)),
                           ],
                         )
                       : Column(
                           children: [
                             _buildInfoSection(theme, command),
-                            AppSpacing.gapL,
-                            _buildSummarySection(theme, command),
                           ],
                         ),
                   AppSpacing.gapL,
@@ -156,11 +153,9 @@ class CommandDetailsScreen extends ConsumerWidget {
                   SectionHeader(title: 'Articles & Items'),
                   _buildArticlesList(theme, command.articles),
                   AppSpacing.gapL,
-                  PrimaryButton(
-                    text: 'Imprimer le Bon de Commande',
-                    icon: Icons.print_rounded,
-                    onPressed: () => PdfGenerationHelper.printCommand(command),
-                  ),
+
+                  // Summary Section moved to bottom
+                  _buildSummarySection(theme, command),
                   AppSpacing.gapXxl,
                 ],
               ),
@@ -206,36 +201,46 @@ class CommandDetailsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(title: 'Détails du Document'),
-        InfoCard(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-          child: Column(
+        Theme(
+          data: theme.copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            title: const Text('Détails du Document', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            childrenPadding: EdgeInsets.zero,
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: false,
             children: [
-              _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
-              const Divider(),
-              _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', command.codePiece ?? command.documentCode),
-              const Divider(),
-              _buildInfoRow(theme, Icons.info_outline, 'Etat Document', command.status),
-              const Divider(),
-              _buildInfoRow(theme, Icons.person_outline, 'Préparé par', command.preparedBy ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.assignment_turned_in_outlined, 'Concrétisé Par', command.concretizedBy ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', command.representative),
-              const Divider(),
-              _buildInfoRow(theme, Icons.handshake, 'Apporteur', command.apporteur ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.monetization_on_outlined, 'Devise', command.currency),
-              const Divider(),
-              _buildInfoRow(theme, Icons.currency_exchange_outlined, 'Taux de change', exchangeRateStr),
-              const Divider(),
-              _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
-              const Divider(),
-              _buildInfoRow(theme, Icons.storefront_outlined, 'Station', command.stationName.isNotEmpty ? command.stationName : 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.swap_horiz_outlined, 'Affecter sur', command.affecterSur ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.person_pin_outlined, 'Client', command.customerName),
+              InfoCard(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+                child: Column(
+                  children: [
+                    _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', command.codePiece ?? command.documentCode),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.info_outline, 'Etat Document', command.status),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.person_outline, 'Préparé par', command.preparedBy ?? 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.assignment_turned_in_outlined, 'Concrétisé Par', command.concretizedBy ?? 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', command.representative),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.handshake, 'Apporteur', command.apporteur ?? 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.monetization_on_outlined, 'Devise', command.currency),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.currency_exchange_outlined, 'Taux de change', exchangeRateStr),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.storefront_outlined, 'Station', command.stationName.isNotEmpty ? command.stationName : 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.swap_horiz_outlined, 'Affecter sur', command.affecterSur ?? 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.person_pin_outlined, 'Client', command.customerName),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -247,22 +252,32 @@ class CommandDetailsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SectionHeader(title: 'Détails du Client'),
-        InfoCard(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-          child: Column(
+        Theme(
+          data: theme.copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            title: const Text('Détails du Client', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            childrenPadding: EdgeInsets.zero,
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: false,
             children: [
-              _buildInfoRow(theme, Icons.business_outlined, 'Raison sociale', command.clientRaisonSociale ?? command.customerName),
-              const Divider(),
-              _buildInfoRow(theme, Icons.gavel_outlined, 'Matricule fiscale', command.clientTaxNumber ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.location_on_outlined, 'Adresse', command.clientAddress ?? command.deliveryAddress),
-              const Divider(),
-              _buildInfoRow(theme, Icons.phone_outlined, 'Téléphone', command.clientPhone ?? (command.phone.isNotEmpty ? command.phone : 'N/A')),
-              const Divider(),
-              _buildInfoRow(theme, Icons.contact_phone_outlined, 'Personne à contacter', command.clientContactPerson ?? 'N/A'),
-              const Divider(),
-              _buildInfoRow(theme, Icons.perm_identity_outlined, 'état personnalisé', command.clientCustomStatus ?? 'N/A'),
+              InfoCard(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+                child: Column(
+                  children: [
+                    _buildInfoRow(theme, Icons.business_outlined, 'Raison sociale', command.clientRaisonSociale ?? command.customerName),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.gavel_outlined, 'Matricule fiscale', command.clientTaxNumber ?? 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.location_on_outlined, 'Adresse', command.clientAddress ?? command.deliveryAddress),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.phone_outlined, 'Téléphone', command.clientPhone ?? (command.phone.isNotEmpty ? command.phone : 'N/A')),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.contact_phone_outlined, 'Personne à contacter', command.clientContactPerson ?? 'N/A'),
+                    const Divider(),
+                    _buildInfoRow(theme, Icons.perm_identity_outlined, 'état personnalisé', command.clientCustomStatus ?? 'N/A'),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -404,38 +419,30 @@ class CommandDetailsScreen extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.m),
               child: InfoCard(
-                padding: const EdgeInsets.all(AppSpacing.l),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.name,
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.info_outline),
-                          onPressed: () => _showItemDetailDialog(context, item),
-                        ),
-                      ],
+                padding: EdgeInsets.zero,
+                child: Theme(
+                  data: theme.copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    title: Text(
+                      item.name,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const Divider(height: 20),
-                    _buildMobileDetailRow('Code', item.code),
-                    _buildMobileDetailRow('Stockable', isStockable ? 'Oui' : 'Non'),
-                    _buildMobileDetailRow('Quantité', '${item.quantity} ${item.unite ?? 'Pièce'}'),
-                    _buildMobileDetailRow('PUHT/U', currencyFormat.format(item.unitPrice)),
-                    _buildMobileDetailRow('Remise', '${item.discountPercent ?? 0.0} %'),
-                    _buildMobileDetailRow('Mnt Net HT', currencyFormat.format(item.netHT ?? item.total)),
-                    _buildMobileDetailRow('TVA', '${item.tvaPercent ?? 19.0} %'),
-                    _buildMobileDetailRow('PUTTC', currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))),
-                    _buildMobileDetailRow('Total TTC', currencyFormat.format(item.totalTTC ?? (item.total * 1.19)), isHighlight: true),
-                  ],
+                    childrenPadding: const EdgeInsets.all(AppSpacing.l).copyWith(top: 0),
+                    children: [
+                      const Divider(height: 20),
+                      _buildMobileDetailRow('Code', item.code),
+                      _buildMobileDetailRow('Stockable', isStockable ? 'Oui' : 'Non'),
+                      _buildMobileDetailRow('Quantité', '${item.quantity} ${item.unite ?? 'Pièce'}'),
+                      _buildMobileDetailRow('PUHT/U', currencyFormat.format(item.unitPrice)),
+                      _buildMobileDetailRow('Remise', '${item.discountPercent ?? 0.0} %'),
+                      _buildMobileDetailRow('Mnt Net HT', currencyFormat.format(item.netHT ?? item.total)),
+                      _buildMobileDetailRow('TVA', '${item.tvaPercent ?? 19.0} %'),
+                      _buildMobileDetailRow('PUTTC', currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))),
+                      _buildMobileDetailRow('Total TTC', currencyFormat.format(item.totalTTC ?? (item.total * 1.19)), isHighlight: true),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -519,7 +526,7 @@ class CommandDetailsScreen extends ConsumerWidget {
                   value,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onBackground,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
               ],

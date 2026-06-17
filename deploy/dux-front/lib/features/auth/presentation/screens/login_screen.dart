@@ -107,9 +107,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(AppSpacing.m),
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.error.withOpacity(0.1),
+                              color: theme.colorScheme.error.withValues(alpha: 0.1),
                               borderRadius: AppBorderRadius.roundedM,
-                              border: Border.all(color: theme.colorScheme.error.withOpacity(0.3)),
+                              border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               children: [
@@ -183,7 +183,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             Text(
                               'Remember me',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onBackground,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                           ],

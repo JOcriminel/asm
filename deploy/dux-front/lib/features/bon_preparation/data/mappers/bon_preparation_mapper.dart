@@ -19,6 +19,7 @@ class BonPreparationMapper {
       serialNumbers: dto.serialNumbers ?? [],
       rawJson: dto.rawJson,
       numSerie: dto.numSerie,
+      familyId: dto.familyId,
     );
   }
 

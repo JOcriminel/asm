@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
@@ -6,7 +7,7 @@ import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/features/bon_preparation/data/repositories/bon_preparation_repository_impl.dart';
 import '../controllers/bon_preparation_detail_controller.dart';
 import '../widgets/scanner_overlay.dart';
-
+import 'package:dux_front/core/services/serial_number_cache_service.dart';
 
 class SerialNumberArgs {
   final String documentId;
@@ -48,8 +49,9 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
   @override
   void initState() {
     super.initState();
+    final inputCount = max(widget.args.quantity, widget.args.initialSerialNumbers.length);
     _controllers = List.generate(
-      widget.args.quantity,
+      inputCount,
       (index) => TextEditingController(
         text: index < widget.args.initialSerialNumbers.length
             ? widget.args.initialSerialNumbers[index]
@@ -57,7 +59,7 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
       ),
     );
     _focusNodes = List.generate(
-      widget.args.quantity,
+      inputCount,
       (_) => FocusNode(),
     );
     _fetchSerialNumberIds();
@@ -166,6 +168,13 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     final values = _controllers.map((c) => c.text.trim()).toList();
     final nonExactEmptyValues = values.where((val) => val.isNotEmpty).toList();
 
+    if (nonExactEmptyValues.length > widget.args.quantity) {
+      setState(() {
+        _validationError = 'Vous avez scanné plus de numéros de série que la quantité demandée (${widget.args.quantity}). Veuillez en supprimer.';
+      });
+      return false;
+    }
+
     // Check for duplicate fields among non-empty values
     final uniqueValues = nonExactEmptyValues.toSet();
     if (uniqueValues.length < nonExactEmptyValues.length) {
@@ -219,6 +228,9 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             _isLoadingIds = false;
           });
           if (success) {
+            // Untrack globally
+            ref.read(serialNumberCacheServiceProvider).untrackSerialNumber(snValue);
+            
             setState(() {
               _controllers[index].clear();
               _serialNumberIds.remove(snValue);
@@ -248,6 +260,25 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
         .map((c) => c.text.trim())
         .where((val) => val.isNotEmpty)
         .toList();
+
+    // Validate locally within the same document (other lines)
+    final state = ref.read(bonPreparationDetailControllerProvider(widget.args.documentId));
+    final preparation = state.preparation;
+    if (preparation != null) {
+      for (var sn in serials) {
+        final existsInOtherArticle = preparation.articles.any((article) =>
+            article.id != widget.args.lineId &&
+            article.serialNumbers.map((s) => s.trim().toLowerCase()).contains(sn.toLowerCase()));
+
+        if (existsInOtherArticle) {
+          setState(() {
+            _validationError = 'Le numéro de série $sn est déjà utilisé dans une autre ligne de ce document.';
+          });
+          return;
+        }
+      }
+    }
+
     final controller = ref.read(bonPreparationDetailControllerProvider(widget.args.documentId).notifier);
 
     final success = await controller.saveSerialNumbers(
@@ -269,9 +300,7 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     final state = ref.watch(bonPreparationDetailControllerProvider(widget.args.documentId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'Saisie N° Série'),
-      ),
+      appBar: AppBar(title: const DuxAppBarTitle(title: 'Saisie N° Série')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.l),
         child: Column(
@@ -349,7 +378,7 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.args.quantity,
+              itemCount: _controllers.length,
               itemBuilder: (context, index) {
                 final isFilled = _controllers[index].text.trim().isNotEmpty;
                 return Padding(
@@ -360,6 +389,12 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
                         child: TextFormField(
                           controller: _controllers[index],
                           focusNode: _focusNodes[index],
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (value) {
+                            if (value.trim().isNotEmpty) {
+                              _focusNextEmpty(index);
+                            }
+                          },
                           decoration: InputDecoration(
                             labelText: 'Numéro de Série ${index + 1}',
                             hintText: 'Saisir ou scanner le SN...',
@@ -414,3 +449,4 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     );
   }
 }
+

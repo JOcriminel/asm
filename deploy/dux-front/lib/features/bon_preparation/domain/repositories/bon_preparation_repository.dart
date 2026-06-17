@@ -27,4 +27,6 @@ abstract class BonPreparationRepository {
   Future<Map<String, String>> getSerialNumberIds(String idlignedocument);
 
   Future<void> deleteSerialNumber(String id);
+
+  Future<void> updateDocumentStatus(String documentId, String newStatusId, Map<String, dynamic> currentDocData);
 }

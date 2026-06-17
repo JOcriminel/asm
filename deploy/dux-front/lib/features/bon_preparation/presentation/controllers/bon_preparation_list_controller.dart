@@ -3,6 +3,7 @@ import '../../domain/models/bon_preparation.dart';
 import '../../domain/usecases/get_bon_preparations_use_case.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
+import '../../../../core/services/serial_number_cache_service.dart';
 
 class BonPreparationListState {
   final List<BonPreparation> preparations;
@@ -126,7 +127,10 @@ class BonPreparationListController extends StateNotifier<BonPreparationListState
 }
 
 final getBonPreparationsUseCaseProvider = Provider<GetBonPreparationsUseCase>((ref) {
-  return GetBonPreparationsUseCase(ref.watch(bonPreparationRepositoryProvider));
+  return GetBonPreparationsUseCase(
+    ref.watch(bonPreparationRepositoryProvider),
+    ref.watch(serialNumberCacheServiceProvider),
+  );
 });
 
 final bonPreparationListControllerProvider =

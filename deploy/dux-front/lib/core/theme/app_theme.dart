@@ -10,23 +10,23 @@ class AppTheme {
       colorScheme: lightColorScheme,
       scaffoldBackgroundColor: lightColorScheme.surface,
       fontFamily: GoogleFonts.inter().fontFamily,
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h1
-        headlineMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.5), // h2
-        titleLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.2), // KPI
-        titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2),
-        bodyLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.5),
-        bodyMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, height: 1.4), // Cellule
-        bodySmall: TextStyle(fontSize: 10, fontWeight: FontWeight.normal, height: 1.4), // Mini-cellule
-        labelLarge: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        labelMedium: TextStyle(fontSize: 9, fontWeight: FontWeight.w600), // Label tableau
-        labelSmall: TextStyle(fontSize: 10, fontWeight: FontWeight.w600), // Badge
+      textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).copyWith(
+        headlineLarge: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+        headlineMedium: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+        titleLarge: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+        titleMedium: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2),
+        bodyLarge: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.5),
+        bodyMedium: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal, height: 1.4),
+        bodySmall: const TextStyle(fontSize: 10, fontWeight: FontWeight.normal, height: 1.4),
+        labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        labelMedium: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600),
+        labelSmall: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
       ),
       cardTheme: CardThemeData(
         color: lightColorScheme.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: AppBorderRadius.roundedL,
+          borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: lightColorScheme.outline, width: 1),
         ),
       ),
@@ -34,24 +34,24 @@ class AppTheme {
         filled: true,
         fillColor: lightColorScheme.surface,
         border: OutlineInputBorder(
-          borderRadius: AppBorderRadius.roundedM,
-          borderSide: BorderSide(color: lightColorScheme.outline, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightColorScheme.outline, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: AppBorderRadius.roundedM,
-          borderSide: BorderSide(color: lightColorScheme.outline, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightColorScheme.outline, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: AppBorderRadius.roundedM,
-          borderSide: BorderSide(color: lightColorScheme.primary, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightColorScheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: AppBorderRadius.roundedM,
-          borderSide: BorderSide(color: lightColorScheme.error, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightColorScheme.error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: AppBorderRadius.roundedM,
-          borderSide: BorderSide(color: lightColorScheme.error, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: lightColorScheme.error, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.s),
         labelStyle: TextStyle(color: lightColorScheme.secondary),
@@ -60,12 +60,13 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         backgroundColor: lightColorScheme.surface,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         iconTheme: IconThemeData(color: lightColorScheme.onSurface),
         titleTextStyle: TextStyle(
           color: lightColorScheme.onSurface,
           fontSize: 19,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           fontFamily: GoogleFonts.inter().fontFamily,
         ),
       ),
@@ -88,17 +89,17 @@ class AppTheme {
       colorScheme: darkColorScheme,
       scaffoldBackgroundColor: darkColorScheme.surface,
       fontFamily: GoogleFonts.inter().fontFamily,
-      textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
-        headlineMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
-        titleLarge: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white),
-        titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: Colors.white),
-        bodyLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.5, color: Color(0xFF94A3B8)), // Slate 400
-        bodyMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
-        bodySmall: TextStyle(fontSize: 10, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
-        labelLarge: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
-        labelMedium: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-        labelSmall: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white),
+      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme).copyWith(
+        headlineLarge: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
+        headlineMedium: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.white),
+        titleLarge: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.2, color: Colors.white),
+        titleMedium: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: Colors.white),
+        bodyLarge: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal, height: 1.5, color: Color(0xFF94A3B8)),
+        bodyMedium: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
+        bodySmall: const TextStyle(fontSize: 10, fontWeight: FontWeight.normal, height: 1.4, color: Color(0xFF94A3B8)),
+        labelLarge: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+        labelMedium: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+        labelSmall: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white),
       ),
       cardTheme: CardThemeData(
         color: darkColorScheme.surface,

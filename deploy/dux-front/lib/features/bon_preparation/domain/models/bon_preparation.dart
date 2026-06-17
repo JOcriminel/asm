@@ -14,9 +14,14 @@ class PreparationArticle {
   final List<String> serialNumbers;
   final Map<String, dynamic>? rawJson;
   final String? numSerie;
+  final String? familyId;
 
   double get total => quantity * unitPrice;
-  bool get hasSerialNumbers => numSerie == '1';
+  bool get hasSerialNumbers {
+    if (numSerie == null) return false;
+    final s = numSerie!.trim().toLowerCase();
+    return s == '1' || s == '1.0' || s == 'true' || s == 'oui' || s == 'o' || s == 'yes' || s == 'y';
+  }
 
   const PreparationArticle({
     required this.id,
@@ -34,6 +39,7 @@ class PreparationArticle {
     required this.serialNumbers,
     this.rawJson,
     this.numSerie,
+    this.familyId,
   });
 
   PreparationArticle copyWith({
@@ -52,6 +58,7 @@ class PreparationArticle {
     List<String>? serialNumbers,
     Map<String, dynamic>? rawJson,
     String? numSerie,
+    String? familyId,
   }) {
     return PreparationArticle(
       id: id ?? this.id,
@@ -69,6 +76,7 @@ class PreparationArticle {
       serialNumbers: serialNumbers ?? this.serialNumbers,
       rawJson: rawJson ?? this.rawJson,
       numSerie: numSerie ?? this.numSerie,
+      familyId: familyId ?? this.familyId,
     );
   }
 }

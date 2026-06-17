@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -79,7 +80,7 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'Bons de Préparation'),
+        title: const DuxAppBarTitle(title: 'BP'),
         actions: [
           IconButton(
             icon: Icon(
@@ -93,6 +94,14 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualiser',
             onPressed: () => ref.read(bonPreparationListControllerProvider.notifier).fetchPreparations(refresh: true),
+          ),
+          IconButton(
+            icon: const Icon(Icons.wifi, color: Colors.green),
+            onPressed: () {},
+          ),
+          IconButton(
+            icon: const Icon(Icons.home_outlined),
+            onPressed: () => context.go('/dashboard'),
           ),
         ],
       ),
@@ -278,7 +287,10 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(bonPreparationListControllerProvider.notifier).fetchPreparations(refresh: true),
+      onRefresh: () async {
+        HapticFeedback.mediumImpact();
+        await ref.read(bonPreparationListControllerProvider.notifier).fetchPreparations(refresh: true);
+      },
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.all(AppSpacing.l),
@@ -305,215 +317,199 @@ class _BonPreparationListScreenState extends ConsumerState<BonPreparationListScr
           ).format(preparation.amountTTC);
 
           return Container(
-            margin: const EdgeInsets.only(bottom: AppSpacing.l),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
+            margin: const EdgeInsets.only(bottom: AppSpacing.m),
+            child: InkWell(
+              onTap: () async {
                 debugPrint('Tapped preparation card: ${preparation.id}');
-                context.pushNamed(
+                await context.pushNamed(
                   RouteNames.bonPreparationDetail,
                   pathParameters: {'id': preparation.id},
                 );
+                // Invalidate the sn count so it refreshes when returning from details
+                ref.invalidate(snCountProvider(preparation.id));
               },
+              borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.all(AppSpacing.l),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: theme.cardTheme.color,
-                  borderRadius: AppBorderRadius.roundedL,
-                  border: Border.all(color: theme.colorScheme.outline, width: 1),
-                  boxShadow: AppShadows.softShadow(context),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Title row with Status dot
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                preparation.documentCode,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontFamily: 'monospace',
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              if (preparation.documentType.isNotEmpty)
-                                Text(
-                                  preparation.documentType,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.secondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                            ],
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6.0, right: 8.0),
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _StatusBadge.parseColor(preparation.statusColor) ?? Colors.greenAccent.shade200,
+                            ),
                           ),
                         ),
-                        AppSpacing.gapS,
-                        _StatusBadge(
-                          label: preparation.status,
-                          apiColor: preparation.statusColor,
+                        Expanded(
+                          child: Text(
+                            preparation.customerName.toUpperCase(),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Colors.black87,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    AppSpacing.gapM,
-                    Text(
-                      preparation.customerName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 12),
+                    
+                    // Key-Value rows
+                    Text.rich(
+                      TextSpan(
+                        text: 'Code: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: preparation.documentCode,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
                       ),
                     ),
-                    AppSpacing.gapS,
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.badge_outlined, size: 14, color: theme.colorScheme.secondary),
-                            AppSpacing.gapXs,
-                            Text(
-                              preparation.representative.isNotEmpty
-                                  ? preparation.representative
-                                  : '—',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Consumer(
-                          builder: (context, ref, child) {
-                            final snCountAsync = ref.watch(snCountProvider(preparation.id));
-                            return snCountAsync.when(
-                              data: (updatedPrep) {
-                                if (updatedPrep == null) return const SizedBox.shrink();
-                                
-                                final scanned = updatedPrep.totalScannedSerialNumbers;
-                                final required = updatedPrep.totalRequiredSerialNumbers;
-                                
-                                Color snColor;
-                                if (scanned == 0) {
-                                  snColor = const Color(0xFFEF5350); // Red
-                                } else if (scanned >= required) {
-                                  snColor = const Color(0xFF4CAF50); // Green
-                                } else {
-                                  snColor = const Color(0xFFFF9800); // Orange
-                                }
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Représentant: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: preparation.representative.isNotEmpty ? preparation.representative : '—',
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Statut: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: preparation.status,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Date: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: formattedDate,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final snCountAsync = ref.watch(snCountProvider(preparation.id));
+                        return snCountAsync.when(
+                          data: (updatedPrep) {
+                            if (updatedPrep == null) return const SizedBox.shrink();
+                            
+                            final scanned = updatedPrep.totalScannedSerialNumbers;
+                            final required = updatedPrep.totalRequiredSerialNumbers;
+                            
+                            final isComplete = scanned == required && required > 0;
+                            final isOverscan = scanned > required;
+                            
+                            Color bgColor = Colors.orange.shade50;
+                            Color borderColor = Colors.orange.shade300;
+                            Color textColor = Colors.orange.shade700;
 
-                                return Row(
+                            if (isOverscan) {
+                              bgColor = Colors.red.shade50;
+                              borderColor = Colors.red.shade300;
+                              textColor = Colors.red.shade700;
+                            } else if (isComplete) {
+                              bgColor = Colors.green.shade50;
+                              borderColor = Colors.green.shade300;
+                              textColor = Colors.green.shade700;
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: bgColor,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: borderColor),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
-                                      decoration: BoxDecoration(
-                                        color: snColor.withValues(alpha: 0.1),
-                                        borderRadius: AppBorderRadius.roundedS,
-                                        border: Border.all(color: snColor.withValues(alpha: 0.3)),
-                                      ),
-                                      child: Text(
-                                        'SN ($scanned/$required)',
-                                        style: theme.textTheme.labelSmall?.copyWith(
-                                          color: snColor,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    Icon(
+                                      isOverscan ? Icons.warning_amber_rounded : Icons.qr_code_scanner, 
+                                      size: 14, 
+                                      color: textColor
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'SN: $scanned / $required',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                        color: textColor,
                                       ),
                                     ),
-                                    AppSpacing.gapM,
                                   ],
-                                );
-                              },
-                              loading: () => const Padding(
-                                padding: EdgeInsets.only(right: AppSpacing.m),
-                                child: SizedBox(
-                                  width: 12, 
-                                  height: 12, 
-                                  child: CircularProgressIndicator(strokeWidth: 2)
                                 ),
                               ),
-                              error: (e, __) {
-                                debugPrint('SN Error for ${preparation.documentCode}: $e');
-                                return Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.error.withValues(alpha: 0.1),
-                                        borderRadius: AppBorderRadius.roundedS,
-                                        border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.3)),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.error_outline_rounded, size: 12, color: theme.colorScheme.error),
-                                          AppSpacing.gapXs,
-                                          Text(
-                                            'SN Err',
-                                            style: theme.textTheme.labelSmall?.copyWith(
-                                              color: theme.colorScheme.error,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    AppSpacing.gapM,
-                                  ],
-                                );
-                              },
                             );
                           },
-                        ),
-                        Text(
-                          formattedDate,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.secondary,
+                          loading: () => const Padding(
+                            padding: EdgeInsets.only(top: 4.0),
+                            child: SizedBox(height: 12, width: 12, child: CircularProgressIndicator(strokeWidth: 2)),
                           ),
-                        ),
-                      ],
+                          error: (_, _) => const SizedBox.shrink(),
+                        );
+                      },
                     ),
-                    AppSpacing.gapL,
-                    const Divider(height: 1),
-                    AppSpacing.gapM,
+
+                    const SizedBox(height: 16),
+                    
+                    // Action Buttons (Bottom Right)
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Montant HT',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                            Text(
-                              formattedAmount,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Total TTC',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.secondary,
-                              ),
-                            ),
-                            Text(
-                              formattedTTC,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
+                        _ActionButton(
+                          icon: Icons.visibility_outlined,
+                          color: const Color(0xFF62A0EA), // Blue
+                          onTap: () {
+                            context.pushNamed(
+                              RouteNames.bonPreparationDetail,
+                              pathParameters: {'id': preparation.id},
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -627,41 +623,9 @@ class _StatusBadge extends StatelessWidget {
 
   const _StatusBadge({
     required this.label,
-    this.apiColor,
-  });
+  }) : apiColor = null;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final parsedColor = _parseColor(apiColor);
-    
-    if (parsedColor == null) {
-      return StatusBadge(status: label);
-    }
-
-    final bg = parsedColor.withValues(alpha: 0.12);
-    final fg = parsedColor;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: AppBorderRadius.roundedFull,
-        border: Border.all(color: fg.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: theme.textTheme.labelMedium?.copyWith(
-          color: fg,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-          fontSize: 10,
-        ),
-      ),
-    );
-  }
-
-  Color? _parseColor(String? colorStr) {
+  static Color? parseColor(String? colorStr) {
     if (colorStr == null || colorStr.isEmpty) return null;
     final clean = colorStr.trim().toLowerCase();
     
@@ -702,5 +666,55 @@ class _StatusBadge extends StatelessWidget {
     }
 
     return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = parseColor(apiColor) ?? theme.colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: AppBorderRadius.roundedS,
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label.toUpperCase(),
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
   }
 }

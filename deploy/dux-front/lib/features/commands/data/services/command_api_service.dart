@@ -25,7 +25,7 @@ class CommandApiService {
       final defaultTo = DateTime(now.year, now.month + 1, 0);
 
       final fromStr =
-          filter.dateFrom != null ? formatter.format(filter.dateFrom!) : formatter.format(defaultFrom);
+          filter.dateFrom != null ? '${formatter.format(filter.dateFrom!)} 00:00:00' : '${formatter.format(defaultFrom)} 00:00:00';
       final toStr =
           filter.dateTo != null ? '${formatter.format(filter.dateTo!)} 23:59:59' : '${formatter.format(defaultTo)} 23:59:59';
       

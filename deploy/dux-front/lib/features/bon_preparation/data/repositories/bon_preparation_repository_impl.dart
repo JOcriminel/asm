@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/api_exceptions.dart';
 import '../../../../core/utils/logger.dart';
+import 'package:dux_front/core/services/serial_number_cache_service.dart';
 import '../../domain/models/bon_preparation.dart';
 import '../../domain/repositories/bon_preparation_repository.dart';
 import '../models/bon_preparation_dto.dart';
@@ -13,8 +14,9 @@ import '../mappers/bon_preparation_mapper.dart';
 
 class BonPreparationRepositoryImpl implements BonPreparationRepository {
   final Dio _dio;
+  final SerialNumberCacheService _cacheService;
 
-  const BonPreparationRepositoryImpl(this._dio);
+  const BonPreparationRepositoryImpl(this._dio, this._cacheService);
 
   @override
   Future<List<BonPreparation>> getBonPreparations({
@@ -30,7 +32,7 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
       final defaultTo = DateTime(now.year, now.month + 1, 0);
 
       final fromStr =
-          filter.dateFrom != null ? formatter.format(filter.dateFrom!) : formatter.format(defaultFrom);
+          filter.dateFrom != null ? '${formatter.format(filter.dateFrom!)} 00:00:00' : '${formatter.format(defaultFrom)} 00:00:00';
       final toStr =
           filter.dateTo != null ? '${formatter.format(filter.dateTo!)} 23:59:59' : '${formatter.format(defaultTo)} 23:59:59';
       
@@ -142,7 +144,16 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
         }
         if (data is Map<String, dynamic>) {
           final dto = BonPreparationDto.fromJson(data);
-          return BonPreparationMapper.toEntity(dto);
+          final entity = BonPreparationMapper.toEntity(dto);
+          
+          // Sauvegarde automatique des numéros de série dans le cache local
+          for (var article in entity.articles) {
+            if (article.serialNumbers.isNotEmpty) {
+               _cacheService.saveSerialNumbers(entity.id, article.serialNumbers);
+            }
+          }
+          
+          return entity;
         }
       }
       throw UnknownApiException('Empty response from details endpoint');
@@ -195,6 +206,10 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
         '/Document/editLigne',
         data: requestBody,
       );
+      
+      // Update local cache after successful save
+      await _cacheService.saveSerialNumbers(documentId, serialNumbers);
+      
       AppLogger.d('BonPreparationRepository', 'Saved all serial numbers: $serialNumbers for line $lineId');
     } catch (e) {
       throw ApiExceptionHandler.handle(e);
@@ -274,7 +289,9 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
             }
           }
         }
-        return results;
+        final finalResults = results.where((s) => s.isNotEmpty).toSet().toList();
+        AppLogger.d('BonPreparationRepository', 'Fetched ${finalResults.length} remote serial numbers for line $idlignedocument');
+        return finalResults;
       }
       return [];
     } catch (e) {
@@ -331,9 +348,24 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
       throw ApiExceptionHandler.handle(e);
     }
   }
+
+  @override
+  Future<void> updateDocumentStatus(String documentId, String newStatusId, Map<String, dynamic> currentDocData) async {
+    try {
+      AppLogger.d('BonPreparationRepository', 'Changing status of doc $documentId to $newStatusId');
+      // The Java backend handles everything: fetches the document, builds the correct FormData
+      // payload with P_ClasseDocument + listLigne, and POSTs it to the PHP editDoc endpoint.
+      await _dio.post('/document/changeStatus/$documentId/$newStatusId');
+      AppLogger.d('BonPreparationRepository', 'Successfully updated document status');
+    } catch (e) {
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
 }
 
 final bonPreparationRepositoryProvider = Provider<BonPreparationRepository>((ref) {
-  final dio = ref.watch(dioProvider);
-  return BonPreparationRepositoryImpl(dio);
+  return BonPreparationRepositoryImpl(
+    ref.watch(dioProvider),
+    ref.watch(serialNumberCacheServiceProvider),
+  );
 });

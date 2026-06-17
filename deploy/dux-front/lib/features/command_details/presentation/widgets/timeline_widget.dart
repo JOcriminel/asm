@@ -70,9 +70,9 @@ class TimelineWidget extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isCompleted
-                            ? theme.colorScheme.primary.withOpacity(0.1)
+                            ? theme.colorScheme.primary.withValues(alpha: 0.1)
                             : (isActive
-                                ? theme.colorScheme.primary.withOpacity(0.2)
+                                ? theme.colorScheme.primary.withValues(alpha: 0.2)
                                 : Colors.transparent),
                       ),
                       child: Icon(
@@ -108,7 +108,7 @@ class TimelineWidget extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: isCompleted || isActive ? FontWeight.bold : FontWeight.normal,
                     color: isCompleted
-                        ? theme.colorScheme.onBackground
+                        ? theme.colorScheme.onSurface
                         : (isActive
                             ? theme.colorScheme.primary
                             : theme.colorScheme.secondary),

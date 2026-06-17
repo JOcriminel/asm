@@ -82,9 +82,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
 
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: AppBorderRadius.roundedM,
-        boxShadow: AppShadows.softShadow(context),
+        color: Colors.transparent,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -125,19 +123,19 @@ class _AppSearchBarState extends State<AppSearchBar> {
                 ],
               ),
               filled: true,
-              fillColor: Colors.transparent,
-              contentPadding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
+              fillColor: const Color(0xFFF3F4F6), // Light gray background like screenshot
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
               border: OutlineInputBorder(
-                borderRadius: AppBorderRadius.roundedM,
-                borderSide: BorderSide(color: theme.colorScheme.outline, width: 1),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: AppBorderRadius.roundedM,
-                borderSide: BorderSide(color: theme.colorScheme.outline, width: 1),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: AppBorderRadius.roundedM,
-                borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
             ),
           ),

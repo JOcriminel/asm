@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dux_front/core/theme/app_sizes.dart';
-import 'package:dux_front/core/widgets/dux_footer.dart';
 
 class HomeShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
