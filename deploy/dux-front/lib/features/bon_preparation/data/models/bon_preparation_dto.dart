@@ -32,6 +32,7 @@ class PreparationArticleDto {
   final Map<String, dynamic>? rawJson;
   final String? numSerie;
   final String? familyId;
+  final String? familyName;
 
   PreparationArticleDto({
     this.id,
@@ -50,6 +51,7 @@ class PreparationArticleDto {
     this.rawJson,
     this.numSerie,
     this.familyId,
+    this.familyName,
   });
 
   factory PreparationArticleDto.fromJson(Map<String, dynamic> json) {
@@ -129,6 +131,7 @@ class PreparationArticleDto {
       rawJson: json,
       numSerie: json['NumSerie']?.toString() ?? json['numSerie']?.toString(),
       familyId: json['idFamille']?.toString() ?? json['idFamilleArticle']?.toString() ?? json['codeFamille']?.toString() ?? json['famille']?.toString(),
+      familyName: json['libelleFamille']?.toString() ?? json['familyName']?.toString() ?? json['nomFamille']?.toString(),
     );
   }
 
@@ -149,6 +152,7 @@ class PreparationArticleDto {
     'rawJson': rawJson,
     'numSerie': numSerie,
     'familyId': familyId,
+    'familyName': familyName,
   };
 }
 

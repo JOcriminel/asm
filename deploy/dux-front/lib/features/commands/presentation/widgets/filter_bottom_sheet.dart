@@ -56,22 +56,28 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context, bool isFrom) async {
-    final theme = Theme.of(context);
-    final initialDate = isFrom ? (_dateFrom ?? DateTime.now()) : (_dateTo ?? DateTime.now());
-    
-    final selected = await showDatePicker(
+  Future<void> _selectDateRange(BuildContext context) async {
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: initialDate,
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
+      initialDateRange: _dateFrom != null && _dateTo != null
+          ? DateTimeRange(start: _dateFrom!, end: _dateTo!)
+          : null,
       builder: (context, child) {
         return Theme(
-          data: theme.copyWith(
-            colorScheme: theme.colorScheme.copyWith(
-              primary: theme.colorScheme.primary,
-              onPrimary: theme.colorScheme.onPrimary,
-              surface: theme.colorScheme.surface,
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF3B82F6), // Blue selection
+              onPrimary: Colors.white,
+              surface: Color(0xFF1E293B), // Dark blue surface like reference
+              onSurface: Colors.white,
+              secondary: Color(0xFF60A5FA),
+            ),
+            dialogBackgroundColor: const Color(0xFF1E293B),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFF0F172A),
+              foregroundColor: Colors.white,
             ),
           ),
           child: child!,
@@ -79,28 +85,105 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
       },
     );
 
-    if (selected != null) {
+    if (picked != null) {
       setState(() {
-        if (isFrom) {
-          _dateFrom = selected;
-        } else {
-          _dateTo = selected;
-        }
+        _dateFrom = picked.start;
+        _dateTo = picked.end;
       });
     }
+  }
+
+  Widget _buildDatePickerCard(ThemeData theme) {
+    final hasDates = _dateFrom != null && _dateTo != null;
+    return InkWell(
+      onTap: () => _selectDateRange(context),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasDates ? theme.colorScheme.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.date_range_rounded,
+              color: hasDates ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Période',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasDates
+                        ? '${DateFormat('dd/MM/yyyy').format(_dateFrom!)} - ${DateFormat('dd/MM/yyyy').format(_dateTo!)}'
+                        : 'Select Date Range',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: hasDates ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (hasDates)
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _dateFrom = null;
+                    _dateTo = null;
+                  });
+                },
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final tiers = ['A-Tier', 'B-Tier', 'C-Tier'];
+    final statuses = [
+      {'value': 'pending', 'label': 'Pending'},
+      {'value': 'validated', 'label': 'Validated'},
+      {'value': 'delivered', 'label': 'Delivered'},
+      {'value': 'cancelled', 'label': 'Cancelled'},
+    ];
+
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(AppBorderRadius.xl)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
       ),
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.xl,
         left: AppSpacing.l,
         right: AppSpacing.l,
         top: AppSpacing.l,
@@ -116,18 +199,26 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             AppSpacing.gapL,
+
+            // Header Row
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Filters',
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    'Filtrer les Commandes',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 TextButton(
                   onPressed: () {
@@ -144,112 +235,121 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       _sortOrder = CommandSortOrder.dateDesc;
                     });
                   },
-                  child: const Text('Reset All'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Réinitialiser',
+                    style: TextStyle(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 22),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ],
             ),
-            AppSpacing.gapM,
+            AppSpacing.gapL,
 
-            // All Documents Toggle
-            SwitchListTile.adaptive(
-              title: const Text('All Documents'),
-              subtitle: Text(
-                'Show all orders regardless of status',
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
-              ),
-              value: _allDocuments,
-              onChanged: (value) {
-                setState(() {
-                  _allDocuments = value;
-                });
-              },
-              contentPadding: EdgeInsets.zero,
-              activeColor: theme.colorScheme.primary,
-            ),
-            const Divider(),
-
-            // Sorting Selection
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.xs),
-              child: DropdownButtonFormField<CommandSortOrder>(
-                initialValue: _sortOrder,
-                decoration: const InputDecoration(
-                  labelText: 'Trier par',
-                  prefixIcon: Icon(Icons.sort_rounded, size: 20),
+            // All Documents Toggle Card
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  width: 1,
                 ),
-                items: const [
-                  DropdownMenuItem(value: CommandSortOrder.dateDesc, child: Text('Date (Plus récent)')),
-                  DropdownMenuItem(value: CommandSortOrder.dateAsc, child: Text('Date (Plus ancien)')),
-                  DropdownMenuItem(value: CommandSortOrder.amountDesc, child: Text('Montant (Décroissant)')),
-                  DropdownMenuItem(value: CommandSortOrder.amountAsc, child: Text('Montant (Croissant)')),
-                  DropdownMenuItem(value: CommandSortOrder.nameAsc, child: Text('Client (A-Z)')),
-                  DropdownMenuItem(value: CommandSortOrder.nameDesc, child: Text('Client (Z-A)')),
-                ],
+              ),
+              child: SwitchListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                title: Text(
+                  'All Documents',
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'Show all orders regardless of status',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+                value: _allDocuments,
                 onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _sortOrder = value;
-                    });
-                  }
+                  setState(() {
+                    _allDocuments = value;
+                  });
                 },
               ),
             ),
-            const Divider(),
+            AppSpacing.gapL,
 
-            // Advanced Filters Toggle
-            SwitchListTile.adaptive(
-              title: const Text('Advanced Filters'),
-              subtitle: Text(
-                'Unlock granular fields, reps, and articles',
-                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary),
+            // Sorting Selection
+            DropdownButtonFormField<CommandSortOrder>(
+              initialValue: _sortOrder,
+              decoration: const InputDecoration(
+                labelText: 'Trier par',
+                prefixIcon: Icon(Icons.sort_rounded, size: 20),
               ),
-              value: _advancedFilterActive,
+              items: const [
+                DropdownMenuItem(value: CommandSortOrder.dateDesc, child: Text('Date (Plus récent)')),
+                DropdownMenuItem(value: CommandSortOrder.dateAsc, child: Text('Date (Plus ancien)')),
+                DropdownMenuItem(value: CommandSortOrder.amountDesc, child: Text('Montant (Décroissant)')),
+                DropdownMenuItem(value: CommandSortOrder.amountAsc, child: Text('Montant (Croissant)')),
+                DropdownMenuItem(value: CommandSortOrder.nameAsc, child: Text('Client (A-Z)')),
+                DropdownMenuItem(value: CommandSortOrder.nameDesc, child: Text('Client (Z-A)')),
+              ],
               onChanged: (value) {
-                setState(() {
-                  _advancedFilterActive = value;
-                });
+                if (value != null) {
+                  setState(() {
+                    _sortOrder = value;
+                  });
+                }
               },
-              contentPadding: EdgeInsets.zero,
-              activeColor: theme.colorScheme.primary,
             ),
-            const Divider(),
-            AppSpacing.gapM,
+            AppSpacing.gapL,
+
+            // Advanced Filters Toggle Card
+            Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              child: SwitchListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                title: Text(
+                  'Advanced Filters',
+                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'Unlock granular fields, reps, and articles',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                ),
+                value: _advancedFilterActive,
+                onChanged: (value) {
+                  setState(() {
+                    _advancedFilterActive = value;
+                  });
+                },
+              ),
+            ),
+            AppSpacing.gapL,
 
             if (_advancedFilterActive) ...[
-              // Date fields
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _selectDate(context, true),
-                      icon: const Icon(Icons.calendar_today, size: 16),
-                      label: Text(
-                        _dateFrom == null ? 'Date From' : DateFormat('yyyy-MM-dd').format(_dateFrom!),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
-                        shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
-                      ),
-                    ),
-                  ),
-                  AppSpacing.gapM,
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _selectDate(context, false),
-                      icon: const Icon(Icons.calendar_today, size: 16),
-                      label: Text(
-                        _dateTo == null ? 'Date To' : DateFormat('yyyy-MM-dd').format(_dateTo!),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.m),
-                        shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              // Date Card
+              _buildDatePickerCard(theme),
               AppSpacing.gapL,
 
               // Document Code Input
@@ -276,68 +376,98 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
               ),
               AppSpacing.gapL,
 
-              // Tier Dropdown
-              DropdownButtonFormField<String>(
-                initialValue: _selectedTier,
-                decoration: const InputDecoration(
-                  labelText: 'Customer Tier',
-                  prefixIcon: Icon(Icons.trending_up, size: 20),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'A-Tier', child: Text('A-Tier')),
-                  DropdownMenuItem(value: 'B-Tier', child: Text('B-Tier')),
-                  DropdownMenuItem(value: 'C-Tier', child: Text('C-Tier')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedTier = value;
-                  });
-                },
+              // Customer Tier selection chips
+              Text(
+                'Customer Tier',
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: tiers.map((tier) {
+                  final isSelected = _selectedTier == tier;
+                  return ChoiceChip(
+                    label: Text(
+                      tier,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    selected: isSelected,
+                    selectedColor: theme.colorScheme.primary,
+                    checkmarkColor: Colors.white,
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedTier = selected ? tier : null;
+                      });
+                    },
+                  );
+                }).toList(),
               ),
               AppSpacing.gapL,
 
-              // Status Dropdown
-              DropdownButtonFormField<String>(
-                initialValue: _selectedStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Order Status',
-                  prefixIcon: Icon(Icons.verified_outlined, size: 20),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                  DropdownMenuItem(value: 'validated', child: Text('Validated')),
-                  DropdownMenuItem(value: 'delivered', child: Text('Delivered')),
-                  DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedStatus = value;
-                  });
-                },
+              // Order Status selection chips
+              Text(
+                'Order Status',
+                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: statuses.map((status) {
+                  final val = status['value']!;
+                  final label = status['label']!;
+                  final isSelected = _selectedStatus == val;
+                  return ChoiceChip(
+                    label: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    selected: isSelected,
+                    selectedColor: theme.colorScheme.primary,
+                    checkmarkColor: Colors.white,
+                    onSelected: (selected) {
+                      setState(() {
+                        _selectedStatus = selected ? val : null;
+                      });
+                    },
+                  );
+                }).toList(),
               ),
               AppSpacing.gapXl,
             ],
 
-            PrimaryButton(
-              text: 'Apply Filters',
-              onPressed: () {
-                final applied = CommandFilter(
-                  dateFrom: _dateFrom,
-                  dateTo: _dateTo,
-                  tier: _selectedTier,
-                  representative: _repController.text,
-                  documentCode: _docCodeController.text,
-                  status: _selectedStatus,
-                  allDocuments: _allDocuments,
-                  articleFilter: _articleController.text,
-                  advancedFilterActive: _advancedFilterActive,
-                  sortOrder: _sortOrder,
-                );
-                widget.onApply(applied);
-                Navigator.pop(context);
-              },
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: PrimaryButton(
+                text: 'Apply Filters',
+                onPressed: () {
+                  final applied = CommandFilter(
+                    dateFrom: _dateFrom,
+                    dateTo: _dateTo,
+                    tier: _selectedTier,
+                    representative: _repController.text.trim(),
+                    documentCode: _docCodeController.text.trim(),
+                    status: _selectedStatus,
+                    allDocuments: _allDocuments,
+                    articleFilter: _articleController.text.trim(),
+                    advancedFilterActive: _advancedFilterActive,
+                    sortOrder: _sortOrder,
+                  );
+                  widget.onApply(applied);
+                  Navigator.pop(context);
+                },
+              ),
             ),
-            AppSpacing.gapXl,
           ],
         ),
       ),

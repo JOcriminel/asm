@@ -34,21 +34,13 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      ref.read(commandsControllerProvider.notifier).loadNextPage();
-    }
   }
 
   void _showFilterSheet() {
@@ -91,14 +83,6 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              Icons.filter_list_rounded,
-              color: state.filter.advancedFilterActive ? theme.colorScheme.primary : theme.colorScheme.onSurface,
-            ),
-            tooltip: 'Filtrer les commandes',
-            onPressed: _showFilterSheet,
-          ),
-          IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualiser',
             onPressed: () => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: true),
@@ -116,138 +100,292 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Search Bar block
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.m),
-            child: AppSearchBar(
-              controller: _searchController,
-              hintText: 'Search code, customer or representative...',
-              recentSearches: recentSearches,
-              onChanged: (value) {
-                ref.read(commandsControllerProvider.notifier).updateSearchQuery(value);
-              },
-              onRecentSearchTapped: (value) {
-                ref.read(commandsControllerProvider.notifier).updateSearchQuery(value);
-                ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
-              },
-              onSearchSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
-                }
-              },
+            // Search Bar block with filter button
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.l,
+                right: AppSpacing.l,
+                top: AppSpacing.m,
+                bottom: AppSpacing.xs,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppSearchBar(
+                      controller: _searchController,
+                      hintText: 'Search code, customer or representative...',
+                      recentSearches: recentSearches,
+                      onChanged: (value) {
+                        ref.read(commandsControllerProvider.notifier).updateSearchQuery(value);
+                      },
+                      onRecentSearchTapped: (value) {
+                        ref.read(commandsControllerProvider.notifier).updateSearchQuery(value);
+                        ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
+                      },
+                      onSearchSubmitted: (value) {
+                        if (value.isNotEmpty) {
+                          ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Material(
+                    color: state.filter.advancedFilterActive
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: _showFilterSheet,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        height: 48,
+                        width: 48,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.tune_rounded,
+                          color: state.filter.advancedFilterActive
+                              ? Colors.white
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            _buildFilterChipsRow(theme, state),
 
-          // Horizontal Filter Status Chips
-          _buildFilterChips(state),
-
-          // Main list or states
-          Expanded(
-            child: _buildMainContent(state),
-          ),
-        ],
+            // Main list or states
+            Expanded(
+              child: _buildMainContent(state),
+            ),
+            _buildPaginationFooter(theme, state),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  Widget _buildFilterChips(CommandsState state) {
+  Widget _buildFilterChipsRow(ThemeData theme, CommandsState state) {
+    final hasDates = state.filter.dateFrom != null && state.filter.dateTo != null;
     final activeFilters = <Widget>[];
 
+    // 1. Date Range Chip (Always visible)
+    activeFilters.add(
+      Theme(
+        data: theme.copyWith(canvasColor: Colors.transparent),
+        child: InputChip(
+          avatar: Icon(
+            Icons.calendar_month_rounded,
+            size: 16,
+            color: hasDates ? Colors.white : theme.colorScheme.primary,
+          ),
+          label: Text(
+            hasDates
+                ? '${DateFormat('dd/MM/yy').format(state.filter.dateFrom!)} - ${DateFormat('dd/MM/yy').format(state.filter.dateTo!)}'
+                : 'Période',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: hasDates ? Colors.white : theme.colorScheme.onSurface,
+            ),
+          ),
+          selected: hasDates,
+          selectedColor: theme.colorScheme.primary,
+          checkmarkColor: Colors.transparent,
+          showCheckmark: false,
+          onSelected: (_) => _selectDateRange(),
+          onDeleted: hasDates
+              ? () {
+                  ref.read(commandsControllerProvider.notifier).applyFilter(
+                        state.filter.copyWith(clearDates: true),
+                      );
+                }
+              : null,
+          deleteIcon: hasDates ? const Icon(Icons.close_rounded, size: 14) : null,
+          deleteIconColor: Colors.white70,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: hasDates ? theme.colorScheme.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+          backgroundColor: theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
+      ),
+    );
+
+    // 2. All Documents Filter Chip
     if (!state.filter.allDocuments) {
       activeFilters.add(
-        AppFilterChip(
-          label: 'Filtered Documents',
-          isSelected: true,
-          onSelected: (_) {
-            ref.read(commandsControllerProvider.notifier).applyFilter(
-                  state.filter.copyWith(allDocuments: true),
-                );
-          },
+        Theme(
+          data: theme.copyWith(canvasColor: Colors.transparent),
+          child: InputChip(
+            label: const Text(
+              'Documents filtrés',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            selected: true,
+            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+            checkmarkColor: Colors.transparent,
+            showCheckmark: false,
+            onSelected: (_) {},
+            onDeleted: () {
+              ref.read(commandsControllerProvider.notifier).applyFilter(
+                    state.filter.copyWith(allDocuments: true),
+                  );
+            },
+            deleteIcon: const Icon(Icons.close_rounded, size: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
         ),
       );
     }
 
+    // 3. Status Filter Chip
     if (state.filter.status != null && state.filter.status!.isNotEmpty) {
       activeFilters.add(
-        AppFilterChip(
-          label: 'Status: ${state.filter.status}',
-          isSelected: true,
-          onSelected: (_) {
-            ref.read(commandsControllerProvider.notifier).applyFilter(
-                  state.filter.copyWith(status: ''),
-                );
-          },
+        Theme(
+          data: theme.copyWith(canvasColor: Colors.transparent),
+          child: InputChip(
+            label: Text(
+              'Statut: ${state.filter.status}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            selected: true,
+            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+            checkmarkColor: Colors.transparent,
+            showCheckmark: false,
+            onSelected: (_) {},
+            onDeleted: () {
+              ref.read(commandsControllerProvider.notifier).applyFilter(
+                    state.filter.copyWith(status: ''),
+                  );
+            },
+            deleteIcon: const Icon(Icons.close_rounded, size: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
         ),
       );
     }
 
+    // 4. Tier Filter Chip
     if (state.filter.tier != null && state.filter.tier!.isNotEmpty) {
       activeFilters.add(
-        AppFilterChip(
-          label: 'Tier: ${state.filter.tier}',
-          isSelected: true,
-          onSelected: (_) {
-            ref.read(commandsControllerProvider.notifier).applyFilter(
-                  state.filter.copyWith(tier: ''),
-                );
-          },
+        Theme(
+          data: theme.copyWith(canvasColor: Colors.transparent),
+          child: InputChip(
+            label: Text(
+              'Tier: ${state.filter.tier}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            selected: true,
+            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+            checkmarkColor: Colors.transparent,
+            showCheckmark: false,
+            onSelected: (_) {},
+            onDeleted: () {
+              ref.read(commandsControllerProvider.notifier).applyFilter(
+                    state.filter.copyWith(tier: ''),
+                  );
+            },
+            deleteIcon: const Icon(Icons.close_rounded, size: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
         ),
       );
     }
 
+    // 5. Representative Filter Chip
     if (state.filter.representative != null && state.filter.representative!.isNotEmpty) {
       activeFilters.add(
-        AppFilterChip(
-          label: 'Rep: ${state.filter.representative}',
-          isSelected: true,
-          onSelected: (_) {
-            ref.read(commandsControllerProvider.notifier).applyFilter(
-                  state.filter.copyWith(representative: ''),
-                );
-          },
+        Theme(
+          data: theme.copyWith(canvasColor: Colors.transparent),
+          child: InputChip(
+            label: Text(
+              'Rep: ${state.filter.representative}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            selected: true,
+            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+            checkmarkColor: Colors.transparent,
+            showCheckmark: false,
+            onSelected: (_) {},
+            onDeleted: () {
+              ref.read(commandsControllerProvider.notifier).applyFilter(
+                    state.filter.copyWith(representative: ''),
+                  );
+            },
+            deleteIcon: const Icon(Icons.close_rounded, size: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
         ),
       );
     }
 
-    if (state.filter.dateFrom != null || state.filter.dateTo != null) {
-      activeFilters.add(
-        AppFilterChip(
-          label: 'Custom Dates',
-          isSelected: true,
-          onSelected: (_) {
-            ref.read(commandsControllerProvider.notifier).applyFilter(
-                  state.filter.copyWith(clearDates: true),
-                );
-          },
-        ),
-      );
-    }
-
-    if (activeFilters.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    final isAnyFilterActive = hasDates ||
+        !state.filter.allDocuments ||
+        (state.filter.status != null && state.filter.status!.isNotEmpty) ||
+        (state.filter.tier != null && state.filter.tier!.isNotEmpty) ||
+        (state.filter.representative != null && state.filter.representative!.isNotEmpty);
 
     return Container(
-      height: 44,
-      margin: const EdgeInsets.only(bottom: AppSpacing.s),
+      height: 48,
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
         children: [
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.s),
-            child: ActionChip(
-              avatar: const Icon(Icons.clear_all, size: 16),
-              label: const Text('Clear Filters'),
-              onPressed: () {
-                ref.read(commandsControllerProvider.notifier).clearFilters();
-              },
+          if (isAnyFilterActive) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Theme(
+                data: theme.copyWith(canvasColor: Colors.transparent),
+                child: ActionChip(
+                  avatar: Icon(Icons.refresh_rounded, size: 16, color: theme.colorScheme.error),
+                  label: Text(
+                    'Réinitialiser',
+                    style: TextStyle(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  onPressed: () {
+                    ref.read(commandsControllerProvider.notifier).clearFilters();
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.3)),
+                  ),
+                  backgroundColor: theme.colorScheme.errorContainer.withValues(alpha: 0.1),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                ),
+              ),
             ),
-          ),
-          ...activeFilters.map((w) => Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.s),
-                child: w,
+          ],
+          ...activeFilters.map((chip) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: chip,
               )),
         ],
       ),
@@ -290,22 +428,11 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.all(AppSpacing.l),
-        itemCount: state.commands.length + (state.hasMore ? 1 : 0),
+        itemCount: state.commands.length,
         itemBuilder: (context, index) {
-          if (index == state.commands.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.l),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-
           final command = state.commands[index];
           final formattedDate = DateFormat('dd/MM/yyyy').format(command.date);
-          final formattedAmount = NumberFormat.currency(
-            locale: 'fr_TN',
-            symbol: 'TND',
-            decimalDigits: 3,
-          ).format(command.amount);
+
           final formattedTTC = NumberFormat.currency(
             locale: 'fr_TN',
             symbol: 'TND',
@@ -486,6 +613,110 @@ class _CommandsListScreenState extends ConsumerState<CommandsListScreen> {
       },
     );
   }
+
+  Widget _buildPaginationFooter(ThemeData theme, CommandsState state) {
+    if (state.commands.isEmpty && !state.isLoading) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5), width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton.filledTonal(
+              onPressed: state.page > 1 && !state.isLoading
+                  ? () => ref.read(commandsControllerProvider.notifier).goToPage(state.page - 1)
+                  : null,
+              icon: const Icon(Icons.arrow_back_ios_new, size: 16),
+              style: IconButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Text(
+                'Page ${state.page}',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            IconButton.filledTonal(
+              onPressed: state.hasMore && !state.isLoading
+                  ? () => ref.read(commandsControllerProvider.notifier).goToPage(state.page + 1)
+                  : null,
+              icon: const Icon(Icons.arrow_forward_ios, size: 16),
+              style: IconButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectDateRange() async {
+    final controller = ref.read(commandsControllerProvider.notifier);
+    final state = ref.read(commandsControllerProvider);
+    final filter = state.filter;
+
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: filter.dateFrom != null && filter.dateTo != null
+          ? DateTimeRange(start: filter.dateFrom!, end: filter.dateTo!)
+          : DateTimeRange(
+              start: DateTime(DateTime.now().year, DateTime.now().month, 1),
+              end: DateTime(DateTime.now().year, DateTime.now().month + 1, 0),
+            ),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF3B82F6), // Blue selection
+              onPrimary: Colors.white,
+              surface: Color(0xFF1E293B), // Dark blue surface like reference
+              onSurface: Colors.white,
+              secondary: Color(0xFF60A5FA),
+            ),
+            dialogBackgroundColor: const Color(0xFF1E293B),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFF0F172A),
+              foregroundColor: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      controller.applyFilter(
+        filter.copyWith(
+          dateFrom: picked.start,
+          dateTo: picked.end,
+        ),
+      );
+    }
+  }
+
 }
 
 class _StatusBadge extends StatelessWidget {

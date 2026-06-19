@@ -5,7 +5,7 @@ import 'auth_interceptor.dart';
 class AppConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://skimmed-reapprove-editor.ngrok-free.dev/api/dux',
+    defaultValue: 'http://10.0.2.2:9090/api/dux',
   );
 
   static const String keycloakTokenUrl = String.fromEnvironment(

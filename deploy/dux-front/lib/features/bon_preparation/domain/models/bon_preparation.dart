@@ -15,6 +15,7 @@ class PreparationArticle {
   final Map<String, dynamic>? rawJson;
   final String? numSerie;
   final String? familyId;
+  final String? familyName;
 
   double get total => quantity * unitPrice;
   bool get hasSerialNumbers {
@@ -40,6 +41,7 @@ class PreparationArticle {
     this.rawJson,
     this.numSerie,
     this.familyId,
+    this.familyName,
   });
 
   PreparationArticle copyWith({
@@ -59,6 +61,7 @@ class PreparationArticle {
     Map<String, dynamic>? rawJson,
     String? numSerie,
     String? familyId,
+    String? familyName,
   }) {
     return PreparationArticle(
       id: id ?? this.id,
@@ -77,6 +80,7 @@ class PreparationArticle {
       rawJson: rawJson ?? this.rawJson,
       numSerie: numSerie ?? this.numSerie,
       familyId: familyId ?? this.familyId,
+      familyName: familyName ?? this.familyName,
     );
   }
 }

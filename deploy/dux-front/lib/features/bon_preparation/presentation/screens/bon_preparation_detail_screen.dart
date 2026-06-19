@@ -164,8 +164,9 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: theme.colorScheme.onPrimary,
+                          backgroundColor: theme.colorScheme.secondary,
+                          foregroundColor: theme.colorScheme.onSecondary,
+                          elevation: 4,
                           shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
                         ),
                         onPressed: () {

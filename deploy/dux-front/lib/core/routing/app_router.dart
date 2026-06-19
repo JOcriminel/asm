@@ -20,6 +20,15 @@ import '../../features/bon_preparation/presentation/screens/bon_preparation_list
 import '../../features/bon_preparation/presentation/screens/bon_preparation_detail_screen.dart';
 import '../../features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
 import '../../features/bon_preparation/presentation/screens/preparation_checklist_screen.dart';
+import '../../features/checklist/presentation/screens/checklist_admin_screen.dart';
+import '../../features/dashboard/presentation/screens/dashboard_admin_screen.dart';
+import '../../features/dashboard/presentation/screens/gestion_vente_screen.dart';
+import '../../features/checklist/presentation/screens/groups_admin_screen.dart';
+import '../../features/checklist/presentation/screens/task_types_admin_screen.dart';
+import '../../features/checklist/presentation/screens/tasks_admin_screen.dart';
+import '../../features/checklist/presentation/screens/articles_admin_screen.dart';
+import '../../features/bon_sortie/presentation/screens/bon_sortie_list_screen.dart';
+import '../../features/bon_sortie/presentation/screens/bon_sortie_detail_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -107,6 +116,40 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                 ],
               ),
+              GoRoute(
+                path: '/dashboard-admin',
+                name: 'dashboardAdmin',
+                builder: (context, state) => const DashboardAdminScreen(),
+              ),
+              GoRoute(
+                path: '/checklist-admin',
+                name: 'checklistAdmin',
+                builder: (context, state) => const ChecklistAdminScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'groups',
+                    builder: (context, state) => const GroupsAdminScreen(),
+                  ),
+                  GoRoute(
+                    path: 'types',
+                    builder: (context, state) => const TaskTypesAdminScreen(),
+                  ),
+                  GoRoute(
+                    path: 'tasks',
+                    builder: (context, state) => const TasksAdminScreen(),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: '/articles-admin',
+                name: 'articlesAdmin',
+                builder: (context, state) => const ArticlesAdminScreen(),
+              ),
+              GoRoute(
+                path: RoutePaths.gestionVente,
+                name: RouteNames.gestionVente,
+                builder: (context, state) => const GestionVenteScreen(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -176,6 +219,37 @@ final routerProvider = Provider<GoRouter>((ref) {
                       return PreparationChecklistScreen(
                         preparationId: args['preparationId'] as String,
                       );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/pages/bon-sortie',
+                redirect: (context, state) {
+                  final path = state.uri.path;
+                  if (path == '/pages/bon-sortie' || path == '/pages/bon-sortie/') {
+                    return '/pages/bon-sortie/list';
+                  }
+                  return null;
+                },
+                builder: (context, state) => const SizedBox.shrink(),
+                routes: [
+                  GoRoute(
+                    path: 'list',
+                    name: RouteNames.bonSortieList,
+                    builder: (context, state) => const BonSortieListScreen(),
+                  ),
+                  GoRoute(
+                    path: 'detail/:id',
+                    name: RouteNames.bonSortieDetail,
+                    parentNavigatorKey: _rootNavigatorKey,
+                    builder: (context, state) {
+                      final id = state.pathParameters['id'] ?? '';
+                      return BonSortieDetailScreen(sortieId: id);
                     },
                   ),
                 ],

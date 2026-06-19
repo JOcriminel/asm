@@ -53,7 +53,7 @@ class BonPreparationListState {
 class BonPreparationListController extends StateNotifier<BonPreparationListState> {
   final Ref _ref;
   final GetBonPreparationsUseCase _useCase;
-  static const int _pageSize = 10;
+  static const int _pageSize = 25;
 
   BonPreparationListController(this._ref, this._useCase)
       : super(const BonPreparationListState(preparations: [])) {
@@ -63,8 +63,6 @@ class BonPreparationListController extends StateNotifier<BonPreparationListState
   Future<void> fetchPreparations({bool refresh = false}) async {
     if (refresh) {
       state = state.copyWith(page: 1, preparations: [], isLoading: true, clearError: true);
-    } else if (state.page > 1) {
-      state = state.copyWith(isLoadMoreLoading: true, clearError: true);
     } else {
       state = state.copyWith(isLoading: true, clearError: true);
     }
@@ -86,7 +84,7 @@ class BonPreparationListController extends StateNotifier<BonPreparationListState
       );
 
       final hasMore = newItems.length >= _pageSize;
-      final combined = refresh ? newItems : [...state.preparations, ...newItems];
+      final combined = newItems;
 
       state = state.copyWith(
         preparations: combined,
@@ -119,10 +117,15 @@ class BonPreparationListController extends StateNotifier<BonPreparationListState
     fetchPreparations();
   }
 
+  void goToPage(int page) {
+    if (state.isLoading || page < 1) return;
+    state = state.copyWith(page: page);
+    fetchPreparations();
+  }
+
   void loadNextPage() {
     if (state.isLoading || state.isLoadMoreLoading || !state.hasMore) return;
-    state = state.copyWith(page: state.page + 1);
-    fetchPreparations();
+    goToPage(state.page + 1);
   }
 }
 

@@ -12,12 +12,12 @@ class DashboardScreen extends StatelessWidget {
 
     final List<Map<String, dynamic>> menuItems = [
       {'title': 'KPI\nDashboard', 'icon': Icons.dashboard_outlined, 'route': '/kpi-dashboard'},
-      {'title': 'Bon De\nCommande', 'icon': Icons.receipt_long_outlined, 'route': '/commands'},
-      {'title': 'Bon De\nPréparation', 'icon': Icons.precision_manufacturing_outlined, 'route': '/pages/bon-preparation/list'},
+      {'title': 'Gestion De\nVente', 'icon': Icons.shopping_bag_outlined, 'route': '/gestion-vente'},
       {'title': 'Clients', 'icon': Icons.group_outlined, 'route': '/clients'},
       {'title': 'Journal\nd\'Activité', 'icon': Icons.history_outlined, 'route': '/activity-feed'},
       {'title': 'Station', 'icon': Icons.storefront_outlined, 'route': '/station'},
       {'title': 'Profil', 'icon': Icons.person_outline, 'route': '/profile'},
+      {'title': 'Dashboard\nAdmin', 'icon': Icons.admin_panel_settings_outlined, 'route': '/dashboard-admin'},
     ];
 
     return Scaffold(

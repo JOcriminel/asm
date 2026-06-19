@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:dux_front/core/theme/app_sizes.dart';
-import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
-import 'package:dux_front/core/widgets/info_card.dart';
-import 'package:dux_front/core/routing/route_constants.dart';
+import '../../../../core/widgets/dux_app_bar_title.dart';
+import '../../../checklist/domain/models/checklist_models.dart';
+import '../../../checklist/presentation/controllers/checklist_admin_controller.dart';
+import '../../../checklist/presentation/controllers/checklist_response_controller.dart';
 import '../../domain/models/bon_preparation.dart';
 import '../controllers/bon_preparation_detail_controller.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
@@ -13,128 +14,77 @@ import '../../data/repositories/bon_preparation_repository_impl.dart';
 class PreparationChecklistScreen extends ConsumerStatefulWidget {
   final String preparationId;
 
-  const PreparationChecklistScreen({
-    super.key,
-    required this.preparationId,
-  });
+  const PreparationChecklistScreen({super.key, required this.preparationId});
 
   @override
   ConsumerState<PreparationChecklistScreen> createState() => _PreparationChecklistScreenState();
 }
 
-class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklistScreen> with SingleTickerProviderStateMixin {
-  final Map<String, Map<String, bool>> _installationsByFamily = {};
-  final Map<String, Map<String, bool>> _testsByFamily = {};
-  
-  bool _initialized = false;
+class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklistScreen> with TickerProviderStateMixin {
+  TabController? _tabController;
   bool _isSaving = false;
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
-  void _initializeChecklists(BonPreparation preparation) {
-    if (_initialized) return;
-    
-    for (var article in preparation.articles) {
-      final code = article.code.trim();
-      final family = (article.familyId?.trim() ?? code).toLowerCase();
-      final name = article.name.toLowerCase();
-      
-      // 1. Caisse
-      if (['746', '745', '704'].contains(family) || name.contains('caisse')) {
-        _addFamilyItems('Caisse', 
-          installations: ['Installation Windows', 'Installation pilotes', 'Installation base de données', 'Installation logiciel'],
-          tests: ['Test logiciel']
-        );
-      }
-      // 2. Tiroir
-      else if (['702'].contains(family) || name.contains('tiroir')) {
-        _addFamilyItems('Tiroir', installations: ['Installation Tiroir'], tests: ['Test Tiroir']);
-      }
-      // 3. Imprimante
-      else if (['121', '040', '755', '754', '706', '705'].contains(family) || name.contains('imprimant')) {
-        _addFamilyItems('Imprimante', installations: ['Installation Imprimante'], tests: ['Test Impression']);
-      }
-      // 4. Balance
-      else if (['030', '703'].contains(family) || name.contains('balance')) {
-        _addFamilyItems('Balance', installations: ['Installation Balance'], tests: ['Test Balance']);
-      }
-      // 5. Douchette
-      else if (['701'].contains(family) || name.contains('douchette')) {
-        _addFamilyItems('Douchette', installations: ['Installation Douchette'], tests: ['Test Douchette']);
-      }
-      // 6. Scanner
-      else if (['fam174', '710'].contains(family) || name.contains('scanner')) {
-        _addFamilyItems('Scanner', installations: ['Installation Scanner'], tests: ['Test Scanner']);
-      }
-    }
-
-    if (_installationsByFamily.isEmpty && _testsByFamily.isEmpty) {
-      _addFamilyItems('Général', 
-        installations: ['Appareil préparé', 'Accessoires inclus', 'Configuration terminée'],
-        tests: ["Appareil s'allume", 'Réseau opérationnel', 'Logiciel activé']
-      );
-    }
-
-    _initialized = true;
+  void _showTypeInfoDialog(BuildContext context, ChecklistTaskType type) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.blueAccent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Consignes : ${type.name}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(type.information ?? 'Aucune consigne configurée.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _addFamilyItems(String familyName, {required List<String> installations, required List<String> tests}) {
-    if (!_installationsByFamily.containsKey(familyName)) {
-      _installationsByFamily[familyName] = {};
-    }
-    if (!_testsByFamily.containsKey(familyName)) {
-      _testsByFamily[familyName] = {};
-    }
-    
-    for (var item in installations) {
-      if (!_installationsByFamily[familyName]!.containsKey(item)) {
-        _installationsByFamily[familyName]![item] = false;
-      }
-    }
-    for (var item in tests) {
-      if (!_testsByFamily[familyName]!.containsKey(item)) {
-        _testsByFamily[familyName]![item] = false;
-      }
-    }
-  }
 
-  bool get _isAllChecked {
-    final allInstalls = _installationsByFamily.values.every((f) => f.values.every((v) => v));
-    final allTests = _testsByFamily.values.every((f) => f.values.every((v) => v));
-    return allInstalls && allTests;
-  }
 
   Future<void> _submitChecklist(BonPreparation preparation) async {
-    if (!_isAllChecked || _isSaving) return;
-
+    if (_isSaving) return;
     setState(() => _isSaving = true);
 
     try {
       final repository = ref.read(bonPreparationRepositoryProvider);
-      
-      // The status '12' represents 'validée' in DUX ERP
       await repository.updateDocumentStatus(preparation.id, '12', {});
 
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              AppSpacing.gapS,
-              const Expanded(child: Text('Préparation finalisée et validée avec succès!')),
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Préparation finalisée et validée avec succès!')),
             ],
           ),
           backgroundColor: Colors.green,
@@ -158,89 +108,49 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
     }
   }
 
-  Widget _buildAccordionList(Map<String, Map<String, bool>> familiesMap) {
-    final theme = Theme.of(context);
-    if (familiesMap.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Text('Aucune tâche', style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.outline)),
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(bonPreparationDetailControllerProvider(widget.preparationId));
+    final typesAsync = ref.watch(taskTypesProvider);
+    final tasksAsync = ref.watch(tasksProvider);
+
+    if (state.isLoading || state.preparation == null || typesAsync.isLoading || tasksAsync.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
+    if (typesAsync.hasError || tasksAsync.hasError) {
+      final errorMsg = typesAsync.error?.toString() ?? tasksAsync.error?.toString() ?? 'Erreur inconnue';
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Erreur de chargement des configurations de checklist:\n$errorMsg',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(AppSpacing.l),
-      itemCount: familiesMap.keys.length,
-      separatorBuilder: (context, index) => AppSpacing.gapL,
-      itemBuilder: (context, index) {
-        final familyName = familiesMap.keys.elementAt(index);
-        final items = familiesMap[familyName]!;
-        if (items.isEmpty) return const SizedBox.shrink();
+    final preparation = state.preparation!;
+    final taskTypes = typesAsync.value ?? [];
+    final allTasks = tasksAsync.value ?? [];
 
-        final total = items.length;
-        final checked = items.values.where((v) => v).length;
-        final isComplete = checked == total;
-
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppBorderRadius.roundedM,
-            side: BorderSide(
-              color: isComplete ? Colors.green.withValues(alpha: 0.5) : theme.colorScheme.outlineVariant,
-            )
-          ),
-          child: ExpansionTile(
-            initiallyExpanded: !isComplete,
-            shape: const Border(),
-            collapsedShape: const Border(),
-            title: Text(
-              familyName,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: isComplete ? Colors.green : theme.colorScheme.onSurface,
-              ),
-            ),
-            subtitle: Text(
-              '$checked/$total cochés',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isComplete ? Colors.green : theme.colorScheme.secondary,
-              ),
-            ),
-            trailing: isComplete 
-              ? const Icon(Icons.check_circle, color: Colors.green)
-              : null,
-            children: items.keys.map((item) {
-              return CheckboxListTile(
-                title: Text(item, style: const TextStyle(fontWeight: FontWeight.w500)),
-                value: items[item],
-                activeColor: theme.colorScheme.primary,
-                onChanged: (bool? value) {
-                  setState(() {
-                    items[item] = value ?? false;
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(bonPreparationDetailControllerProvider(widget.preparationId));
-    final theme = Theme.of(context);
-
-    if (state.isLoading || state.preparation == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+    if (taskTypes.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const DuxAppBarTitle(title: 'Checklist')),
+        body: const Center(child: Text('Aucun type de tâche configuré.')),
       );
     }
 
-    final preparation = state.preparation!;
-    _initializeChecklists(preparation);
+    if (_tabController == null || _tabController!.length != taskTypes.length) {
+      _tabController?.dispose();
+      _tabController = TabController(length: taskTypes.length, vsync: this);
+    }
+
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -251,22 +161,42 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
         ),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true,
           labelColor: theme.colorScheme.primary,
           unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
           indicatorColor: theme.colorScheme.primary,
           indicatorWeight: 3,
-          tabs: const [
-            Tab(icon: Icon(Icons.build), text: 'Installations'),
-            Tab(icon: Icon(Icons.science), text: 'Tests'),
-          ],
+          tabs: taskTypes.map((t) {
+            final hasTypeInfo = t.information != null && t.information!.isNotEmpty;
+            return Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(t.name),
+                  if (hasTypeInfo) ...[
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () {
+                        _showTypeInfoDialog(context, t);
+                      },
+                      child: const Icon(Icons.info_outline, size: 16, color: Colors.blueAccent),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildAccordionList(_installationsByFamily),
-          _buildAccordionList(_testsByFamily),
-        ],
+        children: taskTypes.map((type) {
+          return _TypeTabContent(
+            type: type,
+            articles: preparation.articles,
+            allTasks: allTasks.where((t) => t.active).toList(),
+          );
+        }).toList(),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -274,11 +204,12 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
-              backgroundColor: _isAllChecked ? Colors.green : Colors.grey.shade400,
-              foregroundColor: Colors.white,
+              backgroundColor: theme.colorScheme.secondary,
+              foregroundColor: theme.colorScheme.onSecondary,
+              elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
             ),
-            onPressed: _isAllChecked ? () => _submitChecklist(preparation) : null,
+            onPressed: () => _submitChecklist(preparation),
             child: _isSaving 
                 ? const SizedBox(
                     height: 20, 
@@ -286,11 +217,468 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                   )
                 : const Text(
-                    'READY FOR DELIVERY',
+                    'VALIDER LA PRÉPARATION',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                   ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TypeTabContent extends StatelessWidget {
+  final ChecklistTaskType type;
+  final List<PreparationArticle> articles;
+  final List<ChecklistTask> allTasks;
+
+  const _TypeTabContent({
+    required this.type,
+    required this.articles,
+    required this.allTasks,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(AppSpacing.l),
+      itemCount: articles.length,
+      itemBuilder: (context, index) {
+        final article = articles[index];
+        return _ArticleAccordion(
+          article: article,
+          type: type,
+          allTasks: allTasks,
+        );
+      },
+    );
+  }
+}
+
+class _ArticleAccordion extends ConsumerWidget {
+  final PreparationArticle article;
+  final ChecklistTaskType type;
+  final List<ChecklistTask> allTasks;
+
+  const _ArticleAccordion({
+    required this.article,
+    required this.type,
+    required this.allTasks,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final familyId = article.familyId ?? '';
+    final mappingAsync = ref.watch(familyMappingByCodeProvider(familyId));
+    final responsesAsync = ref.watch(checklistResponsesProvider(article.id));
+    final theme = Theme.of(context);
+
+    if (mappingAsync.isLoading || responsesAsync.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.m),
+        child: Card(child: Padding(padding: EdgeInsets.all(16.0), child: Center(child: CircularProgressIndicator()))),
+      );
+    }
+
+    final mappings = mappingAsync.value ?? [];
+    final group = mappings.isNotEmpty ? mappings.first.group : null;
+
+    final groupTasks = allTasks.where((t) {
+      final isCorrectType = t.type?.id == type.id;
+      final isGlobal = t.group == null && (t.codeFamille == null || t.codeFamille!.isEmpty);
+      final isForGroup = group != null && t.group?.id == group.id;
+      final isForFamily = t.codeFamille == familyId;
+      return isCorrectType && (isGlobal || isForGroup || isForFamily);
+    }).toList();
+
+    if (groupTasks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final responses = responsesAsync.value ?? [];
+    
+    int checkedCount = 0;
+    for (var t in groupTasks) {
+      final isChecked = responses.any((r) => r.task?.id == t.id && r.isChecked);
+      if (isChecked) checkedCount++;
+    }
+    
+    final isComplete = checkedCount == groupTasks.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.m),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppBorderRadius.roundedM,
+          side: BorderSide(
+            color: isComplete ? Colors.green.withValues(alpha: 0.5) : theme.colorScheme.outlineVariant,
+          )
+        ),
+        child: ExpansionTile(
+          initiallyExpanded: !isComplete,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          title: Text(
+            article.name,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isComplete ? Colors.green : theme.colorScheme.onSurface,
+            ),
+          ),
+          subtitle: Text(
+            '$checkedCount/${groupTasks.length} cochés',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: isComplete ? Colors.green : theme.colorScheme.secondary,
+            ),
+          ),
+          trailing: isComplete 
+            ? const Icon(Icons.check_circle, color: Colors.green)
+            : null,
+          children: groupTasks.map((task) {
+            final response = responses.firstWhere(
+              (r) => r.task?.id == task.id,
+              orElse: () => ChecklistResponse(idLigneDocument: article.id, isChecked: false, task: task)
+            );
+  
+            final hasInfo = (task.information != null && task.information!.isNotEmpty) ||
+                            (task.type?.information != null && task.type!.information!.isNotEmpty);
+
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s, vertical: AppSpacing.xs),
+              decoration: BoxDecoration(
+                color: response.isChecked 
+                    ? theme.colorScheme.primaryContainer.withValues(alpha: 0.08) 
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: response.isChecked
+                      ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                      : theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: response.isChecked,
+                      activeColor: theme.colorScheme.primary,
+                      onChanged: (bool? value) {
+                        if (value != null) {
+                          ref.read(checklistResponseControllerProvider.notifier).toggleResponse(article.id, task.id!, value);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.nomTache,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: response.isChecked 
+                                  ? theme.colorScheme.onSurface.withValues(alpha: 0.5) 
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                          if (response.note != null && response.note!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.sticky_note_2_outlined, size: 14, color: Colors.blueAccent.shade700),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    response.note!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.blueAccent.shade700,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.note_alt_outlined,
+                            size: 20,
+                            color: (response.note != null && response.note!.trim().isNotEmpty)
+                                ? Colors.blueAccent.shade700
+                                : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          ),
+                          tooltip: 'Note',
+                          onPressed: () => _showNoteDialog(context, ref, article.id, task.id!, response.note),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(8),
+                          splashRadius: 20,
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.history_toggle_off_outlined,
+                            size: 20,
+                            color: response.isChecked 
+                                ? Colors.green.shade700 
+                                : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          ),
+                          tooltip: 'Logs',
+                          onPressed: () => _showLogsDialog(context, response, task),
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.all(8),
+                          splashRadius: 20,
+                        ),
+                        if (hasInfo)
+                          IconButton(
+                            icon: const Icon(Icons.info_outline, size: 20, color: Colors.blueAccent),
+                            tooltip: 'Informations',
+                            onPressed: () => _showInfoDialog(context, task),
+                            constraints: const BoxConstraints(),
+                            padding: const EdgeInsets.all(8),
+                            splashRadius: 20,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showInfoDialog(BuildContext context, ChecklistTask task) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.blueAccent),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Informations',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task.nomTache,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const Divider(height: 24),
+              if (task.information != null && task.information!.isNotEmpty) ...[
+                const Text('Consignes de la tâche :', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(task.information!),
+                const SizedBox(height: 16),
+              ],
+              if (task.type?.information != null && task.type!.information!.isNotEmpty) ...[
+                Text('Consignes du type (${task.type!.name}) :', style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(task.type!.information!),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNoteDialog(BuildContext context, WidgetRef ref, String idLigneDocument, int taskId, String? currentNote) {
+    final controller = TextEditingController(text: currentNote ?? '');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.note_alt_outlined, color: Colors.blueAccent),
+            SizedBox(width: 8),
+            Text('Note de la tâche', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Saisissez votre note ici...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            child: const Text('Annuler'),
+          ),
+          if (currentNote != null && currentNote.trim().isNotEmpty)
+            TextButton(
+              onPressed: () {
+                ref.read(checklistResponseControllerProvider.notifier).saveResponseNote(idLigneDocument, taskId, null);
+                Navigator.pop(context);
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Supprimer'),
+            ),
+          ElevatedButton(
+            onPressed: () {
+              final note = controller.text.trim();
+              ref.read(checklistResponseControllerProvider.notifier).saveResponseNote(
+                idLigneDocument,
+                taskId,
+                note.isEmpty ? null : note,
+              );
+              Navigator.pop(context);
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogsDialog(BuildContext context, ChecklistResponse response, ChecklistTask task) {
+    final theme = Theme.of(context);
+    String formatDateTime(String? isoString) {
+      if (isoString == null) return 'N/A';
+      try {
+        final dt = DateTime.parse(isoString);
+        return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} à ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.history_toggle_off_outlined, color: theme.colorScheme.secondary),
+            const SizedBox(width: 8),
+            const Text('Logs de validation', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tâche : ${task.nomTache}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const Divider(height: 24),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    response.isChecked ? Icons.check_circle_outline : Icons.radio_button_off,
+                    color: response.isChecked ? Colors.green : Colors.grey,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          response.isChecked ? 'Validée' : 'Non validée',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: response.isChecked ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                        if (response.isChecked) ...[
+                          const SizedBox(height: 2),
+                          Text('Par : ${response.checkedBy ?? 'Inconnu'}', style: theme.textTheme.bodySmall),
+                          Text('Le : ${formatDateTime(response.dateChecked)}', style: theme.textTheme.bodySmall),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.sticky_note_2_outlined,
+                    color: (response.note != null && response.note!.isNotEmpty) ? Colors.blueAccent : Colors.grey,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Note / Commentaire',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: (response.note != null && response.note!.isNotEmpty) ? Colors.blueAccent : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        if (response.note != null && response.note!.isNotEmpty) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              response.note!,
+                              style: const TextStyle(fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text('Par : ${response.checkedBy ?? 'Inconnu'}', style: theme.textTheme.bodySmall),
+                          Text('Écrit le : ${formatDateTime(response.dateNote)}', style: theme.textTheme.bodySmall),
+                        ] else
+                          const Text('Aucune note enregistrée', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ],
       ),
     );
   }

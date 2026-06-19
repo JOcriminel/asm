@@ -143,16 +143,10 @@ class DuxDrawer extends ConsumerWidget {
                   pathPrefix: '/activity-feed',
                 ),
                 buildDrawerItem(
-                  icon: Icons.assignment_outlined,
-                  label: 'Commands',
-                  routeName: RouteNames.commands,
-                  pathPrefix: '/commands',
-                ),
-                buildDrawerItem(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'Préparations',
-                  routeName: RouteNames.bonPreparationList,
-                  pathPrefix: '/preparations',
+                  icon: Icons.shopping_bag_outlined,
+                  label: 'Gestion de Vente',
+                  routeName: RouteNames.gestionVente,
+                  pathPrefix: '/gestion-vente',
                 ),
                 buildDrawerItem(
                   icon: Icons.storefront_outlined,
@@ -165,6 +159,12 @@ class DuxDrawer extends ConsumerWidget {
                   label: 'Profile',
                   routeName: RouteNames.profile,
                   pathPrefix: '/profile',
+                ),
+                buildDrawerItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Dashboard Admin',
+                  routeName: 'dashboardAdmin',
+                  pathPrefix: '/dashboard-admin',
                 ),
               ],
             ),

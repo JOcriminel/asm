@@ -34,6 +34,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "9090:9090"
+    volumes:
+      - ./deploy/dux-integration/data:/app/data
       #    environment:
       # Network communication: connecting to SQL Server container name "sqlsrv"
       #      SPRING_DATASOURCE_URL: jdbc:sqlserver://sqlsrv:1433;databaseName=ASM_PREPROD;encrypt=true;trustServerCertificate=true

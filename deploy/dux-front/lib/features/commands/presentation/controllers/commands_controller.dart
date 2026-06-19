@@ -55,7 +55,7 @@ class CommandsController extends StateNotifier<CommandsState> {
   final Ref _ref;
   final GetCommandsUseCase _getCommandsUseCase;
 
-  static const int _pageSize = 10;
+  static const int _pageSize = 25;
 
   CommandsController(this._ref, this._getCommandsUseCase)
       : super(const CommandsState(commands: [])) {
@@ -65,8 +65,6 @@ class CommandsController extends StateNotifier<CommandsState> {
   Future<void> fetchCommands({bool refresh = false}) async {
     if (refresh) {
       state = state.copyWith(page: 1, commands: [], isLoading: true, clearError: true);
-    } else if (state.page > 1) {
-      state = state.copyWith(isLoadMoreLoading: true, clearError: true);
     } else {
       state = state.copyWith(isLoading: true, clearError: true);
     }
@@ -81,13 +79,14 @@ class CommandsController extends StateNotifier<CommandsState> {
       final newCommands = await _getCommandsUseCase(
         filter: searchFilter,
         page: state.page,
+        limit: _pageSize,
         userStationId: authState.user?.station,
         userId: authState.user?.id,
         userTierId: authState.user?.tierId,
       );
 
       final hasMore = newCommands.length >= _pageSize;
-      final combined = refresh ? newCommands : [...state.commands, ...newCommands];
+      final combined = newCommands;
       _applySort(combined, state.filter.sortOrder);
 
       state = state.copyWith(
@@ -138,10 +137,15 @@ class CommandsController extends StateNotifier<CommandsState> {
     fetchCommands();
   }
 
+  void goToPage(int page) {
+    if (state.isLoading || page < 1) return;
+    state = state.copyWith(page: page);
+    fetchCommands();
+  }
+
   void loadNextPage() {
     if (state.isLoading || state.isLoadMoreLoading || !state.hasMore) return;
-    state = state.copyWith(page: state.page + 1);
-    fetchCommands();
+    goToPage(state.page + 1);
   }
 
   void _sortCommandsLocally() {
