@@ -1,3 +1,5 @@
+import '../../../../core/models/base_document.dart';
+
 class ArticleItem {
   final String id;
   final String code;
@@ -208,7 +210,7 @@ class ClasseDocument {
       };
 }
 
-class Command {
+class Command implements BaseDocument {
   final String id;
   final String documentCode;     // e.g. "000005"
   final String documentType;     // e.g. "Bon de Commande Client"

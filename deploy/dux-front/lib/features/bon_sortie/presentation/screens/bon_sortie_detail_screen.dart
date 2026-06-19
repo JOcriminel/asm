@@ -14,6 +14,8 @@ import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
 import '../controllers/bon_sortie_detail_controller.dart';
 import '../../domain/models/bon_sortie.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/core/theme/theme_helper.dart';
 
 class BonSortieDetailScreen extends ConsumerWidget {
   final String sortieId;
@@ -27,10 +29,17 @@ class BonSortieDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final state = ref.watch(bonSortieDetailControllerProvider(sortieId));
+    final configState = ref.watch(screenConfigControllerProvider);
+    final bsConfig = configState.configs['BS'];
+    final pageTitle = bsConfig?.detailPageTitle ?? 'BS-D';
 
-    return Scaffold(
+    final dynamicTheme = getDynamicTheme(context, bsConfig?.primaryColor);
+
+    return Theme(
+      data: dynamicTheme,
+      child: Scaffold(
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'BS-D'),
+        title: DuxAppBarTitle(title: pageTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -184,8 +193,9 @@ class BonSortieDetailScreen extends ConsumerWidget {
           return content;
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDocDetailsCard(ThemeData theme, BonSortie sortie) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');

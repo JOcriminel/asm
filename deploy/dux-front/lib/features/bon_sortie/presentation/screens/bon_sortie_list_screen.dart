@@ -3,768 +3,403 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-
 import 'package:dux_front/core/theme/app_sizes.dart';
-import 'package:dux_front/core/widgets/app_search_bar.dart';
-import 'package:dux_front/core/widgets/filter_chip.dart';
-import 'package:dux_front/core/widgets/loading_skeleton.dart';
-import 'package:dux_front/core/widgets/empty_state_widget.dart';
-import 'package:dux_front/core/widgets/error_state_widget.dart';
-import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
-import 'package:dux_front/core/widgets/dux_drawer.dart';
-import 'package:dux_front/core/services/search_history_service.dart';
-import 'package:dux_front/core/routing/route_constants.dart';
+import 'package:dux_front/core/widgets/generic_document_list_screen.dart';
+import 'package:dux_front/core/models/base_document.dart';
 import '../controllers/bon_sortie_list_controller.dart';
 import '../../domain/models/bon_sortie.dart';
 import '../widgets/sortie_filter_bottom_sheet.dart';
+import 'package:dux_front/core/routing/route_constants.dart';
 
-class BonSortieListScreen extends ConsumerStatefulWidget {
+class BonSortieListScreen extends ConsumerWidget {
   const BonSortieListScreen({super.key});
 
   @override
-  ConsumerState<BonSortieListScreen> createState() => _BonSortieListScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
 
-class _BonSortieListScreenState extends ConsumerState<BonSortieListScreen> {
-  final _scrollController = ScrollController();
-  final _searchController = TextEditingController();
+    return GenericDocumentListScreen<BonSortie, BonSortieListState>(
+      title: 'BS',
+      searchHint: 'Rechercher code, client ou représentant...',
+      stateProvider: bonSortieListControllerProvider,
+      
+      // State Getters
+      getItems: (state) => state.sorties,
+      getIsLoading: (state) => state.isLoading,
+      getError: (state) => state.error,
+      getPage: (state) => state.page,
+      getHasMore: (state) => state.hasMore,
+      getSearchQuery: (state) => state.searchQuery,
+      getIsFilterActive: (state) => state.filter.advancedFilterActive,
+      
+      // Callbacks
+      onRefresh: (ref, {required refresh}) => ref.read(bonSortieListControllerProvider.notifier).fetchSorties(refresh: refresh),
+      onSearchChanged: (ref, query) => ref.read(bonSortieListControllerProvider.notifier).updateSearchQuery(query),
+      onResetFilters: (ref) => ref.read(bonSortieListControllerProvider.notifier).clearFilters(),
+      onGoToPage: (ref, page) => ref.read(bonSortieListControllerProvider.notifier).goToPage(page),
+      
+      onFilterPressed: (context, ref) {
+        final controller = ref.read(bonSortieListControllerProvider.notifier);
+        final currentFilter = ref.read(bonSortieListControllerProvider).filter;
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _showFilterSheet() {
-    final controller = ref.read(bonSortieListControllerProvider.notifier);
-    final currentFilter = ref.read(bonSortieListControllerProvider).filter;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SortieFilterBottomSheet(
-          currentFilter: currentFilter,
-          onApply: (newFilter) {
-            controller.applyFilter(newFilter);
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) {
+            return SortieFilterBottomSheet(
+              currentFilter: currentFilter,
+              onApply: (newFilter) {
+                controller.applyFilter(newFilter);
+              },
+            );
           },
         );
       },
-    );
-  }
+      
+      // UI Customizations
+      emptyStateTitle: 'Aucune sortie trouvée',
+      emptyStateDescription: 'Modifiez vos filtres ou effectuez une recherche.',
+      emptyStateIcon: Icons.local_shipping_outlined,
+      
+      buildFilterChips: (context, state, ref) {
+        final hasDates = state.filter.dateFrom != null && state.filter.dateTo != null;
+        final activeFilters = <Widget>[];
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final state = ref.watch(bonSortieListControllerProvider);
-    final recentSearches = ref.watch(searchHistoryProvider);
-
-    return Scaffold(
-      drawer: const DuxDrawer(),
-      appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'BS'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Actualiser',
-            onPressed: () => ref.read(bonSortieListControllerProvider.notifier).fetchSorties(refresh: true),
-          ),
-          IconButton(
-            icon: const Icon(Icons.wifi, color: Colors.green),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go('/dashboard'),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar Block with filter button
-          Padding(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.l,
-              right: AppSpacing.l,
-              top: AppSpacing.m,
-              bottom: AppSpacing.xs,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: AppSearchBar(
-                    controller: _searchController,
-                    hintText: 'Rechercher code, client ou représentant...',
-                    recentSearches: recentSearches,
-                    onChanged: (value) {
-                      ref
-                          .read(bonSortieListControllerProvider.notifier)
-                          .updateSearchQuery(value);
-                    },
-                    onRecentSearchTapped: (value) {
-                      ref
-                          .read(bonSortieListControllerProvider.notifier)
-                          .updateSearchQuery(value);
-                      ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
-                    },
-                    onSearchSubmitted: (value) {
-                      if (value.isNotEmpty) {
-                        ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Material(
-                  color: state.filter.advancedFilterActive
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: _showFilterSheet,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      height: 48,
-                      width: 48,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.tune_rounded,
-                        color: state.filter.advancedFilterActive
-                            ? Colors.white
-                            : theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _buildFilterChipsRow(theme, state),
-
-          // Main list content
-          Expanded(
-            child: _buildMainContent(state),
-          ),
-          _buildPaginationFooter(theme, state),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChipsRow(ThemeData theme, BonSortieListState state) {
-    final hasDates = state.filter.dateFrom != null && state.filter.dateTo != null;
-    final activeFilters = <Widget>[];
-
-    // 1. Date Range Chip (Always visible)
-    activeFilters.add(
-      Theme(
-        data: theme.copyWith(canvasColor: Colors.transparent),
-        child: InputChip(
-          avatar: Icon(
-            Icons.calendar_month_rounded,
-            size: 16,
-            color: hasDates ? Colors.white : theme.colorScheme.primary,
-          ),
-          label: Text(
-            hasDates
-                ? '${DateFormat('dd/MM/yy').format(state.filter.dateFrom!)} - ${DateFormat('dd/MM/yy').format(state.filter.dateTo!)}'
-                : 'Période',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: hasDates ? Colors.white : theme.colorScheme.onSurface,
-            ),
-          ),
-          selected: hasDates,
-          selectedColor: theme.colorScheme.primary,
-          checkmarkColor: Colors.transparent,
-          showCheckmark: false,
-          onSelected: (_) => _selectDateRange(),
-          onDeleted: hasDates
-              ? () {
-                  ref.read(bonSortieListControllerProvider.notifier).applyFilter(
-                        state.filter.copyWith(clearDates: true),
-                      );
-                }
-              : null,
-          deleteIcon: hasDates ? const Icon(Icons.close_rounded, size: 14) : null,
-          deleteIconColor: Colors.white70,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: hasDates ? theme.colorScheme.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-              width: 1,
-            ),
-          ),
-          backgroundColor: theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        ),
-      ),
-    );
-
-    // 2. All Documents Filter Chip
-    if (!state.filter.allDocuments) {
-      activeFilters.add(
-        Theme(
-          data: theme.copyWith(canvasColor: Colors.transparent),
-          child: InputChip(
-            label: const Text(
-              'Documents filtrés',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            selected: true,
-            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-            checkmarkColor: Colors.transparent,
-            showCheckmark: false,
-            onSelected: (_) {},
-            onDeleted: () {
-              ref.read(bonSortieListControllerProvider.notifier).applyFilter(
-                    state.filter.copyWith(allDocuments: true),
-                  );
-            },
-            deleteIcon: const Icon(Icons.close_rounded, size: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-        ),
-      );
-    }
-
-    // 3. Status Filter Chip
-    if (state.filter.status != null && state.filter.status!.isNotEmpty) {
-      activeFilters.add(
-        Theme(
-          data: theme.copyWith(canvasColor: Colors.transparent),
-          child: InputChip(
-            label: Text(
-              'Statut: ${state.filter.status}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            selected: true,
-            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-            checkmarkColor: Colors.transparent,
-            showCheckmark: false,
-            onSelected: (_) {},
-            onDeleted: () {
-              ref.read(bonSortieListControllerProvider.notifier).applyFilter(
-                    state.filter.copyWith(status: ''),
-                  );
-            },
-            deleteIcon: const Icon(Icons.close_rounded, size: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-        ),
-      );
-    }
-
-    // 4. Tier Filter Chip
-    if (state.filter.tier != null && state.filter.tier!.isNotEmpty) {
-      activeFilters.add(
-        Theme(
-          data: theme.copyWith(canvasColor: Colors.transparent),
-          child: InputChip(
-            label: Text(
-              'Tier: ${state.filter.tier}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            selected: true,
-            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-            checkmarkColor: Colors.transparent,
-            showCheckmark: false,
-            onSelected: (_) {},
-            onDeleted: () {
-              ref.read(bonSortieListControllerProvider.notifier).applyFilter(
-                    state.filter.copyWith(tier: ''),
-                  );
-            },
-            deleteIcon: const Icon(Icons.close_rounded, size: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-        ),
-      );
-    }
-
-    // 5. Representative Filter Chip
-    if (state.filter.representative != null && state.filter.representative!.isNotEmpty) {
-      activeFilters.add(
-        Theme(
-          data: theme.copyWith(canvasColor: Colors.transparent),
-          child: InputChip(
-            label: Text(
-              'Rep: ${state.filter.representative}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-            selected: true,
-            selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-            checkmarkColor: Colors.transparent,
-            showCheckmark: false,
-            onSelected: (_) {},
-            onDeleted: () {
-              ref.read(bonSortieListControllerProvider.notifier).applyFilter(
-                    state.filter.copyWith(representative: ''),
-                  );
-            },
-            deleteIcon: const Icon(Icons.close_rounded, size: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-        ),
-      );
-    }
-
-    final isAnyFilterActive = hasDates ||
-        !state.filter.allDocuments ||
-        (state.filter.status != null && state.filter.status!.isNotEmpty) ||
-        (state.filter.tier != null && state.filter.tier!.isNotEmpty) ||
-        (state.filter.representative != null && state.filter.representative!.isNotEmpty);
-
-    return Container(
-      height: 48,
-      margin: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-        children: [
-          if (isAnyFilterActive) ...[
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Theme(
-                data: theme.copyWith(canvasColor: Colors.transparent),
-                child: ActionChip(
-                  avatar: Icon(Icons.refresh_rounded, size: 16, color: theme.colorScheme.error),
-                  label: Text(
-                    'Réinitialiser',
-                    style: TextStyle(
-                      color: theme.colorScheme.error,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  onPressed: () {
-                    ref.read(bonSortieListControllerProvider.notifier).clearFilters();
-                  },
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: theme.colorScheme.error.withValues(alpha: 0.3)),
-                  ),
-                  backgroundColor: theme.colorScheme.errorContainer.withValues(alpha: 0.1),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        // 1. Date Range Chip
+        activeFilters.add(
+          Theme(
+            data: theme.copyWith(canvasColor: Colors.transparent),
+            child: InputChip(
+              avatar: Icon(
+                Icons.calendar_month_rounded,
+                size: 16,
+                color: hasDates ? Colors.white : theme.colorScheme.primary,
+              ),
+              label: Text(
+                hasDates
+                    ? '${DateFormat('dd/MM/yy').format(state.filter.dateFrom!)} - ${DateFormat('dd/MM/yy').format(state.filter.dateTo!)}'
+                    : 'Période',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: hasDates ? Colors.white : theme.colorScheme.onSurface,
                 ),
               ),
+              selected: hasDates,
+              selectedColor: theme.colorScheme.primary,
+              checkmarkColor: Colors.transparent,
+              showCheckmark: false,
+              onSelected: (_) => _selectDateRange(context, ref, state.filter),
+              onDeleted: hasDates
+                  ? () {
+                      ref.read(bonSortieListControllerProvider.notifier).applyFilter(
+                            state.filter.copyWith(clearDates: true),
+                          );
+                    }
+                  : null,
+              deleteIcon: hasDates ? const Icon(Icons.close_rounded, size: 14) : null,
+              deleteIconColor: Colors.white70,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: hasDates ? theme.colorScheme.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              backgroundColor: theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
-          ],
-          ...activeFilters.map((chip) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: chip,
-              )),
-        ],
-      ),
-    );
-  }
+          ),
+        );
 
-  Widget _buildMainContent(BonSortieListState state) {
-    final theme = Theme.of(context);
-
-    if (state.isLoading && state.sorties.isEmpty) {
-      return _buildSkeletonList();
-    }
-
-    if (state.error != null && state.sorties.isEmpty) {
-      return ErrorStateWidget(
-        description: state.error!,
-        onRetry: () =>
-            ref.read(bonSortieListControllerProvider.notifier).fetchSorties(refresh: true),
-      );
-    }
-
-    if (state.sorties.isEmpty) {
-      return EmptyStateWidget(
-        title: 'Aucun bon de sortie trouvé',
-        description: 'Modifiez vos filtres ou effectuez une recherche.',
-        icon: Icons.output_outlined,
-        actionLabel: 'Réinitialiser les filtres',
-        onActionPressed: () {
-          _searchController.clear();
-          ref.read(bonSortieListControllerProvider.notifier).updateSearchQuery('');
-          ref.read(bonSortieListControllerProvider.notifier).clearFilters();
-        },
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        HapticFeedback.mediumImpact();
-        await ref
-            .read(bonSortieListControllerProvider.notifier)
-            .fetchSorties(refresh: true);
-      },
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(AppSpacing.l),
-        itemCount: state.sorties.length,
-        itemBuilder: (context, index) {
-          final sortie = state.sorties[index];
-          final formattedDate =
-              DateFormat('dd/MM/yyyy').format(sortie.date);
-          final formattedAmount = NumberFormat.currency(
-            locale: 'fr_TN',
-            symbol: 'TND',
-            decimalDigits: 3,
-          ).format(sortie.amount);
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: AppSpacing.m),
-            child: InkWell(
-              onTap: () async {
-                await context.pushNamed(
-                  RouteNames.bonSortieDetail,
-                  pathParameters: {'id': sortie.id},
-                );
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
+        // 2. All Documents Filter Chip
+        if (!state.filter.allDocuments) {
+          activeFilters.add(
+            Theme(
+              data: theme.copyWith(canvasColor: Colors.transparent),
+              child: InputChip(
+                label: const Text(
+                  'Documents filtrés',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                selected: true,
+                selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                checkmarkColor: Colors.transparent,
+                showCheckmark: false,
+                onSelected: (_) {},
+                onDeleted: () {
+                  ref.read(bonSortieListControllerProvider.notifier).applyFilter(
+                        state.filter.copyWith(allDocuments: true),
+                      );
+                },
+                deleteIcon: const Icon(Icons.close_rounded, size: 14),
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.5)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title row with Status dot
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6.0, right: 8.0),
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _parseStatusColor(sortie.statusColor) ??
-                                  Colors.blueAccent.shade200,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            sortie.customerName.toUpperCase(),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Key-Value rows
-                    Text.rich(
-                      TextSpan(
-                        text: 'Code: ',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: sortie.documentCode,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.normal),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Représentant: ',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: sortie.representative.isNotEmpty
-                                ? sortie.representative
-                                : '—',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.normal),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Statut: ',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: sortie.status,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.normal),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Date: ',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: formattedDate,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.normal),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Montant HT: ',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            fontSize: 13),
-                        children: [
-                          TextSpan(
-                            text: formattedAmount,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.normal),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Action Buttons (Bottom Right)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        _ActionButton(
-                          icon: Icons.visibility_outlined,
-                          color: const Color(0xFF62A0EA),
-                          onTap: () {
-                            context.pushNamed(
-                              RouteNames.bonSortieDetail,
-                              pathParameters: {'id': sortie.id},
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               ),
             ),
           );
-        },
-      ),
-    );
-  }
-
-  static Color? _parseStatusColor(String? colorStr) {
-    if (colorStr == null || colorStr.isEmpty) return null;
-    final clean = colorStr.trim().toLowerCase();
-
-    if (clean.startsWith('rgba')) {
-      try {
-        final match = RegExp(
-                r'rgba\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)')
-            .firstMatch(clean);
-        if (match != null) {
-          final r = int.parse(match.group(1)!);
-          final g = int.parse(match.group(2)!);
-          final b = int.parse(match.group(3)!);
-          final a = double.parse(match.group(4)!);
-          return Color.fromARGB((a * 255).round(), r, g, b);
         }
-      } catch (_) {}
-    }
 
-    if (clean.startsWith('rgb')) {
-      try {
-        final match =
-            RegExp(r'rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)')
-                .firstMatch(clean);
-        if (match != null) {
-          final r = int.parse(match.group(1)!);
-          final g = int.parse(match.group(2)!);
-          final b = int.parse(match.group(3)!);
-          return Color.fromARGB(255, r, g, b);
+        // 3. Status Filter Chip
+        if (state.filter.status != null && state.filter.status!.isNotEmpty) {
+          activeFilters.add(
+            Theme(
+              data: theme.copyWith(canvasColor: Colors.transparent),
+              child: InputChip(
+                label: Text(
+                  'Statut: ${state.filter.status}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                selected: true,
+                selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                checkmarkColor: Colors.transparent,
+                showCheckmark: false,
+                onSelected: (_) {},
+                onDeleted: () {
+                  ref.read(bonSortieListControllerProvider.notifier).applyFilter(
+                        state.filter.copyWith(status: ''),
+                      );
+                },
+                deleteIcon: const Icon(Icons.close_rounded, size: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+            ),
+          );
         }
-      } catch (_) {}
-    }
 
-    if (clean.startsWith('#')) {
-      try {
-        final hex = clean.substring(1);
-        if (hex.length == 6) {
-          return Color(int.parse('FF$hex', radix: 16));
-        } else if (hex.length == 8) {
-          return Color(int.parse(hex, radix: 16));
+        // 4. Tier Filter Chip
+        if (state.filter.tier != null && state.filter.tier!.isNotEmpty) {
+          activeFilters.add(
+            Theme(
+              data: theme.copyWith(canvasColor: Colors.transparent),
+              child: InputChip(
+                label: Text(
+                  'Tier: ${state.filter.tier}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                selected: true,
+                selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                checkmarkColor: Colors.transparent,
+                showCheckmark: false,
+                onSelected: (_) {},
+                onDeleted: () {
+                  ref.read(bonSortieListControllerProvider.notifier).applyFilter(
+                        state.filter.copyWith(tier: ''),
+                      );
+                },
+                deleteIcon: const Icon(Icons.close_rounded, size: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+            ),
+          );
         }
-      } catch (_) {}
-    }
 
-    return null;
-  }
+        // 5. Representative Filter Chip
+        if (state.filter.representative != null && state.filter.representative!.isNotEmpty) {
+          activeFilters.add(
+            Theme(
+              data: theme.copyWith(canvasColor: Colors.transparent),
+              child: InputChip(
+                label: Text(
+                  'Rep: ${state.filter.representative}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                selected: true,
+                selectedColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                checkmarkColor: Colors.transparent,
+                showCheckmark: false,
+                onSelected: (_) {},
+                onDeleted: () {
+                  ref.read(bonSortieListControllerProvider.notifier).applyFilter(
+                        state.filter.copyWith(representative: ''),
+                      );
+                },
+                deleteIcon: const Icon(Icons.close_rounded, size: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+            ),
+          );
+        }
 
-  Widget _buildSkeletonList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(AppSpacing.l),
-      itemCount: 4,
-      itemBuilder: (context, index) {
+        return activeFilters;
+      },
+      
+      buildItemCard: (context, sortie, ref) {
+        final formattedDate = DateFormat('dd/MM/yyyy').format(sortie.date);
+        
+        final formattedAmount = NumberFormat.currency(
+          locale: 'fr_TN',
+          symbol: 'TND',
+          decimalDigits: 3,
+        ).format(sortie.amount);
+
         return Container(
-          margin: const EdgeInsets.only(bottom: AppSpacing.l),
-          padding: const EdgeInsets.all(AppSpacing.l),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardTheme.color,
-            borderRadius: AppBorderRadius.roundedL,
-            border: Border.all(color: Theme.of(context).colorScheme.outline),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  LoadingSkeleton(height: 20, width: 120),
-                  LoadingSkeleton(height: 20, width: 80),
+          margin: const EdgeInsets.only(bottom: AppSpacing.m),
+          child: InkWell(
+            onTap: () {
+              context.pushNamed(
+                RouteNames.bonSortieDetail,
+                pathParameters: {'id': sortie.id},
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
-              AppSpacing.gapL,
-              LoadingSkeleton(height: 18, width: 200),
-              AppSpacing.gapM,
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  LoadingSkeleton(height: 14, width: 100),
-                  LoadingSkeleton(height: 14, width: 80),
+                  // Title row with Status dot
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6.0, right: 8.0),
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _parseStatusColor(sortie.statusColor) ?? Colors.greenAccent.shade200,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          sortie.customerName.toUpperCase(),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // Key-Value rows
+                  Text.rich(
+                    TextSpan(
+                      text: 'Code: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                      children: [
+                        TextSpan(
+                          text: sortie.documentCode,
+                          style: const TextStyle(fontWeight: FontWeight.normal),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(
+                      text: 'Représentant: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                      children: [
+                        TextSpan(
+                          text: sortie.representative.isNotEmpty ? sortie.representative : '—',
+                          style: const TextStyle(fontWeight: FontWeight.normal),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(
+                      text: 'Statut: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                      children: [
+                        TextSpan(
+                          text: sortie.status,
+                          style: const TextStyle(fontWeight: FontWeight.normal),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(
+                      text: 'Date: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                      children: [
+                        TextSpan(
+                          text: formattedDate,
+                          style: const TextStyle(fontWeight: FontWeight.normal),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(
+                      text: 'Montant HT: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                      children: [
+                        TextSpan(
+                          text: formattedAmount,
+                          style: const TextStyle(fontWeight: FontWeight.normal),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  
+                  // Action Buttons (Bottom Right)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      _ActionButton(
+                        icon: Icons.visibility_outlined,
+                        color: const Color(0xFF62A0EA), // Blue
+                        onTap: () {
+                          context.pushNamed(
+                            RouteNames.bonSortieDetail,
+                            pathParameters: {'id': sortie.id},
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              AppSpacing.gapL,
-              Divider(height: 1),
-              AppSpacing.gapM,
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  LoadingSkeleton(height: 14, width: 80),
-                  LoadingSkeleton(height: 22, width: 100),
-                ],
-              ),
-            ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildPaginationFooter(ThemeData theme, BonSortieListState state) {
-    if (state.sorties.isEmpty && !state.isLoading) {
-      return const SizedBox.shrink();
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
-        ],
-        border: Border(
-          top: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5), width: 0.5),
-        ),
-      ),
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton.filledTonal(
-              onPressed: state.page > 1 && !state.isLoading
-                  ? () => ref.read(bonSortieListControllerProvider.notifier).goToPage(state.page - 1)
-                  : null,
-              icon: const Icon(Icons.arrow_back_ios_new, size: 16),
-              style: IconButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Text(
-                'Page ${state.page}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-            IconButton.filledTonal(
-              onPressed: state.hasMore && !state.isLoading
-                  ? () => ref.read(bonSortieListControllerProvider.notifier).goToPage(state.page + 1)
-                  : null,
-              icon: const Icon(Icons.arrow_forward_ios, size: 16),
-              style: IconButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _selectDateRange() async {
+  Future<void> _selectDateRange(BuildContext context, WidgetRef ref, BonSortieFilter filter) async {
     final controller = ref.read(bonSortieListControllerProvider.notifier);
-    final state = ref.read(bonSortieListControllerProvider);
-    final filter = state.filter;
 
     final picked = await showDateRangePicker(
       context: context,
@@ -782,7 +417,7 @@ class _BonSortieListScreenState extends ConsumerState<BonSortieListScreen> {
             colorScheme: const ColorScheme.dark(
               primary: Color(0xFF3B82F6), // Blue selection
               onPrimary: Colors.white,
-              surface: Color(0xFF1E293B), // Dark blue surface like reference
+              surface: Color(0xFF1E293B),
               onSurface: Colors.white,
               secondary: Color(0xFF60A5FA),
             ),
@@ -807,6 +442,48 @@ class _BonSortieListScreenState extends ConsumerState<BonSortieListScreen> {
     }
   }
 
+  static Color? _parseStatusColor(String? colorStr) {
+    if (colorStr == null || colorStr.isEmpty) return null;
+    final clean = colorStr.trim().toLowerCase();
+    
+    if (clean.startsWith('rgba')) {
+      try {
+        final match = RegExp(r'rgba\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)').firstMatch(clean);
+        if (match != null) {
+          final r = int.parse(match.group(1)!);
+          final g = int.parse(match.group(2)!);
+          final b = int.parse(match.group(3)!);
+          final a = double.parse(match.group(4)!);
+          return Color.fromARGB((a * 255).round(), r, g, b);
+        }
+      } catch (_) {}
+    }
+    
+    if (clean.startsWith('rgb')) {
+      try {
+        final match = RegExp(r'rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)').firstMatch(clean);
+        if (match != null) {
+          final r = int.parse(match.group(1)!);
+          final g = int.parse(match.group(2)!);
+          final b = int.parse(match.group(3)!);
+          return Color.fromARGB(255, r, g, b);
+        }
+      } catch (_) {}
+    }
+
+    if (clean.startsWith('#')) {
+      try {
+        final hex = clean.substring(1);
+        if (hex.length == 6) {
+          return Color(int.parse('FF$hex', radix: 16));
+        } else if (hex.length == 8) {
+          return Color(int.parse(hex, radix: 16));
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
 }
 
 class _ActionButton extends StatelessWidget {

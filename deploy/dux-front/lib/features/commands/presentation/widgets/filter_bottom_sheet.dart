@@ -293,6 +293,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
             // Sorting Selection
             DropdownButtonFormField<CommandSortOrder>(
+              isExpanded: true,
               initialValue: _sortOrder,
               decoration: const InputDecoration(
                 labelText: 'Trier par',

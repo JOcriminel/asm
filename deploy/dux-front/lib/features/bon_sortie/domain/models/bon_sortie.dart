@@ -1,3 +1,5 @@
+import '../../../../core/models/base_document.dart';
+
 class SortieArticle {
   final String id;
   final String code;
@@ -84,7 +86,7 @@ class SortieTimeline {
   const SortieTimeline({this.created, this.validated, this.delivered});
 }
 
-class BonSortie {
+class BonSortie implements BaseDocument {
   final String id;
   final String documentCode;
   final String documentType;

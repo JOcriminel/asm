@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -10,11 +9,12 @@ import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
 import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
-import 'package:dux_front/core/widgets/primary_button.dart';
 import '../controllers/command_details_controller.dart';
-import '../utils/pdf_generation_helper.dart';
 import 'package:dux_front/features/commands/domain/models/command.dart';
 import '../widgets/timeline_widget.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/core/theme/theme_helper.dart';
+import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 
 class CommandDetailsScreen extends ConsumerWidget {
   final String commandId;
@@ -28,10 +28,22 @@ class CommandDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final state = ref.watch(commandDetailsControllerProvider(commandId));
+    final configState = ref.watch(screenConfigControllerProvider);
+    final bcConfig = configState.configs['BC'];
+    final pageTitle = bcConfig?.detailPageTitle ?? 'BC-D';
 
-    return Scaffold(
+    final authState = ref.watch(authControllerProvider);
+    final userRole = authState.user?.role.toLowerCase() ?? '';
+    final isOperator = userRole == 'operateur' || userRole == 'opérateur';
+    final hidePrices = (bcConfig?.hidePricesForOperateurs ?? false) && isOperator;
+
+    final dynamicTheme = getDynamicTheme(context, bcConfig?.primaryColor);
+
+    return Theme(
+      data: dynamicTheme,
+      child: Scaffold(
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'BC-D'),
+        title: DuxAppBarTitle(title: pageTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -151,12 +163,14 @@ class CommandDetailsScreen extends ConsumerWidget {
 
                   // Articles List Section
                   SectionHeader(title: 'Articles & Items'),
-                  _buildArticlesList(theme, command.articles),
+                  _buildArticlesList(theme, command.articles, hidePrices),
                   AppSpacing.gapL,
 
                   // Summary Section moved to bottom
-                  _buildSummarySection(theme, command),
-                  AppSpacing.gapXxl,
+                  if (!hidePrices) ...[
+                    _buildSummarySection(theme, command),
+                    AppSpacing.gapXxl,
+                  ],
                 ],
               ),
             ),
@@ -174,8 +188,9 @@ class CommandDetailsScreen extends ConsumerWidget {
           return content;
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
 
   Widget _buildInfoSection(ThemeData theme, Command command) {
@@ -341,7 +356,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildArticlesList(ThemeData theme, List<ArticleItem> articles) {
+  Widget _buildArticlesList(ThemeData theme, List<ArticleItem> articles, bool hidePrices) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 700;
@@ -358,19 +373,19 @@ class CommandDetailsScreen extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 columnSpacing: 20,
-                columns: const [
-                  DataColumn(label: Text('Code')),
-                  DataColumn(label: Text('Désignation')),
-                  DataColumn(label: Text('Stock')),
-                  DataColumn(label: Text('Quantité')),
-                  DataColumn(label: Text('Unité')),
-                  DataColumn(label: Text('PUHT/U')),
-                  DataColumn(label: Text('R. %')),
-                  DataColumn(label: Text('Mnt Net HT')),
-                  DataColumn(label: Text('TVA %')),
-                  DataColumn(label: Text('PUTTC')),
-                  DataColumn(label: Text('TTC')),
-                  DataColumn(label: Text('Action')),
+                columns: [
+                  const DataColumn(label: Text('Code')),
+                  const DataColumn(label: Text('Désignation')),
+                  const DataColumn(label: Text('Stock')),
+                  const DataColumn(label: Text('Quantité')),
+                  const DataColumn(label: Text('Unité')),
+                  if (!hidePrices) const DataColumn(label: Text('PUHT/U')),
+                  if (!hidePrices) const DataColumn(label: Text('R. %')),
+                  if (!hidePrices) const DataColumn(label: Text('Mnt Net HT')),
+                  if (!hidePrices) const DataColumn(label: Text('TVA %')),
+                  if (!hidePrices) const DataColumn(label: Text('PUTTC')),
+                  if (!hidePrices) const DataColumn(label: Text('TTC')),
+                  const DataColumn(label: Text('Action')),
                 ],
                 rows: List.generate(articles.length, (index) {
                   final item = articles[index];
@@ -387,16 +402,16 @@ class CommandDetailsScreen extends ConsumerWidget {
                       )),
                       DataCell(Text('${item.quantity}')),
                       DataCell(Text(item.unite ?? 'Pièce')),
-                      DataCell(Text(currencyFormat.format(item.unitPrice))),
-                      DataCell(Text('${item.discountPercent ?? 0.0} %')),
-                      DataCell(Text(currencyFormat.format(item.netHT ?? item.total))),
-                      DataCell(Text('${item.tvaPercent ?? 19.0} %')),
-                      DataCell(Text(currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19)))),
-                      DataCell(Text(currencyFormat.format(item.totalTTC ?? (item.total * 1.19)))),
+                      if (!hidePrices) DataCell(Text(currencyFormat.format(item.unitPrice))),
+                      if (!hidePrices) DataCell(Text('${item.discountPercent ?? 0.0} %')),
+                      if (!hidePrices) DataCell(Text(currencyFormat.format(item.netHT ?? item.total))),
+                      if (!hidePrices) DataCell(Text('${item.tvaPercent ?? 19.0} %')),
+                      if (!hidePrices) DataCell(Text(currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19)))),
+                      if (!hidePrices) DataCell(Text(currencyFormat.format(item.totalTTC ?? (item.total * 1.19)))),
                       DataCell(IconButton(
                         icon: const Icon(Icons.info_outline, size: 18),
                         onPressed: () {
-                          _showItemDetailDialog(context, item);
+                          _showItemDetailDialog(context, item, hidePrices);
                         },
                       )),
                     ],
@@ -435,12 +450,14 @@ class CommandDetailsScreen extends ConsumerWidget {
                       _buildMobileDetailRow('Code', item.code),
                       _buildMobileDetailRow('Stockable', isStockable ? 'Oui' : 'Non'),
                       _buildMobileDetailRow('Quantité', '${item.quantity} ${item.unite ?? 'Pièce'}'),
-                      _buildMobileDetailRow('PUHT/U', currencyFormat.format(item.unitPrice)),
-                      _buildMobileDetailRow('Remise', '${item.discountPercent ?? 0.0} %'),
-                      _buildMobileDetailRow('Mnt Net HT', currencyFormat.format(item.netHT ?? item.total)),
-                      _buildMobileDetailRow('TVA', '${item.tvaPercent ?? 19.0} %'),
-                      _buildMobileDetailRow('PUTTC', currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))),
-                      _buildMobileDetailRow('Total TTC', currencyFormat.format(item.totalTTC ?? (item.total * 1.19)), isHighlight: true),
+                      if (!hidePrices) ...[
+                        _buildMobileDetailRow('PUHT/U', currencyFormat.format(item.unitPrice)),
+                        _buildMobileDetailRow('Remise', '${item.discountPercent ?? 0.0} %'),
+                        _buildMobileDetailRow('Mnt Net HT', currencyFormat.format(item.netHT ?? item.total)),
+                        _buildMobileDetailRow('TVA', '${item.tvaPercent ?? 19.0} %'),
+                        _buildMobileDetailRow('PUTTC', currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))),
+                        _buildMobileDetailRow('Total TTC', currencyFormat.format(item.totalTTC ?? (item.total * 1.19)), isHighlight: true),
+                      ],
                     ],
                   ),
                 ),
@@ -472,7 +489,7 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  void _showItemDetailDialog(BuildContext context, ArticleItem item) {
+  void _showItemDetailDialog(BuildContext context, ArticleItem item, bool hidePrices) {
     final currencyFormat = NumberFormat.currency(
       locale: 'fr_TN',
       symbol: 'DT',
@@ -488,12 +505,14 @@ class CommandDetailsScreen extends ConsumerWidget {
               Text('Code: ${item.code}'),
               Text('Unité: ${item.unite ?? 'Pièce'}'),
               Text('Quantité: ${item.quantity}'),
-              Text('PUHT/U: ${currencyFormat.format(item.unitPrice)}'),
-              Text('Remise: ${item.discountPercent ?? 0.0} %'),
-              Text('Net HT: ${currencyFormat.format(item.netHT ?? item.total)}'),
-              Text('TVA: ${item.tvaPercent ?? 19.0} %'),
-              Text('PUTTC: ${currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))}'),
-              Text('Total TTC: ${currencyFormat.format(item.totalTTC ?? (item.total * 1.19))}'),
+              if (!hidePrices) ...[
+                Text('PUHT/U: ${currencyFormat.format(item.unitPrice)}'),
+                Text('Remise: ${item.discountPercent ?? 0.0} %'),
+                Text('Net HT: ${currencyFormat.format(item.netHT ?? item.total)}'),
+                Text('TVA: ${item.tvaPercent ?? 19.0} %'),
+                Text('PUTTC: ${currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19))}'),
+                Text('Total TTC: ${currencyFormat.format(item.totalTTC ?? (item.total * 1.19))}'),
+              ],
               Text('Stockable: ${item.stock == '1' || item.stock == 'true' ? 'Oui' : 'Non'}'),
             ],
           ),

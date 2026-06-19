@@ -22,6 +22,8 @@ import '../../features/bon_preparation/presentation/screens/serial_number_entry_
 import '../../features/bon_preparation/presentation/screens/preparation_checklist_screen.dart';
 import '../../features/checklist/presentation/screens/checklist_admin_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_admin_screen.dart';
+import '../../features/dashboard/presentation/screens/dynamic_screens_config_screen.dart';
+import '../../features/dashboard/presentation/screens/edit_screen_config_screen.dart';
 import '../../features/dashboard/presentation/screens/gestion_vente_screen.dart';
 import '../../features/checklist/presentation/screens/groups_admin_screen.dart';
 import '../../features/checklist/presentation/screens/task_types_admin_screen.dart';
@@ -144,6 +146,21 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: '/articles-admin',
                 name: 'articlesAdmin',
                 builder: (context, state) => const ArticlesAdminScreen(),
+              ),
+              GoRoute(
+                path: '/admin/screen-settings',
+                name: 'dynamicScreenSettings',
+                builder: (context, state) => const DynamicScreensConfigScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'edit/:type',
+                    name: 'editScreenSettings',
+                    builder: (context, state) {
+                      final type = state.pathParameters['type'] ?? '';
+                      return EditScreenConfigScreen(docType: type);
+                    },
+                  ),
+                ],
               ),
               GoRoute(
                 path: RoutePaths.gestionVente,

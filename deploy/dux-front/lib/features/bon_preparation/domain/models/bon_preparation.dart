@@ -1,3 +1,5 @@
+import '../../../../core/models/base_document.dart';
+
 class PreparationArticle {
   final String id;
   final String code;
@@ -93,7 +95,7 @@ class PreparationTimeline {
   const PreparationTimeline({this.created, this.validated, this.delivered});
 }
 
-class BonPreparation {
+class BonPreparation implements BaseDocument {
   final String id;
   final String documentCode;
   final String documentType;

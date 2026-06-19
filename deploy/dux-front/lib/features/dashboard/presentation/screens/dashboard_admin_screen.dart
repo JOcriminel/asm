@@ -13,6 +13,7 @@ class DashboardAdminScreen extends StatelessWidget {
     final List<Map<String, dynamic>> menuItems = [
       {'title': 'Checklist\nAdmin', 'icon': Icons.rule_folder_outlined, 'route': '/checklist-admin'},
       {'title': 'Articles\nAdmin', 'icon': Icons.inventory_2_outlined, 'route': '/articles-admin'},
+      {'title': 'Config\nDynamic', 'icon': Icons.tune_rounded, 'route': '/admin/screen-settings'},
     ];
 
     return Scaffold(

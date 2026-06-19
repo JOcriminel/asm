@@ -15,6 +15,9 @@ import 'package:dux_front/features/bon_preparation/presentation/screens/serial_n
 import 'package:dux_front/core/routing/route_constants.dart';
 import '../controllers/bon_preparation_detail_controller.dart';
 import '../../domain/models/bon_preparation.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/core/theme/theme_helper.dart';
+import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 
 class BonPreparationDetailScreen extends ConsumerWidget {
   final String preparationId;
@@ -31,9 +34,24 @@ class BonPreparationDetailScreen extends ConsumerWidget {
     final state = ref.watch(bonPreparationDetailControllerProvider(preparationId));
     debugPrint('DetailScreen: state (isLoading: ${state.isLoading}, error: ${state.error}, hasPrep: ${state.preparation != null})');
 
-    return Scaffold(
+    final configState = ref.watch(screenConfigControllerProvider);
+    final bpConfig = configState.configs['BP'];
+    final pageTitle = bpConfig?.detailPageTitle ?? 'BP-D';
+
+    final authState = ref.watch(authControllerProvider);
+    final userRole = authState.user?.role ?? '';
+    final isAllowed = bpConfig == null || 
+                      userRole.toLowerCase() == 'admin' || 
+                      userRole.toLowerCase() == 'administrateur' ||
+                      bpConfig.allowedRolesToFinalize.any((r) => r.trim().toLowerCase() == userRole.trim().toLowerCase());
+
+    final dynamicTheme = getDynamicTheme(context, bpConfig?.primaryColor);
+
+    return Theme(
+      data: dynamicTheme,
+      child: Scaffold(
       appBar: AppBar(
-        title: const DuxAppBarTitle(title: 'BP-D'),
+        title: DuxAppBarTitle(title: pageTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -158,30 +176,7 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                   AppSpacing.gapXxl,
                   
                   // Finaliser la préparation button
-                  if (preparation.totalScannedSerialNumbers == preparation.totalRequiredSerialNumbers)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
-                          backgroundColor: theme.colorScheme.secondary,
-                          foregroundColor: theme.colorScheme.onSecondary,
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
-                        ),
-                        onPressed: () {
-                          context.pushNamed(
-                            RouteNames.bonPreparationChecklist,
-                            extra: {'preparationId': preparation.id},
-                          );
-                        },
-                        child: const Text(
-                          'Finaliser la préparation',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  if (preparation.totalScannedSerialNumbers < preparation.totalRequiredSerialNumbers)
+                  if (!isAllowed)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -193,28 +188,70 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                         ),
                         onPressed: null, // disabled
                         child: const Text(
-                          'Scannez tous les SN pour finaliser',
+                          'Rôle non autorisé à finaliser',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ),
-                    ),
-                  if (preparation.totalScannedSerialNumbers > preparation.totalRequiredSerialNumbers)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
-                          backgroundColor: theme.colorScheme.errorContainer,
-                          foregroundColor: theme.colorScheme.onErrorContainer,
-                          shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
-                        ),
-                        onPressed: null, // disabled
-                        child: const Text(
-                          'Trop de numéros de série scannés !',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    )
+                  else ...[
+                    if (preparation.totalScannedSerialNumbers == preparation.totalRequiredSerialNumbers)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                            backgroundColor: theme.colorScheme.secondary,
+                            foregroundColor: theme.colorScheme.onSecondary,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                          ),
+                          onPressed: () {
+                            context.pushNamed(
+                              RouteNames.bonPreparationChecklist,
+                              extra: {'preparationId': preparation.id},
+                            );
+                          },
+                          child: const Text(
+                            'Finaliser la préparation',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
-                    ),
+                    if (preparation.totalScannedSerialNumbers < preparation.totalRequiredSerialNumbers)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                            backgroundColor: Colors.grey.shade400,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                          ),
+                          onPressed: null, // disabled
+                          child: const Text(
+                            'Scannez tous les SN pour finaliser',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    if (preparation.totalScannedSerialNumbers > preparation.totalRequiredSerialNumbers)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                            backgroundColor: theme.colorScheme.errorContainer,
+                            foregroundColor: theme.colorScheme.onErrorContainer,
+                            shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                          ),
+                          onPressed: null, // disabled
+                          child: const Text(
+                            'Trop de numéros de série scannés !',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                  ],
                   AppSpacing.gapXxl,
                 ],
               ),
@@ -233,8 +270,9 @@ class BonPreparationDetailScreen extends ConsumerWidget {
           return content;
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDocDetailsCard(ThemeData theme, BonPreparation preparation) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
