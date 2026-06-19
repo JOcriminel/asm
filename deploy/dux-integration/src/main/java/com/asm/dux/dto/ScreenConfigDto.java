@@ -17,6 +17,8 @@ public class ScreenConfigDto {
     private boolean requireSignature;
     private boolean requirePhoto;
     private String defaultSortField;
+    private boolean enableSoundAlerts;
+    private boolean enableVibrationAlerts;
 
     public ScreenConfigDto() {
     }
@@ -131,5 +133,21 @@ public class ScreenConfigDto {
 
     public void setDefaultSortField(String defaultSortField) {
         this.defaultSortField = defaultSortField;
+    }
+
+    public boolean isEnableSoundAlerts() {
+        return enableSoundAlerts;
+    }
+
+    public void setEnableSoundAlerts(boolean enableSoundAlerts) {
+        this.enableSoundAlerts = enableSoundAlerts;
+    }
+
+    public boolean isEnableVibrationAlerts() {
+        return enableVibrationAlerts;
+    }
+
+    public void setEnableVibrationAlerts(boolean enableVibrationAlerts) {
+        this.enableVibrationAlerts = enableVibrationAlerts;
     }
 }

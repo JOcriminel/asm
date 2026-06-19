@@ -52,6 +52,12 @@ public class ScreenConfig {
     @Column(name = "default_sort_field", length = 50)
     private String defaultSortField;
 
+    @Column(name = "enable_sound_alerts")
+    private Boolean enableSoundAlerts;
+
+    @Column(name = "enable_vibration_alerts")
+    private Boolean enableVibrationAlerts;
+
     public ScreenConfig() {
     }
 
@@ -165,5 +171,21 @@ public class ScreenConfig {
 
     public void setDefaultSortField(String defaultSortField) {
         this.defaultSortField = defaultSortField;
+    }
+
+    public boolean isEnableSoundAlerts() {
+        return enableSoundAlerts == null || enableSoundAlerts;
+    }
+
+    public void setEnableSoundAlerts(Boolean enableSoundAlerts) {
+        this.enableSoundAlerts = enableSoundAlerts;
+    }
+
+    public boolean isEnableVibrationAlerts() {
+        return enableVibrationAlerts == null || enableVibrationAlerts;
+    }
+
+    public void setEnableVibrationAlerts(Boolean enableVibrationAlerts) {
+        this.enableVibrationAlerts = enableVibrationAlerts;
     }
 }

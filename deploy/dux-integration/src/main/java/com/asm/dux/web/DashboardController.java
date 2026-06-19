@@ -27,9 +27,11 @@ import java.util.Map;
 public class DashboardController {
 
     private final AuditLogRepository auditLogRepository;
+    private final com.asm.dux.infrastructure.db.repository.ChecklistResponseRepository checklistResponseRepository;
 
-    public DashboardController(AuditLogRepository auditLogRepository) {
+    public DashboardController(AuditLogRepository auditLogRepository, com.asm.dux.infrastructure.db.repository.ChecklistResponseRepository checklistResponseRepository) {
         this.auditLogRepository = auditLogRepository;
+        this.checklistResponseRepository = checklistResponseRepository;
     }
 
     @GetMapping("/stats")
@@ -45,15 +47,19 @@ public class DashboardController {
 
         long scansToday = auditLogRepository.countByActionAndTimestampBetween("SCAN", start, end);
         long deletionsToday = auditLogRepository.countByActionAndTimestampBetween("DELETE", start, end);
+        long checklistResponsesToday = checklistResponseRepository.countByIsCheckedTrueAndDateCheckedBetween(start, end);
         
         List<Map<String, Object>> scansLast7Days = auditLogRepository.countByActionGroupedByDay("SCAN", historyStart, end);
         List<Map<String, Object>> scansByHour = auditLogRepository.countByActionGroupedByHour("SCAN", start, end);
+        List<Map<String, Object>> operatorPerformance = auditLogRepository.getOperatorPerformance(start, end);
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("scansToday", scansToday);
         stats.put("deletionsToday", deletionsToday);
+        stats.put("checklistResponsesToday", checklistResponsesToday);
         stats.put("scansLast7Days", scansLast7Days);
         stats.put("scansByHour", scansByHour);
+        stats.put("operatorPerformance", operatorPerformance);
 
         return ResponseEntity.ok(stats);
     }

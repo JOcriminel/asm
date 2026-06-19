@@ -57,6 +57,8 @@ public class ScreenConfigController {
         config.setRequireSignature(dto.isRequireSignature());
         config.setRequirePhoto(dto.isRequirePhoto());
         config.setDefaultSortField(dto.getDefaultSortField());
+        config.setEnableSoundAlerts(dto.isEnableSoundAlerts());
+        config.setEnableVibrationAlerts(dto.isEnableVibrationAlerts());
         
         if (dto.getVisibleRoles() != null) {
             config.setVisibleRoles(String.join(",", dto.getVisibleRoles()));
@@ -93,6 +95,8 @@ public class ScreenConfigController {
         bc.setRequireSignature(false);
         bc.setRequirePhoto(false);
         bc.setDefaultSortField("date");
+        bc.setEnableSoundAlerts(true);
+        bc.setEnableVibrationAlerts(true);
         defaults.add(bc);
 
         // BP
@@ -111,6 +115,8 @@ public class ScreenConfigController {
         bp.setRequireSignature(false);
         bp.setRequirePhoto(true); // require photo proof by default
         bp.setDefaultSortField("status");
+        bp.setEnableSoundAlerts(true);
+        bp.setEnableVibrationAlerts(true);
         defaults.add(bp);
 
         // BS
@@ -129,6 +135,8 @@ public class ScreenConfigController {
         bs.setRequireSignature(true); // require signature on exit by default
         bs.setRequirePhoto(false);
         bs.setDefaultSortField("date");
+        bs.setEnableSoundAlerts(true);
+        bs.setEnableVibrationAlerts(true);
         defaults.add(bs);
 
         return repository.saveAll(defaults);
@@ -150,6 +158,8 @@ public class ScreenConfigController {
         dto.setRequireSignature(entity.isRequireSignature());
         dto.setRequirePhoto(entity.isRequirePhoto());
         dto.setDefaultSortField(entity.getDefaultSortField());
+        dto.setEnableSoundAlerts(entity.isEnableSoundAlerts());
+        dto.setEnableVibrationAlerts(entity.isEnableVibrationAlerts());
 
         if (entity.getVisibleRoles() != null && !entity.getVisibleRoles().trim().isEmpty()) {
             dto.setVisibleRoles(Arrays.asList(entity.getVisibleRoles().split(",")));

@@ -52,6 +52,8 @@ class ScreenConfigController extends StateNotifier<ScreenConfigState> {
           requireSignature: false,
           requirePhoto: false,
           defaultSortField: 'date',
+          enableSoundAlerts: true,
+          enableVibrationAlerts: true,
         ),
         'BP': const ScreenConfig(
           documentType: 'BP',
@@ -68,6 +70,8 @@ class ScreenConfigController extends StateNotifier<ScreenConfigState> {
           requireSignature: false,
           requirePhoto: true,
           defaultSortField: 'status',
+          enableSoundAlerts: true,
+          enableVibrationAlerts: true,
         ),
         'BS': const ScreenConfig(
           documentType: 'BS',
@@ -84,6 +88,8 @@ class ScreenConfigController extends StateNotifier<ScreenConfigState> {
           requireSignature: true,
           requirePhoto: false,
           defaultSortField: 'date',
+          enableSoundAlerts: true,
+          enableVibrationAlerts: true,
         ),
       };
 

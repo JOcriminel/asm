@@ -11,13 +11,13 @@ class DashboardScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     final List<Map<String, dynamic>> menuItems = [
-      {'title': 'KPI\nDashboard', 'icon': Icons.dashboard_outlined, 'route': '/kpi-dashboard'},
-      {'title': 'Gestion De\nVente', 'icon': Icons.shopping_bag_outlined, 'route': '/gestion-vente'},
-      {'title': 'Clients', 'icon': Icons.group_outlined, 'route': '/clients'},
-      {'title': 'Journal\nd\'Activité', 'icon': Icons.history_outlined, 'route': '/activity-feed'},
-      {'title': 'Station', 'icon': Icons.storefront_outlined, 'route': '/station'},
-      {'title': 'Profil', 'icon': Icons.person_outline, 'route': '/profile'},
-      {'title': 'Dashboard\nAdmin', 'icon': Icons.admin_panel_settings_outlined, 'route': '/dashboard-admin'},
+      {'title': 'KPI\nDashboard', 'icon': Icons.dashboard_outlined, 'route': '/kpi-dashboard', 'color': Colors.teal},
+      {'title': 'Gestion De\nVente', 'icon': Icons.shopping_bag_outlined, 'route': '/gestion-vente', 'color': Colors.blue},
+      {'title': 'Clients', 'icon': Icons.group_outlined, 'route': '/clients', 'color': Colors.purple},
+      {'title': 'Journal\nd\'Activité', 'icon': Icons.history_outlined, 'route': '/activity-feed', 'color': Colors.amber},
+      {'title': 'Station', 'icon': Icons.storefront_outlined, 'route': '/station', 'color': Colors.green},
+      {'title': 'Profil', 'icon': Icons.person_outline, 'route': '/profile', 'color': Colors.pink},
+      {'title': 'Dashboard\nAdmin', 'icon': Icons.admin_panel_settings_outlined, 'route': '/dashboard-admin', 'color': Colors.indigo},
     ];
 
     return Scaffold(
@@ -57,7 +57,7 @@ class DashboardScreen extends StatelessWidget {
           crossAxisCount: 3,
           crossAxisSpacing: AppSpacing.m,
           mainAxisSpacing: AppSpacing.m,
-          childAspectRatio: 0.85,
+          childAspectRatio: 0.82,
         ),
         itemCount: menuItems.length,
         itemBuilder: (context, index) {
@@ -65,6 +65,7 @@ class DashboardScreen extends StatelessWidget {
           return _MenuCard(
             title: item['title'] as String,
             icon: item['icon'] as IconData,
+            color: item['color'] as Color,
             onTap: () {
               if (item['route'] != null) {
                 context.go(item['route'] as String);
@@ -81,55 +82,89 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-class _MenuCard extends StatelessWidget {
+class _MenuCard extends StatefulWidget {
   final String title;
   final IconData icon;
+  final Color color;
   final VoidCallback onTap;
 
   const _MenuCard({
     required this.title,
     required this.icon,
+    required this.color,
     required this.onTap,
   });
 
   @override
+  State<_MenuCard> createState() => _MenuCardState();
+}
+
+class _MenuCardState extends State<_MenuCard> {
+  double _scale = 1.0;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-          border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 32,
-              color: theme.colorScheme.onSurface,
-            ),
-            AppSpacing.gapM,
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.w600,
-                fontSize: 11,
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.94),
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.015),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+            border: Border.all(
+              color: widget.color.withValues(alpha: 0.22),
+              width: 1.5,
             ),
-          ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.09),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 28,
+                  color: widget.color,
+                ),
+              ),
+              AppSpacing.gapM,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10.5,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

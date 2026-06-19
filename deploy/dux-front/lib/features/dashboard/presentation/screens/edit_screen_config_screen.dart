@@ -34,6 +34,8 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
   bool _requireSignature = false;
   bool _requirePhoto = false;
   String _defaultSortField = 'date';
+  bool _enableSoundAlerts = true;
+  bool _enableVibrationAlerts = true;
 
   @override
   void initState() {
@@ -62,6 +64,8 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
       _requireSignature = config.requireSignature;
       _requirePhoto = config.requirePhoto;
       _defaultSortField = config.defaultSortField;
+      _enableSoundAlerts = config.enableSoundAlerts;
+      _enableVibrationAlerts = config.enableVibrationAlerts;
     });
   }
 
@@ -107,6 +111,8 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
       requireSignature: _requireSignature,
       requirePhoto: _requirePhoto,
       defaultSortField: _defaultSortField,
+      enableSoundAlerts: _enableSoundAlerts,
+      enableVibrationAlerts: _enableVibrationAlerts,
     );
 
     await ref.read(screenConfigControllerProvider.notifier).updateConfig(widget.docType, updated);
@@ -160,6 +166,136 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ============================================
+              // LIVE PREVIEW CARD
+              // ============================================
+              Container(
+                margin: const EdgeInsets.only(bottom: AppSpacing.l),
+                padding: const EdgeInsets.all(AppSpacing.l),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.12),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.remove_red_eye_outlined, color: _parseHexColor(_primaryColor), size: 18),
+                        AppSpacing.gapS,
+                        Text(
+                          'Prévisualisation en Temps Réel',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    AppSpacing.gapL,
+                    // Mock App Bar / Header Preview
+                    Container(
+                      height: 52,
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m),
+                      decoration: BoxDecoration(
+                        color: _parseHexColor(_primaryColor),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _parseHexColor(_primaryColor).withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                          AppSpacing.gapM,
+                          Expanded(
+                            child: AnimatedBuilder(
+                              animation: _titleController,
+                              builder: (context, _) {
+                                return Text(
+                                  _titleController.text.trim().isEmpty ? docName : _titleController.text.trim(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              }
+                            ),
+                          ),
+                          const Icon(Icons.wifi, color: Colors.white, size: 18),
+                        ],
+                      ),
+                    ),
+                    AppSpacing.gapL,
+                    // Mock Action Preview
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: _parseHexColor(_primaryColor).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.qr_code_scanner_rounded,
+                                color: _parseHexColor(_primaryColor),
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                        AppSpacing.gapM,
+                        Expanded(
+                          child: Container(
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: _parseHexColor(_primaryColor),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _parseHexColor(_primaryColor).withValues(alpha: 0.25),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Valider S/N',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
               _buildSectionCard(
                 title: 'Personnalisation Visuelle',
                 icon: Icons.palette_outlined,
@@ -367,6 +503,22 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
                     subtitle: 'Affiche les détails de scan S/N par article',
                     value: _snEnabled,
                     onChanged: (val) => setState(() => _snEnabled = val),
+                    theme: theme,
+                  ),
+                  _buildSwitchItem(
+                    icon: Icons.volume_up_rounded,
+                    title: 'Alertes Sonores',
+                    subtitle: 'Émet un bip de validation lors du scan d\'un article',
+                    value: _enableSoundAlerts,
+                    onChanged: (val) => setState(() => _enableSoundAlerts = val),
+                    theme: theme,
+                  ),
+                  _buildSwitchItem(
+                    icon: Icons.vibration_rounded,
+                    title: 'Vibrations de Retour',
+                    subtitle: 'Vibre pour signaler un scan réussi ou une erreur',
+                    value: _enableVibrationAlerts,
+                    onChanged: (val) => setState(() => _enableVibrationAlerts = val),
                     theme: theme,
                   ),
                   if (widget.docType == 'BC') ...[
@@ -626,6 +778,17 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
             : null,
       ),
     );
+  }
+
+  Color _parseHexColor(String hexString) {
+    try {
+      final buffer = StringBuffer();
+      if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
+      buffer.write(hexString.replaceFirst('#', ''));
+      return Color(int.parse(buffer.toString(), radix: 16));
+    } catch (_) {
+      return Colors.blue;
+    }
   }
 
   Widget _buildSaveButton(ThemeData theme) {

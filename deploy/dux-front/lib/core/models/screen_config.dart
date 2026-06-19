@@ -15,6 +15,8 @@ class ScreenConfig {
   final bool requireSignature;
   final bool requirePhoto;
   final String defaultSortField;
+  final bool enableSoundAlerts;
+  final bool enableVibrationAlerts;
 
   const ScreenConfig({
     required this.documentType,
@@ -31,6 +33,8 @@ class ScreenConfig {
     required this.requireSignature,
     required this.requirePhoto,
     required this.defaultSortField,
+    required this.enableSoundAlerts,
+    required this.enableVibrationAlerts,
   });
 
   factory ScreenConfig.fromJson(Map<String, dynamic> json) {
@@ -53,6 +57,8 @@ class ScreenConfig {
       requireSignature: json['requireSignature'] as bool? ?? false,
       requirePhoto: json['requirePhoto'] as bool? ?? false,
       defaultSortField: json['defaultSortField'] as String? ?? 'date',
+      enableSoundAlerts: json['enableSoundAlerts'] as bool? ?? true,
+      enableVibrationAlerts: json['enableVibrationAlerts'] as bool? ?? true,
     );
   }
 
@@ -71,6 +77,8 @@ class ScreenConfig {
         'requireSignature': requireSignature,
         'requirePhoto': requirePhoto,
         'defaultSortField': defaultSortField,
+        'enableSoundAlerts': enableSoundAlerts,
+        'enableVibrationAlerts': enableVibrationAlerts,
       };
 
   ScreenConfig copyWith({
@@ -87,6 +95,8 @@ class ScreenConfig {
     bool? requireSignature,
     bool? requirePhoto,
     String? defaultSortField,
+    bool? enableSoundAlerts,
+    bool? enableVibrationAlerts,
   }) {
     return ScreenConfig(
       documentType: documentType,
@@ -103,6 +113,8 @@ class ScreenConfig {
       requireSignature: requireSignature ?? this.requireSignature,
       requirePhoto: requirePhoto ?? this.requirePhoto,
       defaultSortField: defaultSortField ?? this.defaultSortField,
+      enableSoundAlerts: enableSoundAlerts ?? this.enableSoundAlerts,
+      enableVibrationAlerts: enableVibrationAlerts ?? this.enableVibrationAlerts,
     );
   }
 }

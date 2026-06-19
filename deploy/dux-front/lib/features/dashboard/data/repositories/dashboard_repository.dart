@@ -8,22 +8,28 @@ import '../../../../core/utils/logger.dart';
 class DashboardStats {
   final int scansToday;
   final int deletionsToday;
+  final int checklistResponsesToday;
   final List<Map<String, dynamic>> scansLast7Days;
   final List<Map<String, dynamic>> scansByHour;
+  final List<Map<String, dynamic>> operatorPerformance;
 
   DashboardStats({
     required this.scansToday,
     required this.deletionsToday,
+    required this.checklistResponsesToday,
     required this.scansLast7Days,
     required this.scansByHour,
+    required this.operatorPerformance,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
     return DashboardStats(
       scansToday: json['scansToday'] ?? 0,
       deletionsToday: json['deletionsToday'] ?? 0,
+      checklistResponsesToday: json['checklistResponsesToday'] ?? 0,
       scansLast7Days: List<Map<String, dynamic>>.from(json['scansLast7Days'] ?? []),
       scansByHour: List<Map<String, dynamic>>.from(json['scansByHour'] ?? []),
+      operatorPerformance: List<Map<String, dynamic>>.from(json['operatorPerformance'] ?? []),
     );
   }
 }
@@ -43,7 +49,14 @@ class DashboardRepository {
       if (response.data != null && response.data is Map<String, dynamic>) {
         return DashboardStats.fromJson(response.data);
       }
-      return DashboardStats(scansToday: 0, deletionsToday: 0, scansLast7Days: [], scansByHour: []);
+      return DashboardStats(
+        scansToday: 0,
+        deletionsToday: 0,
+        checklistResponsesToday: 0,
+        scansLast7Days: const [],
+        scansByHour: const [],
+        operatorPerformance: const [],
+      );
     } catch (e) {
       AppLogger.e('DashboardRepository', 'Failed to fetch stats', e);
       throw ApiExceptionHandler.handle(e);

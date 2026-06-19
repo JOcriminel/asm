@@ -12,4 +12,5 @@ public interface ChecklistResponseRepository extends JpaRepository<ChecklistResp
     List<ChecklistResponse> findByIdLigneDocument(String idLigneDocument);
     Optional<ChecklistResponse> findByIdLigneDocumentAndTaskId(String idLigneDocument, Long taskId);
     void deleteByIdLigneDocument(String idLigneDocument);
+    long countByIsCheckedTrueAndDateCheckedBetween(java.time.LocalDateTime start, java.time.LocalDateTime end);
 }

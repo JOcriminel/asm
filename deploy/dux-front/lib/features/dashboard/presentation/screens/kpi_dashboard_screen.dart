@@ -23,6 +23,8 @@ class KpiDashboardScreen extends ConsumerStatefulWidget {
 class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
   static const _statsUseCase = GetDashboardStatsUseCase();
   DateTimeRange? _selectedDateRange;
+  String? _selectedOperator;
+  String? _selectedDocType;
 
   void _pickDateRange() async {
     final theme = Theme.of(context);
@@ -65,8 +67,23 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
     final dashboardState = ref.watch(dashboardControllerProvider);
     final commands = commandsState.commands;
 
+    // Filter local commands by document type
+    final filteredCommands = commands.where((cmd) {
+      if (_selectedDocType != null) {
+        final type = _selectedDocType!.toUpperCase();
+        if (type == 'BC') {
+          return cmd.documentTypeCode.contains('BC') || cmd.documentType.toLowerCase().contains('commande');
+        } else if (type == 'BP') {
+          return cmd.documentTypeCode.contains('BP') || cmd.documentType.toLowerCase().contains('préparation') || cmd.documentType.toLowerCase().contains('preparation');
+        } else if (type == 'BS') {
+          return cmd.documentTypeCode.contains('BS') || cmd.documentType.toLowerCase().contains('sortie');
+        }
+      }
+      return true;
+    }).toList();
+
     // Local Stats
-    final localStats = _statsUseCase(commands);
+    final localStats = _statsUseCase(filteredCommands);
     final formattedRevenue = NumberFormat.currency(
       locale: 'fr_TN',
       symbol: 'TND',
@@ -112,6 +129,8 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildFilterBar(theme, dashboardState.stats?.operatorPerformance ?? []),
+            AppSpacing.gapL,
             // ============================================
             // 1. SCAN PERFORMANCE (API)
             // ============================================
@@ -231,6 +250,17 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
     final stats = state.stats;
     if (stats == null) return const SizedBox.shrink();
 
+    int scansCount = stats.scansToday;
+    int deletionsCount = stats.deletionsToday;
+    if (_selectedOperator != null) {
+      final op = stats.operatorPerformance.firstWhere(
+        (o) => o['userId']?.toString() == _selectedOperator,
+        orElse: () => <String, dynamic>{},
+      );
+      scansCount = (op['scans'] as num? ?? 0).toInt();
+      deletionsCount = (op['deletions'] as num? ?? 0).toInt();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -239,7 +269,7 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
             Expanded(
               child: _KpiCard(
                 title: 'Articles Scannés',
-                value: stats.scansToday.toString(),
+                value: scansCount.toString(),
                 icon: Icons.qr_code_scanner,
                 color: Colors.green,
               ),
@@ -248,7 +278,7 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
             Expanded(
               child: _KpiCard(
                 title: 'Modifications',
-                value: stats.deletionsToday.toString(),
+                value: deletionsCount.toString(),
                 icon: Icons.edit_note,
                 color: Colors.orange,
               ),
@@ -256,8 +286,14 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
           ],
         ),
         
+
+
         AppSpacing.gapXxl,
-        SectionHeader(title: 'Répartition Horaire'),
+        SectionHeader(
+          title: _selectedOperator == null 
+              ? 'Répartition Horaire' 
+              : 'Répartition Horaire (Générale)',
+        ),
         InfoCard(
           padding: const EdgeInsets.all(AppSpacing.l),
           child: SizedBox(
@@ -269,7 +305,11 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
         ),
 
         AppSpacing.gapXxl,
-        SectionHeader(title: 'Historique des Jours'),
+        SectionHeader(
+          title: _selectedOperator == null 
+              ? 'Historique des Jours' 
+              : 'Historique des Jours (Général)',
+        ),
         InfoCard(
           padding: const EdgeInsets.all(AppSpacing.l),
           child: SizedBox(
@@ -380,10 +420,17 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
             color: theme.colorScheme.primary,
             barWidth: 4,
             isStrokeCapRound: true,
-            dotData: FlDotData(show: true),
+            dotData: const FlDotData(show: true),
             belowBarData: BarAreaData(
               show: true,
-              color: theme.colorScheme.primary.withValues(alpha: 0.2),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  theme.colorScheme.primary.withValues(alpha: 0.35),
+                  theme.colorScheme.primary.withValues(alpha: 0.0),
+                ],
+              ),
             ),
           ),
         ],
@@ -406,11 +453,18 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
           barRods: [
             BarChartRodData(
               toY: count,
-              color: theme.colorScheme.primary,
-              width: 16,
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  theme.colorScheme.primary.withValues(alpha: 0.5),
+                  theme.colorScheme.primary,
+                ],
+              ),
+              width: 18,
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                topRight: Radius.circular(4),
+                topLeft: Radius.circular(6),
+                topRight: Radius.circular(6),
               ),
             ),
           ],
@@ -489,11 +543,84 @@ class _KpiDashboardScreenState extends ConsumerState<KpiDashboardScreen> {
             );
           },
         ),
-        borderData: FlBorderData(show: false),
         barGroups: barGroups,
       ),
     );
   }
+
+  Widget _buildFilterBar(ThemeData theme, List<Map<String, dynamic>> operators) {
+    final operatorList = ['Tous', ...operators.map((o) => o['userId']?.toString() ?? 'Inconnu').toSet()];
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: 4.0),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              value: _selectedOperator ?? 'Tous',
+              decoration: const InputDecoration(
+                labelText: 'Opérateur',
+                labelStyle: TextStyle(fontSize: 12),
+                prefixIcon: Icon(Icons.person_outline_rounded, size: 18),
+                contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                border: InputBorder.none,
+              ),
+              items: operatorList.map((op) => DropdownMenuItem(value: op, child: Text(op, style: const TextStyle(fontSize: 12)))).toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedOperator = val == 'Tous' ? null : val;
+                });
+              },
+            ),
+          ),
+          Container(
+            width: 1.5,
+            height: 32,
+            color: theme.colorScheme.outline.withValues(alpha: 0.15),
+          ),
+          const SizedBox(width: AppSpacing.m),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              value: _selectedDocType ?? 'Tous',
+              decoration: const InputDecoration(
+                labelText: 'Document',
+                labelStyle: TextStyle(fontSize: 12),
+                prefixIcon: Icon(Icons.description_outlined, size: 18),
+                contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                border: InputBorder.none,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Tous', child: Text('Tous (BC/BP/BS)', style: TextStyle(fontSize: 12))),
+                DropdownMenuItem(value: 'BC', child: Text('Bon de Commande', style: TextStyle(fontSize: 12))),
+                DropdownMenuItem(value: 'BP', child: Text('Bon de Préparation', style: TextStyle(fontSize: 12))),
+                DropdownMenuItem(value: 'BS', child: Text('Bon de Sortie', style: TextStyle(fontSize: 12))),
+              ],
+              onChanged: (val) {
+                setState(() {
+                  _selectedDocType = val == 'Tous' ? null : val;
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
 
 class _KpiCard extends StatelessWidget {
