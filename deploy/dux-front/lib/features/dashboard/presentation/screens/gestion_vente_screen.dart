@@ -1,37 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/core/routing/page_route_registry.dart';
 
-class GestionVenteScreen extends StatelessWidget {
-  const GestionVenteScreen({super.key});
+class GestionVenteScreen extends ConsumerWidget {
+  final String categoryName;
+  const GestionVenteScreen({super.key, this.categoryName = 'Gestion de Vente'});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final configState = ref.watch(screenConfigControllerProvider);
 
-    final List<Map<String, dynamic>> menuItems = [
-      {
-        'title': 'Bon De\nCommande',
-        'icon': Icons.receipt_long_outlined,
-        'route': '/commands',
-      },
-      {
-        'title': 'Bon De\nPréparation',
-        'icon': Icons.precision_manufacturing_outlined,
-        'route': '/pages/bon-preparation/list',
-      },
-      {
-        'title': 'Bon De\nSortie',
-        'icon': Icons.output_outlined,
-        'route': '/pages/bon-sortie/list',
-      },
-    ];
+    if (configState.isLoading) {
+      return const DuxLoadingScreen(isFullScreen: true);
+    }
+
+    final configs = configState.configs;
+
+    final List<Map<String, dynamic>> menuItems = [];
+
+    // Add configured active pages that are mapped to this category
+    final isCategoryActive = configState.categories
+        .any((c) => c.name == categoryName && c.active);
+    configs.forEach((key, config) {
+      if (config.category == categoryName && config.isActive && isCategoryActive) {
+        IconData icon;
+        String route;
+
+        final reg = pageRouteRegistry[key];
+        if (reg != null) {
+          icon = reg.icon;
+          route = reg.pathToGo;
+        } else {
+          icon = Icons.assignment_rounded;
+          route = '/pages/dynamic-list/$key';
+        }
+
+        Color primaryColor = theme.colorScheme.primary;
+        try {
+          final cleaned = config.primaryColor.replaceAll('#', '');
+          primaryColor = Color(int.parse('FF$cleaned', radix: 16));
+        } catch (_) {}
+
+        menuItems.add({
+          'title': config.pageTitle,
+          'icon': icon,
+          'route': route,
+          'color': primaryColor,
+        });
+      }
+    });
 
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('Gestion de Vente'),
+        title: Text(categoryName),
         actions: [
           IconButton(
             icon: const Icon(Icons.wifi, color: Colors.green),
@@ -59,32 +87,40 @@ class GestionVenteScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(AppSpacing.l),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: AppSpacing.m,
-          mainAxisSpacing: AppSpacing.m,
-          childAspectRatio: 0.85,
-        ),
-        itemCount: menuItems.length,
-        itemBuilder: (context, index) {
-          final item = menuItems[index];
-          return _MenuCard(
-            title: item['title'] as String,
-            icon: item['icon'] as IconData,
-            onTap: () {
-              if (item['route'] != null) {
-                context.go(item['route'] as String);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${item['title']} non implémenté')),
+      body: menuItems.isEmpty
+          ? const Center(
+              child: Text(
+                'Aucun écran disponible sous Gestion de Vente.',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
+            )
+          : GridView.builder(
+              padding: const EdgeInsets.all(AppSpacing.l),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: AppSpacing.m,
+                mainAxisSpacing: AppSpacing.m,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: menuItems.length,
+              itemBuilder: (context, index) {
+                final item = menuItems[index];
+                return _MenuCard(
+                  title: item['title'] as String,
+                  icon: item['icon'] as IconData,
+                  color: item['color'] as Color? ?? theme.colorScheme.primary,
+                  onTap: () {
+                    if (item['route'] != null) {
+                      context.go(item['route'] as String);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${item['title']} non implémenté')),
+                      );
+                    }
+                  },
                 );
-              }
-            },
-          );
-        },
-      ),
+              },
+            ),
     );
   }
 }
@@ -92,11 +128,13 @@ class GestionVenteScreen extends StatelessWidget {
 class _MenuCard extends StatelessWidget {
   final String title;
   final IconData icon;
+  final Color color;
   final VoidCallback onTap;
 
   const _MenuCard({
     required this.title,
     required this.icon,
+    required this.color,
     required this.onTap,
   });
 
@@ -125,7 +163,7 @@ class _MenuCard extends StatelessWidget {
             Icon(
               icon,
               size: 32,
-              color: theme.colorScheme.onSurface,
+              color: color,
             ),
             AppSpacing.gapM,
             Text(

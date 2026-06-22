@@ -30,97 +30,133 @@ class TasksManagerTab extends ConsumerWidget {
             itemCount: tasks.length,
             itemBuilder: (context, index) {
               final item = tasks[index];
-              return Padding(
+               return Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.s),
                 child: InfoCard(
-                  padding: EdgeInsets.zero,
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.m, vertical: AppSpacing.xs),
-                    leading: CircleAvatar(
-                      backgroundColor: theme.colorScheme.secondary.withValues(alpha: 0.1),
-                      child: Icon(Icons.task_alt_rounded, color: theme.colorScheme.secondary),
-                    ),
-                    title: Text(
-                      item.nomTache,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Column(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.m,
+                    vertical: AppSpacing.s,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 8.0,
-                            runSpacing: 4.0,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              if (item.group != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    item.group!.name,
-                                    style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                )
-                              else if (item.codeFamille != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.secondaryContainer,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    'Famille: ${item.codeFamille}',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.onSecondaryContainer,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              if (item.type != null)
-                                Text(item.type!.name, style: theme.textTheme.labelSmall),
-                            ],
-                          ),
-                          if (item.information != null && item.information!.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              item.information!,
-                              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: CircleAvatar(
+                              backgroundColor: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                              child: Icon(Icons.task_alt_rounded, color: theme.colorScheme.secondary),
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: AppSpacing.m),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.nomTache,
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 8.0,
+                                  runSpacing: 4.0,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    if (item.group != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.surfaceContainerHighest,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          item.group!.name,
+                                          style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.bold),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      )
+                                    else if (item.codeFamille != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.secondaryContainer,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Famille: ${item.codeFamille}',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.colorScheme.onSecondaryContainer,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    if (item.type != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${item.type!.name}${item.type!.codeDoc != null && item.type!.codeDoc!.isNotEmpty ? ' (${item.type!.codeDoc})' : ' (Global)'}',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                if (item.information != null && item.information!.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    item.information!,
+                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+                            tooltip: 'Modifier',
+                            onPressed: () => _showEditTaskDialog(context, ref, item),
+                          ),
                         ],
                       ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: item.active,
-                          onChanged: (val) {
-                            ref.read(checklistAdminControllerProvider.notifier).toggleTaskActive(item.id!, val);
-                          },
-                          activeColor: theme.colorScheme.primary,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
-                          tooltip: 'Modifier',
-                          onPressed: () => _showEditTaskDialog(context, ref, item),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          tooltip: 'Supprimer',
-                          onPressed: () => ref.read(checklistAdminControllerProvider.notifier).deleteTask(item.id!),
-                        ),
-                      ],
-                    ),
+                      const Divider(height: 16, thickness: 0.5),
+                      Row(
+                        children: [
+                          Text(
+                            item.active ? 'Actif (apparaît)' : 'Non (n\'apparaît pas)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: item.active ? Colors.green : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Switch(
+                            value: item.active,
+                            onChanged: (val) {
+                              ref.read(checklistAdminControllerProvider.notifier).toggleTaskActive(item.id!, val);
+                            },
+                            activeThumbColor: theme.colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -186,7 +222,7 @@ class TasksManagerTab extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: targetType,
+                    initialValue: targetType,
                     isExpanded: true,
                     icon: const Icon(Icons.keyboard_arrow_down_rounded),
                     items: const [
@@ -211,7 +247,7 @@ class TasksManagerTab extends ConsumerWidget {
                       )
                     else
                       DropdownButtonFormField<ChecklistGroup>(
-                        value: selectedGroup,
+                        initialValue: selectedGroup,
                         isExpanded: true,
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
                         items: groups.map((g) => DropdownMenuItem(
@@ -239,7 +275,7 @@ class TasksManagerTab extends ConsumerWidget {
                                 return Text('Inclus: $codes', style: const TextStyle(fontSize: 12, color: Colors.grey));
                               },
                               loading: () => const SizedBox(height: 12, width: 12, child: CircularProgressIndicator(strokeWidth: 2)),
-                              error: (_, __) => const SizedBox.shrink(),
+                              error: (_, _) => const SizedBox.shrink(),
                             );
                           },
                         ),
@@ -340,10 +376,16 @@ class TasksManagerTab extends ConsumerWidget {
                   
                   const SizedBox(height: 20),
                   DropdownButtonFormField<ChecklistTaskType>(
-                    value: selectedType,
+                    initialValue: selectedType,
                     isExpanded: true,
                     icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                    items: types.map((t) => DropdownMenuItem(value: t, child: Text(t.name))).toList(),
+                    items: types.map((t) {
+                      final scope = t.codeDoc != null && t.codeDoc!.isNotEmpty ? ' (${t.codeDoc})' : ' (Global)';
+                      return DropdownMenuItem(
+                        value: t,
+                        child: Text('${t.name}$scope'),
+                      );
+                    }).toList(),
                     onChanged: (val) => setDialogState(() => selectedType = val),
                     decoration: InputDecoration(
                       labelText: 'Type de Tâche',
@@ -461,7 +503,7 @@ class TasksManagerTab extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: targetType,
+                    initialValue: targetType,
                     isExpanded: true,
                     icon: const Icon(Icons.keyboard_arrow_down_rounded),
                     items: const [
@@ -486,7 +528,7 @@ class TasksManagerTab extends ConsumerWidget {
                       )
                     else
                       DropdownButtonFormField<ChecklistGroup>(
-                        value: selectedGroup,
+                        initialValue: selectedGroup,
                         isExpanded: true,
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
                         items: groups.map((g) => DropdownMenuItem(
@@ -567,10 +609,16 @@ class TasksManagerTab extends ConsumerWidget {
                   
                   const SizedBox(height: 20),
                   DropdownButtonFormField<ChecklistTaskType>(
-                    value: selectedType,
+                    initialValue: selectedType,
                     isExpanded: true,
                     icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                    items: types.map((t) => DropdownMenuItem(value: t, child: Text(t.name))).toList(),
+                    items: types.map((t) {
+                      final scope = t.codeDoc != null && t.codeDoc!.isNotEmpty ? ' (${t.codeDoc})' : ' (Global)';
+                      return DropdownMenuItem(
+                        value: t,
+                        child: Text('${t.name}$scope'),
+                      );
+                    }).toList(),
                     onChanged: (val) => setDialogState(() => selectedType = val),
                     decoration: InputDecoration(
                       labelText: 'Type de Tâche',

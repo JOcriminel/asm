@@ -64,11 +64,10 @@ class _SortieFilterBottomSheetState extends State<SortieFilterBottomSheet> {
               onSurface: Colors.white,
               secondary: Color(0xFF60A5FA),
             ),
-            dialogBackgroundColor: const Color(0xFF1E293B),
             appBarTheme: const AppBarTheme(
               backgroundColor: Color(0xFF0F172A),
               foregroundColor: Colors.white,
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1E293B)),
           ),
           child: child!,
         );
@@ -92,7 +91,7 @@ class _SortieFilterBottomSheetState extends State<SortieFilterBottomSheet> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.15),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: hasDates ? theme.colorScheme.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -304,7 +303,7 @@ class _SortieFilterBottomSheetState extends State<SortieFilterBottomSheet> {
             // All Documents Toggle Switch Card
             Container(
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant.withValues(alpha: 0.15),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),

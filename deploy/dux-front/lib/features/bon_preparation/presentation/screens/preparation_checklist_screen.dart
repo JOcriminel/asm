@@ -1,20 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dux_front/core/widgets/signature_pad_dialog.dart';
+import 'package:dux_front/core/widgets/photo_proof_overlay.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
 
 import 'package:dux_front/core/theme/app_sizes.dart';
 import '../../../../core/widgets/dux_app_bar_title.dart';
 import '../../../checklist/domain/models/checklist_models.dart';
 import '../../../checklist/presentation/controllers/checklist_admin_controller.dart';
 import '../../../checklist/presentation/controllers/checklist_response_controller.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../domain/models/bon_preparation.dart';
 import '../controllers/bon_preparation_detail_controller.dart';
+import 'package:dux_front/features/bon_sortie/presentation/controllers/bon_sortie_detail_controller.dart';
+import 'package:dux_front/features/command_details/presentation/controllers/command_details_controller.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
 
 class PreparationChecklistScreen extends ConsumerStatefulWidget {
   final String preparationId;
+  final String docType;
 
-  const PreparationChecklistScreen({super.key, required this.preparationId});
+  const PreparationChecklistScreen({
+    super.key,
+    required this.preparationId,
+    this.docType = 'BP',
+  });
 
   @override
   ConsumerState<PreparationChecklistScreen> createState() => _PreparationChecklistScreenState();
@@ -66,15 +77,29 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
     );
   }
 
-
-
-  Future<void> _submitChecklist(BonPreparation preparation) async {
+  Future<void> _submitChecklist(String id) async {
     if (_isSaving) return;
+
+    final configState = ref.read(screenConfigControllerProvider);
+    final config = configState.configs[widget.docType] ?? configState.configs['BP'];
+    final requireSignature = config?.requireSignature ?? false;
+    final requirePhoto = config?.requirePhoto ?? false;
+
+    if (requireSignature) {
+      final signature = await SignaturePadDialog.show(context);
+      if (signature == null) return;
+    }
+
+    if (requirePhoto) {
+      final photo = await PhotoProofOverlay.show(context);
+      if (photo == null) return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
       final repository = ref.read(bonPreparationRepositoryProvider);
-      await repository.updateDocumentStatus(preparation.id, '12', {});
+      await repository.updateDocumentStatus(id, '12', {});
 
       if (!mounted) return;
       
@@ -84,7 +109,7 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
             children: [
               Icon(Icons.check_circle, color: Colors.white),
               SizedBox(width: 8),
-              Expanded(child: Text('Préparation finalisée et validée avec succès!')),
+              Expanded(child: Text('Document finalisé et validé avec succès!')),
             ],
           ),
           backgroundColor: Colors.green,
@@ -92,8 +117,14 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
         ),
       );
       
-      ref.read(bonPreparationDetailControllerProvider(preparation.id).notifier).fetchDetails();
-      context.pop();
+      if (widget.docType == 'BP') {
+        ref.read(bonPreparationDetailControllerProvider(id).notifier).fetchDetails();
+      } else if (widget.docType == 'BS') {
+        ref.read(bonSortieDetailControllerProvider(id).notifier).fetchDetails();
+      } else {
+        ref.read(commandDetailsControllerProvider(id).notifier).fetchDetails();
+      }
+      context.pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -110,22 +141,84 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(bonPreparationDetailControllerProvider(widget.preparationId));
+    final docType = widget.docType;
+    String documentId = widget.preparationId;
+    List<PreparationArticle> articles = [];
+    bool isLoading = false;
+    String? error;
+
+    if (docType == 'BP' || docType == 'DPR') {
+      final state = ref.watch(bonPreparationDetailControllerProvider(documentId));
+      isLoading = state.isLoading;
+      error = state.error;
+      if (state.preparation != null) {
+        articles = state.preparation!.articles;
+      }
+    } else if (docType == 'BS') {
+      final state = ref.watch(bonSortieDetailControllerProvider(documentId));
+      isLoading = state.isLoading;
+      error = state.error;
+      if (state.sortie != null) {
+        articles = state.sortie!.articles.map((e) => PreparationArticle(
+          id: e.id,
+          code: e.code,
+          name: e.name,
+          quantity: e.quantity,
+          unitPrice: e.unitPrice,
+          unite: e.unite,
+          discountPercent: e.discountPercent,
+          netHT: e.netHT,
+          tvaPercent: e.tvaPercent,
+          puTTC: e.puTTC,
+          totalTTC: e.totalTTC,
+          stock: e.stock,
+          serialNumbers: e.serialNumbers,
+          rawJson: e.rawJson,
+          familyId: e.familyId,
+          familyName: e.familyName,
+        )).toList();
+      }
+    } else {
+      final state = ref.watch(commandDetailsControllerProvider(documentId));
+      isLoading = state.isLoading;
+      error = state.error;
+      if (state.command != null) {
+        articles = state.command!.articles.map((e) => PreparationArticle(
+          id: e.id,
+          code: e.code,
+          name: e.name,
+          quantity: e.quantity,
+          unitPrice: e.unitPrice,
+          unite: e.unite,
+          discountPercent: e.discountPercent,
+          netHT: e.netHT,
+          tvaPercent: e.tvaPercent,
+          puTTC: e.puTTC,
+          totalTTC: e.totalTTC,
+          stock: e.stock,
+          serialNumbers: e.serialNumbers,
+          rawJson: e.rawJson,
+          familyId: e.familyId,
+          familyName: e.familyName,
+        )).toList();
+      }
+    }
+
     final typesAsync = ref.watch(taskTypesProvider);
     final tasksAsync = ref.watch(tasksProvider);
 
-    if (state.isLoading || state.preparation == null || typesAsync.isLoading || tasksAsync.isLoading) {
+    if (isLoading || typesAsync.isLoading || tasksAsync.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     
-    if (typesAsync.hasError || tasksAsync.hasError) {
-      final errorMsg = typesAsync.error?.toString() ?? tasksAsync.error?.toString() ?? 'Erreur inconnue';
+    if (error != null || typesAsync.hasError || tasksAsync.hasError) {
+      final errorMsg = error ?? typesAsync.error?.toString() ?? tasksAsync.error?.toString() ?? 'Erreur inconnue';
       return Scaffold(
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'Erreur de chargement des configurations de checklist:\n$errorMsg',
+              'Erreur de chargement:\n$errorMsg',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.red),
             ),
@@ -134,8 +227,34 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
       );
     }
 
-    final preparation = state.preparation!;
-    final taskTypes = typesAsync.value ?? [];
+    final authState = ref.watch(authControllerProvider);
+    final userRole = authState.user?.role;
+
+    bool matchesRole(List<String>? taskTypeRoles, String? userRole) {
+      if (taskTypeRoles == null || taskTypeRoles.isEmpty) {
+        return true;
+      }
+      if (userRole == null || userRole.trim().isEmpty) {
+        return false;
+      }
+      
+      String normalize(String r) {
+        final lower = r.trim().toLowerCase();
+        if (lower == 'admin' || lower == 'administrateur') return 'admin';
+        if (lower == 'commercial') return 'commercial';
+        if (lower == 'operateur' || lower == 'opérateur') return 'operator';
+        return lower;
+      }
+
+      final normalizedUser = normalize(userRole);
+      return taskTypeRoles.any((r) => normalize(r) == normalizedUser);
+    }
+
+    var normalizedDocType = widget.docType;
+    if (normalizedDocType == 'DPR') normalizedDocType = 'BP';
+    final taskTypes = (typesAsync.value ?? [])
+        .where((t) => t.active && (t.codeDoc == null || t.codeDoc!.isEmpty || t.codeDoc == normalizedDocType) && matchesRole(t.roles, userRole))
+        .toList();
     final allTasks = tasksAsync.value ?? [];
 
     if (taskTypes.isEmpty) {
@@ -193,7 +312,7 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
         children: taskTypes.map((type) {
           return _TypeTabContent(
             type: type,
-            articles: preparation.articles,
+            articles: articles,
             allTasks: allTasks.where((t) => t.active).toList(),
           );
         }).toList(),
@@ -209,7 +328,7 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
             ),
-            onPressed: () => _submitChecklist(preparation),
+            onPressed: () => _submitChecklist(documentId),
             child: _isSaving 
                 ? const SizedBox(
                     height: 20, 
@@ -217,7 +336,7 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                   )
                 : const Text(
-                    'VALIDER LA PRÉPARATION',
+                    'VALIDER LE DOCUMENT',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                   ),
           ),
@@ -280,7 +399,9 @@ class _ArticleAccordion extends ConsumerWidget {
       );
     }
 
-    final mappings = mappingAsync.value ?? [];
+    final mappings = (mappingAsync.value ?? [])
+        .where((m) => m.group == null || m.group!.active)
+        .toList();
     final group = mappings.isNotEmpty ? mappings.first.group : null;
 
     final groupTasks = allTasks.where((t) {

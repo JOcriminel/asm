@@ -31,13 +31,24 @@ public class KeycloakTokenAdapter implements TokenProvider {
     @Value("${dux.client-secret}")
     private String clientSecret;
 
+    private String cachedToken;
+    private long expiryTimeMillis;
+    private final Object lock = new Object();
+
     public KeycloakTokenAdapter(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
     @Override
     public String getAccessToken() {
-        log.debug("Requesting Keycloak token from {}", tokenUrl);
+        synchronized (lock) {
+            if (cachedToken != null && System.currentTimeMillis() < expiryTimeMillis - 10000) {
+                log.debug("Using cached Keycloak access token");
+                return cachedToken;
+            }
+        }
+
+        log.info("Requesting new Keycloak token from {}", tokenUrl);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -56,6 +67,12 @@ public class KeycloakTokenAdapter implements TokenProvider {
             TokenResponse tokenResponse = response.getBody();
             if (tokenResponse == null || tokenResponse.getAccessToken() == null) {
                 throw new DuxApiException("Keycloak returned empty token body", 502);
+            }
+
+            synchronized (lock) {
+                cachedToken = tokenResponse.getAccessToken();
+                long expiresIn = tokenResponse.getExpiresIn() != null ? tokenResponse.getExpiresIn() : 300L;
+                expiryTimeMillis = System.currentTimeMillis() + (expiresIn * 1000L);
             }
 
             log.debug("Keycloak token obtained successfully");

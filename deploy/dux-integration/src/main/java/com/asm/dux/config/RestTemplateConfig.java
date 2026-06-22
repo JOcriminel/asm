@@ -41,6 +41,10 @@ public class RestTemplateConfig {
             }
         };
 
+        // Set connect and read timeouts (optimizations for unresponsive APIs)
+        factory.setConnectTimeout(5000); // 5 seconds
+        factory.setReadTimeout(15000);   // 15 seconds
+
         return new RestTemplate(factory);
     }
 }

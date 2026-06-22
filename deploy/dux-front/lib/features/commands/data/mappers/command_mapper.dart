@@ -37,6 +37,10 @@ class CommandMapper {
                     puTTC: e.puTTC,
                     totalTTC: e.totalTTC,
                     stock: e.stock,
+                    numSerie: e.numSerie,
+                    familyId: e.familyId,
+                    familyName: e.familyName,
+                    rawJson: e.rawJson,
                   ))
               .toList() ??
           [],

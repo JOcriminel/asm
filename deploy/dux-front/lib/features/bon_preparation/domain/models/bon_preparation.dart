@@ -96,24 +96,43 @@ class PreparationTimeline {
 }
 
 class BonPreparation implements BaseDocument {
+  @override
   final String id;
+  @override
   final String documentCode;
+  @override
   final String documentType;
+  @override
   final String documentTypeCode;
+  @override
   final String customerName;
+  @override
   final DateTime date;
+  @override
   final String status;
+  @override
   final String statusColor;
+  @override
   final double amount;
+  @override
   final double amountTTC;
+  @override
   final double amountTVA;
+  @override
   final double reste;
+  @override
   final String representative;
+  @override
   final String tier;
+  @override
   final String deliveryAddress;
+  @override
   final String phone;
+  @override
   final String currency;
+  @override
   final String stationName;
+  @override
   final String idStation;
   final List<PreparationArticle> articles;
   final PreparationTimeline timeline;

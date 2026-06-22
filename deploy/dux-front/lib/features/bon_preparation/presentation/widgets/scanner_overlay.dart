@@ -9,6 +9,8 @@ class ScannerOverlay extends StatefulWidget {
   final int? expectedCount;
   final int initialScannedCount;
   final void Function(String barcode)? onBarcodeScanned;
+  final bool enableSoundAlerts;
+  final bool enableVibrationAlerts;
 
   const ScannerOverlay({
     super.key,
@@ -17,6 +19,8 @@ class ScannerOverlay extends StatefulWidget {
     this.expectedCount,
     this.initialScannedCount = 0,
     this.onBarcodeScanned,
+    this.enableSoundAlerts = true,
+    this.enableVibrationAlerts = true,
   });
 
   @override
@@ -63,8 +67,12 @@ class _ScannerOverlayState extends State<ScannerOverlay> {
     _lastScanTime = now;
 
     // Haptic & Audio Feedback
-    HapticFeedback.heavyImpact();
-    SystemSound.play(SystemSoundType.click);
+    if (widget.enableVibrationAlerts) {
+      HapticFeedback.heavyImpact();
+    }
+    if (widget.enableSoundAlerts) {
+      SystemSound.play(SystemSoundType.click);
+    }
 
     if (widget.continuousMode) {
       if (widget.onBarcodeScanned != null) {

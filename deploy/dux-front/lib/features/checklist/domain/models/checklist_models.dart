@@ -1,13 +1,15 @@
 class ChecklistGroup {
   final int? id;
   final String name;
+  final bool active;
 
-  ChecklistGroup({this.id, required this.name});
+  ChecklistGroup({this.id, required this.name, this.active = true});
 
   factory ChecklistGroup.fromJson(Map<String, dynamic> json) {
     return ChecklistGroup(
       id: json['id'],
       name: json['name'],
+      active: json['active'] ?? true,
     );
   }
 
@@ -15,6 +17,7 @@ class ChecklistGroup {
     return {
       'id': id,
       'name': name,
+      'active': active,
     };
   }
 }
@@ -46,14 +49,36 @@ class ChecklistTaskType {
   final int? id;
   final String name;
   final String? information;
+  final bool active;
+  final String? codeDoc;
+  final List<String>? roles;
 
-  ChecklistTaskType({this.id, required this.name, this.information});
+  ChecklistTaskType({
+    this.id,
+    required this.name,
+    this.information,
+    this.active = true,
+    this.codeDoc,
+    this.roles,
+  });
 
   factory ChecklistTaskType.fromJson(Map<String, dynamic> json) {
+    List<String>? parsedRoles;
+    if (json['roles'] != null) {
+      if (json['roles'] is List) {
+        parsedRoles = List<String>.from(json['roles']);
+      } else if (json['roles'] is String) {
+        final s = json['roles'] as String;
+        parsedRoles = s.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      }
+    }
     return ChecklistTaskType(
       id: json['id'],
       name: json['name'],
       information: json['information'],
+      active: json['active'] ?? true,
+      codeDoc: json['codeDoc'],
+      roles: parsedRoles,
     );
   }
 
@@ -62,6 +87,9 @@ class ChecklistTaskType {
       'id': id,
       'name': name,
       'information': information,
+      'active': active,
+      'codeDoc': codeDoc,
+      'roles': roles?.join(','),
     };
   }
 }

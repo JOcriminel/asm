@@ -18,6 +18,15 @@ public class ChecklistTaskType {
     @Column(nullable = true, length = 1000)
     private String information;
 
+    @Column(nullable = false, columnDefinition = "bit default 1")
+    private boolean active = true;
+
+    @Column(name = "code_doc", nullable = true, length = 50)
+    private String codeDoc;
+
+    @Column(name = "roles", nullable = true, length = 500)
+    private String roles;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -26,4 +35,13 @@ public class ChecklistTaskType {
 
     public String getInformation() { return information; }
     public void setInformation(String information) { this.information = information; }
+
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+
+    public String getCodeDoc() { return codeDoc; }
+    public void setCodeDoc(String codeDoc) { this.codeDoc = codeDoc; }
+
+    public String getRoles() { return roles; }
+    public void setRoles(String roles) { this.roles = roles; }
 }

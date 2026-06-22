@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -33,6 +32,13 @@ class CommandsListScreen extends ConsumerWidget {
       getHasMore: (state) => state.hasMore,
       getSearchQuery: (state) => state.searchQuery,
       getIsFilterActive: (state) => state.filter.advancedFilterActive,
+      
+      getStatusFilter: (state) => state.filter.status ?? '',
+      onStatusFilterChanged: (ref, status) {
+        final controller = ref.read(commandsControllerProvider.notifier);
+        final currentFilter = ref.read(commandsControllerProvider).filter;
+        controller.applyFilter(currentFilter.copyWith(status: status));
+      },
       
       // Callbacks
       onRefresh: (ref, {required refresh}) => ref.read(commandsControllerProvider.notifier).fetchCommands(refresh: refresh),
@@ -109,7 +115,7 @@ class CommandsListScreen extends ConsumerWidget {
                   width: 1,
                 ),
               ),
-              backgroundColor: theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
           ),
@@ -250,7 +256,9 @@ class CommandsListScreen extends ConsumerWidget {
         final authState = ref.watch(authControllerProvider);
         final userRole = authState.user?.role.toLowerCase() ?? '';
         final isOperator = userRole == 'operateur' || userRole == 'opérateur';
-        final hidePrices = (bcConfig?.hidePricesForOperateurs ?? false) && isOperator;
+        final hidePrices = (bcConfig?.hidePrices ?? false) ||
+                           ((bcConfig?.hidePricesForOperateurs ?? false) && isOperator) ||
+                           (bcConfig?.hidePricesForRoles.any((r) => r.trim().toLowerCase() == userRole) ?? false);
 
         final formattedDate = DateFormat('dd/MM/yyyy').format(command.date);
         final formattedTTC = NumberFormat.currency(
@@ -450,11 +458,10 @@ class CommandsListScreen extends ConsumerWidget {
               onSurface: Colors.white,
               secondary: Color(0xFF60A5FA),
             ),
-            dialogBackgroundColor: const Color(0xFF1E293B),
             appBarTheme: const AppBarTheme(
               backgroundColor: Color(0xFF0F172A),
               foregroundColor: Colors.white,
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1E293B)),
           ),
           child: child!,
         );

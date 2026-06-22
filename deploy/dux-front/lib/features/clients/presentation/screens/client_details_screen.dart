@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/widgets/info_card.dart';
+import '../../../../core/widgets/dux_loading_screen.dart';
 import '../../../../core/widgets/section_header.dart';
 import '../controllers/client_details_controller.dart';
 import 'package:intl/intl.dart';
@@ -20,7 +21,7 @@ class ClientDetailsScreen extends ConsumerWidget {
     if (state.isLoading) {
       return Scaffold(
         appBar: AppBar(title: const DuxAppBarTitle(title: 'Détails Client')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const DuxLoadingScreen(isFullScreen: false),
       );
     }
 

@@ -47,7 +47,11 @@ public class CommandListController {
                 idEtat, all, allDocuments, idArticle, affichAvanc, stationId);
 
         String result = getCommandListUseCase.execute(filter, body);
-        log.info("POST /list-documents response length={}", result != null ? result.length() : 0);
+        if (result == null || result.isBlank()) {
+            log.warn("POST /list-documents got null/empty response from DUX ERP for codeDoc={}", codeDoc);
+            return ResponseEntity.ok("[]");
+        }
+        log.info("POST /list-documents response length={}", result.length());
         return ResponseEntity.ok(result);
     }
 }

@@ -20,13 +20,16 @@ public class ScreenConfig {
     private String searchHint;
 
     @Column(name = "enable_barcode_scanner")
-    private boolean enableBarcodeScanner;
+    private Boolean enableBarcodeScanner = false;
 
     @Column(name = "enable_pdf_printing")
-    private boolean enablePdfPrinting;
+    private Boolean enablePdfPrinting = false;
 
     @Column(name = "enable_serial_number_tracking")
-    private boolean enableSerialNumberTracking;
+    private Boolean enableSerialNumberTracking = false;
+
+    @Column(name = "enable_checklist_tracking")
+    private Boolean enableChecklistTracking = false;
 
     @Column(name = "visible_roles", length = 2000)
     private String visibleRoles;
@@ -35,19 +38,22 @@ public class ScreenConfig {
     private String detailPageTitle;
 
     @Column(name = "hide_prices_for_operateurs")
-    private boolean hidePricesForOperateurs;
+    private Boolean hidePricesForOperateurs = false;
 
     @Column(name = "allowed_roles_to_finalize", length = 2000)
     private String allowedRolesToFinalize;
+
+    @Column(name = "category", length = 100)
+    private String category;
 
     @Column(name = "primary_color", length = 50)
     private String primaryColor;
 
     @Column(name = "require_signature")
-    private boolean requireSignature;
+    private Boolean requireSignature = false;
 
     @Column(name = "require_photo")
-    private boolean requirePhoto;
+    private Boolean requirePhoto = false;
 
     @Column(name = "default_sort_field", length = 50)
     private String defaultSortField;
@@ -57,6 +63,30 @@ public class ScreenConfig {
 
     @Column(name = "enable_vibration_alerts")
     private Boolean enableVibrationAlerts;
+
+    @Column(name = "active")
+    private Boolean active = true;
+
+    @Column(name = "hide_prices")
+    private Boolean hidePrices = false;
+
+    @Column(name = "details_fields_config", length = 4000)
+    private String detailsFieldsConfig;
+
+    @Column(name = "card_fields_config", length = 1000)
+    private String cardFieldsConfig;
+
+    @Column(name = "search_fields_config", length = 1000)
+    private String searchFieldsConfig;
+
+    @Column(name = "custom_finalize_message", length = 2000)
+    private String customFinalizeMessage;
+
+    @Column(name = "hide_prices_for_roles", length = 2000)
+    private String hidePricesForRoles;
+
+    @Column(name = "status_filters", length = 1000)
+    private String statusFilters;
 
     public ScreenConfig() {
     }
@@ -86,7 +116,7 @@ public class ScreenConfig {
     }
 
     public boolean isEnableBarcodeScanner() {
-        return enableBarcodeScanner;
+        return enableBarcodeScanner != null && enableBarcodeScanner;
     }
 
     public void setEnableBarcodeScanner(boolean enableBarcodeScanner) {
@@ -94,7 +124,7 @@ public class ScreenConfig {
     }
 
     public boolean isEnablePdfPrinting() {
-        return enablePdfPrinting;
+        return enablePdfPrinting != null && enablePdfPrinting;
     }
 
     public void setEnablePdfPrinting(boolean enablePdfPrinting) {
@@ -102,11 +132,19 @@ public class ScreenConfig {
     }
 
     public boolean isEnableSerialNumberTracking() {
-        return enableSerialNumberTracking;
+        return enableSerialNumberTracking != null && enableSerialNumberTracking;
     }
 
     public void setEnableSerialNumberTracking(boolean enableSerialNumberTracking) {
         this.enableSerialNumberTracking = enableSerialNumberTracking;
+    }
+
+    public boolean isEnableChecklistTracking() {
+        return enableChecklistTracking != null && enableChecklistTracking;
+    }
+
+    public void setEnableChecklistTracking(boolean enableChecklistTracking) {
+        this.enableChecklistTracking = enableChecklistTracking;
     }
 
     public String getVisibleRoles() {
@@ -126,11 +164,19 @@ public class ScreenConfig {
     }
 
     public boolean isHidePricesForOperateurs() {
-        return hidePricesForOperateurs;
+        return hidePricesForOperateurs != null && hidePricesForOperateurs;
     }
 
     public void setHidePricesForOperateurs(boolean hidePricesForOperateurs) {
         this.hidePricesForOperateurs = hidePricesForOperateurs;
+    }
+
+    public boolean isHidePrices() {
+        return hidePrices != null && hidePrices;
+    }
+
+    public void setHidePrices(boolean hidePrices) {
+        this.hidePrices = hidePrices;
     }
 
     public String getAllowedRolesToFinalize() {
@@ -139,6 +185,14 @@ public class ScreenConfig {
 
     public void setAllowedRolesToFinalize(String allowedRolesToFinalize) {
         this.allowedRolesToFinalize = allowedRolesToFinalize;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public String getPrimaryColor() {
@@ -150,7 +204,7 @@ public class ScreenConfig {
     }
 
     public boolean isRequireSignature() {
-        return requireSignature;
+        return requireSignature != null && requireSignature;
     }
 
     public void setRequireSignature(boolean requireSignature) {
@@ -158,7 +212,7 @@ public class ScreenConfig {
     }
 
     public boolean isRequirePhoto() {
-        return requirePhoto;
+        return requirePhoto != null && requirePhoto;
     }
 
     public void setRequirePhoto(boolean requirePhoto) {
@@ -187,5 +241,61 @@ public class ScreenConfig {
 
     public void setEnableVibrationAlerts(Boolean enableVibrationAlerts) {
         this.enableVibrationAlerts = enableVibrationAlerts;
+    }
+
+    public Boolean getActive() {
+        return active == null || active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
+
+    public String getDetailsFieldsConfig() {
+        return detailsFieldsConfig;
+    }
+
+    public void setDetailsFieldsConfig(String detailsFieldsConfig) {
+        this.detailsFieldsConfig = detailsFieldsConfig;
+    }
+
+    public String getCardFieldsConfig() {
+        return cardFieldsConfig;
+    }
+
+    public void setCardFieldsConfig(String cardFieldsConfig) {
+        this.cardFieldsConfig = cardFieldsConfig;
+    }
+
+    public String getSearchFieldsConfig() {
+        return searchFieldsConfig;
+    }
+
+    public void setSearchFieldsConfig(String searchFieldsConfig) {
+        this.searchFieldsConfig = searchFieldsConfig;
+    }
+
+    public String getCustomFinalizeMessage() {
+        return customFinalizeMessage;
+    }
+
+    public void setCustomFinalizeMessage(String customFinalizeMessage) {
+        this.customFinalizeMessage = customFinalizeMessage;
+    }
+
+    public String getHidePricesForRoles() {
+        return hidePricesForRoles;
+    }
+
+    public void setHidePricesForRoles(String hidePricesForRoles) {
+        this.hidePricesForRoles = hidePricesForRoles;
+    }
+
+    public String getStatusFilters() {
+        return statusFilters;
+    }
+
+    public void setStatusFilters(String statusFilters) {
+        this.statusFilters = statusFilters;
     }
 }

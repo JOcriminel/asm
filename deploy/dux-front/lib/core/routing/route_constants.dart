@@ -14,6 +14,14 @@ class RoutePaths {
   static const String bonPreparationDetail = '/pages/bon-preparation/detail/:id';
   static const String bonPreparationSerialNumber = '/pages/bon-preparation/serial-number';
   static const String bonPreparationChecklist = '/pages/bon-preparation/checklist';
+  static const String bonPreparationArticleChecklist = '/pages/bon-preparation/article-checklist';
+  
+  // Bon de Réservation paths
+  static const String bonReservation = '/pages/bon-reservation/list';
+  static const String bonReservationDetail = '/pages/bon-reservation/detail/:id';
+  static const String bonReservationSerialNumber = '/pages/bon-reservation/serial-number';
+  static const String bonReservationChecklist = '/pages/bon-reservation/checklist';
+  static const String bonReservationArticleChecklist = '/pages/bon-reservation/article-checklist';
   
   // Bon de Sortie paths
   static const String bonSortie = '/pages/bon-sortie/list';
@@ -43,6 +51,14 @@ class RouteNames {
   static const String bonPreparationDetail = 'bonPreparationDetail';
   static const String bonPreparationSerialNumber = 'bonPreparationSerialNumber';
   static const String bonPreparationChecklist = 'bonPreparationChecklist';
+  static const String bonPreparationArticleChecklist = 'bonPreparationArticleChecklist';
+  
+  // Bon de Réservation names
+  static const String bonReservationList = 'bonReservationList';
+  static const String bonReservationDetail = 'bonReservationDetail';
+  static const String bonReservationSerialNumber = 'bonReservationSerialNumber';
+  static const String bonReservationChecklist = 'bonReservationChecklist';
+  static const String bonReservationArticleChecklist = 'bonReservationArticleChecklist';
   static const String checklistAdmin = 'checklistAdmin';
 
   // Bon de Sortie names

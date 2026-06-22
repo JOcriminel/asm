@@ -96,10 +96,12 @@ class ChecklistApiService {
     return (response.data as List).map((e) => ChecklistTaskType.fromJson(e)).toList();
   }
 
-  Future<ChecklistTaskType> createTaskType(String name, {String? information}) async {
+  Future<ChecklistTaskType> createTaskType(String name, {String? information, String? codeDoc, List<String>? roles}) async {
     final response = await _dio.post('/admin/checklists/types', data: {
       'name': name,
       'information': information,
+      'codeDoc': codeDoc,
+      'roles': roles?.join(','),
     });
     return ChecklistTaskType.fromJson(response.data);
   }
@@ -170,16 +172,18 @@ class ChecklistApiService {
       '/checklists/responses/$idLigneDocument/note',
       queryParameters: {
         'taskId': taskId,
-        if (note != null) 'note': note,
+        'note': ?note,
       },
     );
     return ChecklistResponse.fromJson(response.data);
   }
 
-  Future<ChecklistTaskType> updateTaskType(int id, String name, {String? information}) async {
+  Future<ChecklistTaskType> updateTaskType(int id, String name, {String? information, String? codeDoc, List<String>? roles}) async {
     final response = await _dio.put('/admin/checklists/types/$id', data: {
       'name': name,
       'information': information,
+      'codeDoc': codeDoc,
+      'roles': roles?.join(','),
     });
     return ChecklistTaskType.fromJson(response.data);
   }
@@ -198,5 +202,21 @@ class ChecklistApiService {
       },
     );
     return ChecklistTask.fromJson(response.data);
+  }
+
+  Future<ChecklistGroup> toggleGroupActive(int id, bool active) async {
+    final response = await _dio.put(
+      '/admin/checklists/groups/$id/active',
+      queryParameters: {'active': active},
+    );
+    return ChecklistGroup.fromJson(response.data);
+  }
+
+  Future<ChecklistTaskType> toggleTaskTypeActive(int id, bool active) async {
+    final response = await _dio.put(
+      '/admin/checklists/types/$id/active',
+      queryParameters: {'active': active},
+    );
+    return ChecklistTaskType.fromJson(response.data);
   }
 }

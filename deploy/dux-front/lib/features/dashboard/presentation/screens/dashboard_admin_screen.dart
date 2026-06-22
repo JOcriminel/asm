@@ -13,6 +13,8 @@ class DashboardAdminScreen extends StatelessWidget {
     final List<Map<String, dynamic>> menuItems = [
       {'title': 'Checklist\nAdmin', 'icon': Icons.rule_folder_outlined, 'route': '/checklist-admin', 'color': Colors.teal},
       {'title': 'Articles\nAdmin', 'icon': Icons.inventory_2_outlined, 'route': '/articles-admin', 'color': Colors.orange},
+      {'title': 'Config\nDynamique', 'icon': Icons.settings_applications_rounded, 'route': '/admin/screen-settings', 'color': Colors.blue},
+      {'title': 'Gérer les\nCatégories', 'icon': Icons.folder_open_rounded, 'route': '/admin/categories', 'color': Colors.amber},
       {'title': 'Config\nCommande', 'icon': Icons.receipt_long_rounded, 'route': '/admin/screen-settings/edit/BC', 'color': Colors.purple},
       {'title': 'Config\nPréparation', 'icon': Icons.inventory_2_outlined, 'route': '/admin/screen-settings/edit/BP', 'color': Colors.indigo},
       {'title': 'Config\nSortie', 'icon': Icons.local_shipping_outlined, 'route': '/admin/screen-settings/edit/BS', 'color': Colors.pink},
@@ -150,14 +152,19 @@ class _MenuCardState extends State<_MenuCard> {
               AppSpacing.gapM,
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: Text(
-                  widget.title,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10.5,
-                    height: 1.2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10.5,
+                      height: 1.2,
+                    ),
                   ),
                 ),
               ),

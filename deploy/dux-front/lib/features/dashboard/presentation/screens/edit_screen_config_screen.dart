@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/services/user_roles_provider.dart';
+import 'package:dux_front/core/models/category.dart';
+import 'package:dux_front/core/network/dio_client.dart';
 
 class EditScreenConfigScreen extends ConsumerStatefulWidget {
   final String docType;
@@ -25,9 +29,12 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
   bool _scanEnabled = false;
   bool _printEnabled = false;
   bool _snEnabled = false;
+  bool _checklistEnabled = false;
   bool _hidePrices = false;
+  bool _hidePricesAll = false;
   List<String> _selectedRoles = [];
   List<String> _allowedRolesToFinalize = [];
+  List<String> _hidePricesForRoles = [];
 
   // New settings
   String _primaryColor = '#2196F3';
@@ -36,6 +43,15 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
   String _defaultSortField = 'date';
   bool _enableSoundAlerts = true;
   bool _enableVibrationAlerts = true;
+  bool _isActive = true;
+  String _category = '';
+
+  // Fully dynamic UI configs state
+  List<String> _cardFields = ['date', 'status'];
+  List<String> _searchFields = ['code', 'customer', 'representative'];
+  Map<String, Map<String, dynamic>> _detailsFields = {};
+  final _finalizeMessageController = TextEditingController();
+  final _statusFiltersController = TextEditingController();
 
   @override
   void initState() {
@@ -43,6 +59,98 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initValues();
     });
+  }
+
+  List<String> getCardFields(String? configStr) {
+    if (configStr == null || configStr.isEmpty) {
+      return ['date', 'status'];
+    }
+    try {
+      final parsed = jsonDecode(configStr);
+      if (parsed is List) {
+        return parsed.map((e) => e.toString()).toList();
+      }
+    } catch (_) {
+      return configStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return ['date', 'status'];
+  }
+
+  List<String> getSearchFields(String? configStr) {
+    if (configStr == null || configStr.isEmpty) {
+      return ['code', 'customer', 'representative'];
+    }
+    try {
+      final parsed = jsonDecode(configStr);
+      if (parsed is List) {
+        return parsed.map((e) => e.toString()).toList();
+      }
+    } catch (_) {
+      return configStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return ['code', 'customer', 'representative'];
+  }
+
+  Map<String, Map<String, dynamic>> getDetailsFields(String? configStr) {
+    final Map<String, Map<String, dynamic>> defaults = {
+      'date': {'label': 'Date document', 'visible': true},
+      'piece': {'label': 'Pièce', 'visible': true},
+      'status': {'label': 'Etat Document', 'visible': true},
+      'preparedBy': {'label': 'Préparé par', 'visible': true},
+      'concretizedBy': {'label': 'Concrétisé Par', 'visible': true},
+      'representative': {'label': 'Représentant', 'visible': true},
+      'apporteur': {'label': 'Apporteur', 'visible': true},
+      'currency': {'label': 'Devise', 'visible': true},
+      'exchangeRate': {'label': 'Taux de change', 'visible': true},
+      'deliveryDate': {'label': 'Date livraison', 'visible': true},
+      'station': {'label': 'Station', 'visible': true},
+      'affecterSur': {'label': 'Affecter sur', 'visible': true},
+      'customer': {'label': 'Client', 'visible': true},
+    };
+    if (configStr == null || configStr.isEmpty) {
+      return defaults;
+    }
+    try {
+      final parsed = jsonDecode(configStr) as Map<String, dynamic>;
+      final merged = <String, Map<String, dynamic>>{};
+      defaults.forEach((key, defaultValue) {
+        if (parsed.containsKey(key)) {
+          final val = parsed[key];
+          if (val is Map) {
+            merged[key] = {
+              'label': val['label']?.toString() ?? defaultValue['label']?.toString() ?? '',
+              'visible': val['visible'] as bool? ?? defaultValue['visible'] as bool? ?? true,
+            };
+          } else {
+            merged[key] = defaultValue;
+          }
+        } else {
+          merged[key] = defaultValue;
+        }
+      });
+      return merged;
+    } catch (_) {
+      return defaults;
+    }
+  }
+
+  String _getDefaultLabelForKey(String key) {
+    switch (key) {
+      case 'date': return 'Date document';
+      case 'piece': return 'Pièce';
+      case 'status': return 'Etat Document';
+      case 'preparedBy': return 'Préparé par';
+      case 'concretizedBy': return 'Concrétisé Par';
+      case 'representative': return 'Représentant';
+      case 'apporteur': return 'Apporteur';
+      case 'currency': return 'Devise';
+      case 'exchangeRate': return 'Taux de change';
+      case 'deliveryDate': return 'Date livraison';
+      case 'station': return 'Station';
+      case 'affecterSur': return 'Affecter sur';
+      case 'customer': return 'Client';
+      default: return key;
+    }
   }
 
   void _initValues() {
@@ -53,19 +161,30 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
     _titleController.text = config.pageTitle;
     _searchHintController.text = config.searchHint;
     _detailTitleController.text = config.detailPageTitle;
+    _finalizeMessageController.text = config.customFinalizeMessage ?? '';
+    _statusFiltersController.text = config.statusFilters ?? '';
+
     setState(() {
       _scanEnabled = config.enableBarcodeScanner;
       _printEnabled = config.enablePdfPrinting;
       _snEnabled = config.enableSerialNumberTracking;
+      _checklistEnabled = config.enableChecklistTracking;
       _selectedRoles = List<String>.from(config.visibleRoles);
       _hidePrices = config.hidePricesForOperateurs;
+      _hidePricesAll = config.hidePrices;
       _allowedRolesToFinalize = List<String>.from(config.allowedRolesToFinalize);
+      _hidePricesForRoles = List<String>.from(config.hidePricesForRoles);
       _primaryColor = config.primaryColor;
       _requireSignature = config.requireSignature;
       _requirePhoto = config.requirePhoto;
       _defaultSortField = config.defaultSortField;
       _enableSoundAlerts = config.enableSoundAlerts;
       _enableVibrationAlerts = config.enableVibrationAlerts;
+      _isActive = config.isActive;
+      _category = config.category ?? '';
+      _cardFields = getCardFields(config.cardFieldsConfig);
+      _searchFields = getSearchFields(config.searchFieldsConfig);
+      _detailsFields = Map<String, Map<String, dynamic>>.from(getDetailsFields(config.detailsFieldsConfig));
     });
   }
 
@@ -74,6 +193,8 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
     _titleController.dispose();
     _searchHintController.dispose();
     _detailTitleController.dispose();
+    _finalizeMessageController.dispose();
+    _statusFiltersController.dispose();
     super.dispose();
   }
 
@@ -90,6 +211,104 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
     }
   }
 
+  Future<void> _checkSerialNumberPermission(bool val) async {
+    if (!val) {
+      setState(() {
+        _snEnabled = false;
+      });
+      return;
+    }
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text("Validation DUX ERP..."),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get('/screen-configs/classe-doc/check-serial/${widget.docType}');
+      
+      // Pop loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (response.data != null) {
+        final data = response.data as Map<String, dynamic>;
+        final allowed = data['allowed'] as bool? ?? false;
+        final reason = data['reason']?.toString() ?? "Cette classe de document n'a pas l'option 'numeroserie' activée.";
+
+        if (allowed) {
+          setState(() {
+            _snEnabled = true;
+          });
+        } else {
+          // Show error dialog
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Action impossible'),
+                  ],
+                ),
+                content: Text(reason),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Fermer'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // Pop loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline_rounded, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Erreur de validation'),
+              ],
+            ),
+            content: Text("Échec de la validation DUX ERP : ${e.toString()}"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Fermer'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -103,16 +322,25 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
       enableBarcodeScanner: _scanEnabled,
       enablePdfPrinting: _printEnabled,
       enableSerialNumberTracking: _snEnabled,
+      enableChecklistTracking: _checklistEnabled,
       visibleRoles: _selectedRoles,
       detailPageTitle: _detailTitleController.text.trim(),
       hidePricesForOperateurs: _hidePrices,
+      hidePrices: _hidePricesAll,
       allowedRolesToFinalize: _allowedRolesToFinalize,
+      hidePricesForRoles: _hidePricesForRoles,
       primaryColor: _primaryColor,
       requireSignature: _requireSignature,
       requirePhoto: _requirePhoto,
       defaultSortField: _defaultSortField,
       enableSoundAlerts: _enableSoundAlerts,
       enableVibrationAlerts: _enableVibrationAlerts,
+      isActive: _isActive,
+      category: _category,
+      cardFieldsConfig: jsonEncode(_cardFields),
+      searchFieldsConfig: jsonEncode(_searchFields),
+      customFinalizeMessage: _finalizeMessageController.text.trim().isEmpty ? null : _finalizeMessageController.text.trim(),
+      statusFilters: _statusFiltersController.text.trim().isEmpty ? null : _statusFiltersController.text.trim(),
     );
 
     await ref.read(screenConfigControllerProvider.notifier).updateConfig(widget.docType, updated);
@@ -141,6 +369,40 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
     }
   }
 
+  Future<void> _deleteScreenConfig() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer l\'écran'),
+        content: Text('Voulez-vous vraiment supprimer la configuration de l\'écran ${widget.docType} ? Cette action est irréversible.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await ref.read(screenConfigControllerProvider.notifier).deleteConfig(widget.docType);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Configuration de ${widget.docType} supprimée'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -148,16 +410,23 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
     final rolesAsync = ref.watch(userRolesProvider);
 
     if (configState.isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const DuxLoadingScreen(isFullScreen: true);
     }
 
     final docName = _getFriendlyName(widget.docType);
+    final isPredefined = const {'BC', 'BP', 'BPR', 'BS'}.contains(widget.docType.toUpperCase());
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Configurer : $docName'),
+        actions: [
+          if (!isPredefined)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              tooltip: 'Supprimer cet écran',
+              onPressed: _deleteScreenConfig,
+            ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -474,6 +743,265 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
                       }
                     },
                   ),
+                  AppSpacing.gapL,
+                  SearchableCategoryDropdown(
+                    currentValue: _category,
+                    categories: configState.categories,
+                    onChanged: (val) {
+                      setState(() {
+                        _category = val;
+                      });
+                    },
+                  ),
+                  AppSpacing.gapL,
+                  TextFormField(
+                    controller: _finalizeMessageController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Message de finalisation personnalisé',
+                      hintText: 'Ex: Êtes-vous sûr de vouloir finaliser ce document ?',
+                      prefixIcon: const Icon(Icons.message_outlined),
+                      filled: true,
+                      fillColor: theme.colorScheme.surface.withValues(alpha: 0.2),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.primary,
+                          width: 1.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  AppSpacing.gapL,
+                  TextFormField(
+                    controller: _statusFiltersController,
+                    decoration: InputDecoration(
+                      labelText: 'Filtres de statut de document (idEtat)',
+                      hintText: 'Ex: all:Tout,1:NT,2:PT,3:TT',
+                      helperText: 'Format: code:Nom,code2:Nom2 (Ex: all:Tout,1:NT,2:PT,3:TT)',
+                      prefixIcon: const Icon(Icons.filter_alt_outlined),
+                      filled: true,
+                      fillColor: theme.colorScheme.surface.withValues(alpha: 0.2),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.outline.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.primary,
+                          width: 1.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              _buildSectionCard(
+                title: 'Personnalisation des Listes et Recherche',
+                icon: Icons.list_alt_rounded,
+                theme: theme,
+                children: [
+                  Text(
+                    'Champs affichés sur les cartes de la liste :',
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    title: const Text('Date'),
+                    value: _cardFields.contains('date'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _cardFields.add('date');
+                        } else {
+                          _cardFields.remove('date');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Statut'),
+                    value: _cardFields.contains('status'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _cardFields.add('status');
+                        } else {
+                          _cardFields.remove('status');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Représentant'),
+                    value: _cardFields.contains('representative'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _cardFields.add('representative');
+                        } else {
+                          _cardFields.remove('representative');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Station / Dépôt'),
+                    value: _cardFields.contains('station'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _cardFields.add('station');
+                        } else {
+                          _cardFields.remove('station');
+                        }
+                      });
+                    },
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Champs inclus dans la recherche :',
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    title: const Text('Code Document'),
+                    value: _searchFields.contains('code'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _searchFields.add('code');
+                        } else {
+                          _searchFields.remove('code');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Client'),
+                    value: _searchFields.contains('customer'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _searchFields.add('customer');
+                        } else {
+                          _searchFields.remove('customer');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Représentant'),
+                    value: _searchFields.contains('representative'),
+                    activeColor: theme.colorScheme.primary,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _searchFields.add('representative');
+                        } else {
+                          _searchFields.remove('representative');
+                        }
+                      });
+                    },
+                  ),
+                ],
+              ),
+              _buildSectionCard(
+                title: 'Champs de la Fiche de Détail',
+                icon: Icons.details_rounded,
+                theme: theme,
+                children: [
+                  Text(
+                    'Configurez la visibilité et les libellés personnalisés pour les 13 champs de l\'en-tête :',
+                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._detailsFields.entries.map((entry) {
+                    final key = entry.key;
+                    final fieldConfig = entry.value;
+                    final String defaultLabel = _getDefaultLabelForKey(key);
+                    
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.s),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.1)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ExpansionTile(
+                        title: Text(
+                          fieldConfig['label']?.toString() ?? defaultLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          fieldConfig['visible'] == true ? 'Visible' : 'Masqué',
+                          style: TextStyle(
+                            color: fieldConfig['visible'] == true ? Colors.green : Colors.red,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(AppSpacing.m),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    initialValue: fieldConfig['label']?.toString(),
+                                    decoration: InputDecoration(
+                                      labelText: 'Libellé (Défaut: $defaultLabel)',
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                    onChanged: (val) {
+                                      _detailsFields[key]!['label'] = val.trim().isEmpty ? defaultLabel : val.trim();
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Switch(
+                                  value: fieldConfig['visible'] as bool? ?? true,
+                                  activeColor: theme.colorScheme.primary,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _detailsFields[key]!['visible'] = val;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                 ],
               ),
               _buildSectionCard(
@@ -481,6 +1009,14 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
                 icon: Icons.toggle_on_outlined,
                 theme: theme,
                 children: [
+                  _buildSwitchItem(
+                    icon: Icons.power_settings_new_rounded,
+                    title: 'Page active',
+                    subtitle: 'Si inactif, la page n\'apparaîtra pas sur l\'accueil ou le menu',
+                    value: _isActive,
+                    onChanged: (val) => setState(() => _isActive = val),
+                    theme: theme,
+                  ),
                   _buildSwitchItem(
                     icon: Icons.qr_code_scanner_rounded,
                     title: 'Lecteur de code-barres',
@@ -502,7 +1038,23 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
                     title: 'Suivi des numéros de série',
                     subtitle: 'Affiche les détails de scan S/N par article',
                     value: _snEnabled,
-                    onChanged: (val) => setState(() => _snEnabled = val),
+                    onChanged: (val) => _checkSerialNumberPermission(val),
+                    theme: theme,
+                  ),
+                  _buildSwitchItem(
+                    icon: Icons.checklist_rounded,
+                    title: 'Suivi des checklists',
+                    subtitle: 'Affiche les boutons et statuts de checklist par article',
+                    value: _checklistEnabled,
+                    onChanged: (val) => setState(() => _checklistEnabled = val),
+                    theme: theme,
+                  ),
+                  _buildSwitchItem(
+                    icon: Icons.money_off_rounded,
+                    title: 'Masquer tous les prix',
+                    subtitle: 'Masque tous les prix et le récapitulatif de paiement',
+                    value: _hidePricesAll,
+                    onChanged: (val) => setState(() => _hidePricesAll = val),
                     theme: theme,
                   ),
                   _buildSwitchItem(
@@ -576,6 +1128,40 @@ class _EditScreenConfigScreenState extends ConsumerState<EditScreenConfigScreen>
                       onChanged: (newRoles) {
                         setState(() {
                           _selectedRoles = newRoles;
+                        });
+                      },
+                      theme: theme,
+                    ),
+                    loading: () => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    error: (err, stack) => const Text('Erreur de chargement des rôles'),
+                  ),
+                ],
+              ),
+              _buildSectionCard(
+                title: 'Rôles pour masquer les prix',
+                icon: Icons.money_off_rounded,
+                theme: theme,
+                children: [
+                  Text(
+                    'Sélectionnez les rôles des utilisateurs pour lesquels les prix et récapitulatifs financiers doivent être masqués.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  AppSpacing.gapL,
+                  rolesAsync.when(
+                    data: (roles) => _MultiSelectDropdown(
+                      label: 'Rôles pour masquer les prix',
+                      items: roles,
+                      selectedValues: _hidePricesForRoles,
+                      onChanged: (newRoles) {
+                        setState(() {
+                          _hidePricesForRoles = newRoles;
                         });
                       },
                       theme: theme,
@@ -1115,6 +1701,165 @@ class _MultiSelectDropdownState extends State<_MultiSelectDropdown> {
           _overlayEntry?.markNeedsBuild();
         },
       ),
+    );
+  }
+}
+
+class SearchableCategoryDropdown extends StatefulWidget {
+  final String currentValue;
+  final List<Category> categories;
+  final ValueChanged<String> onChanged;
+
+  const SearchableCategoryDropdown({
+    super.key,
+    required this.currentValue,
+    required this.categories,
+    required this.onChanged,
+  });
+
+  @override
+  State<SearchableCategoryDropdown> createState() => _SearchableCategoryDropdownState();
+}
+
+class _SearchableCategoryDropdownState extends State<SearchableCategoryDropdown> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _isExpanded = false;
+  List<Category> _filteredCategories = [];
+
+  List<Category> get _activeCategories =>
+      widget.categories.where((c) => c.active).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = widget.currentValue == '' ? 'Accueil (Principal)' : widget.currentValue;
+    _filteredCategories = _activeCategories;
+
+    _focusNode.addListener(() {
+      setState(() {
+        _isExpanded = _focusNode.hasFocus;
+        if (_focusNode.hasFocus) {
+          _controller.clear();
+          _filteredCategories = _activeCategories;
+        } else {
+          _controller.text = widget.currentValue == '' ? 'Accueil (Principal)' : widget.currentValue;
+        }
+      });
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchableCategoryDropdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentValue != oldWidget.currentValue && !_focusNode.hasFocus) {
+      _controller.text = widget.currentValue == '' ? 'Accueil (Principal)' : widget.currentValue;
+    }
+    if (!_focusNode.hasFocus) {
+      _filteredCategories = _activeCategories;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _filterCategories(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredCategories = _activeCategories;
+      } else {
+        _filteredCategories = _activeCategories
+            .where((cat) => cat.name.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final allOptions = ['Accueil (Principal)', ..._filteredCategories.map((c) => c.name)];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: _controller,
+          focusNode: _focusNode,
+          decoration: InputDecoration(
+            labelText: 'Catégorie de Menu',
+            hintText: 'Rechercher ou saisir une catégorie...',
+            prefixIcon: const Icon(Icons.folder_outlined),
+            suffixIcon: _focusNode.hasFocus
+                ? IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      _focusNode.unfocus();
+                    },
+                  )
+                : const Icon(Icons.arrow_drop_down),
+            filled: true,
+            fillColor: theme.colorScheme.surface.withValues(alpha: 0.2),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          onChanged: _filterCategories,
+        ),
+        if (_isExpanded) ...[
+          const SizedBox(height: 4),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 180),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.15),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: allOptions.length,
+              itemBuilder: (context, index) {
+                final option = allOptions[index];
+                final isAccueil = option == 'Accueil (Principal)';
+                final isSelected = isAccueil
+                    ? widget.currentValue.isEmpty
+                    : widget.currentValue == option;
+
+                return ListTile(
+                  dense: true,
+                  selected: isSelected,
+                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.08),
+                  title: Text(
+                    option,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  onTap: () {
+                    final selectedValue = isAccueil ? '' : option;
+                    widget.onChanged(selectedValue);
+                    _controller.text = option;
+                    _focusNode.unfocus();
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

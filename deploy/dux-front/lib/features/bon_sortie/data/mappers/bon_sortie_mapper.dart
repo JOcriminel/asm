@@ -20,6 +20,7 @@ class BonSortieMapper {
       rawJson: dto.rawJson,
       familyId: dto.familyId,
       familyName: dto.familyName,
+      numSerie: dto.numSerie,
     );
   }
 

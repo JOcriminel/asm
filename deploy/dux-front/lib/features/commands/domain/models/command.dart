@@ -13,8 +13,19 @@ class ArticleItem {
   final double? puTTC;
   final double? totalTTC;
   final String? stock;
+  final List<String> serialNumbers;
+  final Map<String, dynamic>? rawJson;
+  final String? numSerie;
+  final String? familyId;
+  final String? familyName;
 
   double get total => quantity * unitPrice;
+
+  bool get hasSerialNumbers {
+    if (numSerie == null) return false;
+    final s = numSerie!.trim().toLowerCase();
+    return s == '1' || s == '1.0' || s == 'true' || s == 'oui' || s == 'o' || s == 'yes' || s == 'y';
+  }
 
   const ArticleItem({
     required this.id,
@@ -29,6 +40,11 @@ class ArticleItem {
     this.puTTC,
     this.totalTTC,
     this.stock,
+    this.serialNumbers = const [],
+    this.rawJson,
+    this.numSerie,
+    this.familyId,
+    this.familyName,
   });
 
   factory ArticleItem.fromJson(Map<String, dynamic> json) {
@@ -45,6 +61,13 @@ class ArticleItem {
       puTTC: (json['puTTC'] as num?)?.toDouble(),
       totalTTC: (json['totalTTC'] as num?)?.toDouble(),
       stock: json['stock'] as String?,
+      serialNumbers: json['serialNumbers'] != null
+          ? List<String>.from(json['serialNumbers'])
+          : const [],
+      rawJson: json['rawJson'] as Map<String, dynamic>?,
+      numSerie: json['numSerie']?.toString(),
+      familyId: json['familyId']?.toString(),
+      familyName: json['familyName']?.toString(),
     );
   }
 
@@ -61,7 +84,52 @@ class ArticleItem {
         'puTTC': puTTC,
         'totalTTC': totalTTC,
         'stock': stock,
+        'serialNumbers': serialNumbers,
+        'rawJson': rawJson,
+        'numSerie': numSerie,
+        'familyId': familyId,
+        'familyName': familyName,
       };
+
+  ArticleItem copyWith({
+    String? id,
+    String? code,
+    String? name,
+    int? quantity,
+    double? unitPrice,
+    String? unite,
+    double? discountPercent,
+    double? netHT,
+    double? tvaPercent,
+    double? puTTC,
+    double? totalTTC,
+    String? stock,
+    List<String>? serialNumbers,
+    Map<String, dynamic>? rawJson,
+    String? numSerie,
+    String? familyId,
+    String? familyName,
+  }) {
+    return ArticleItem(
+      id: id ?? this.id,
+      code: code ?? this.code,
+      name: name ?? this.name,
+      quantity: quantity ?? this.quantity,
+      unitPrice: unitPrice ?? this.unitPrice,
+      unite: unite ?? this.unite,
+      discountPercent: discountPercent ?? this.discountPercent,
+      netHT: netHT ?? this.netHT,
+      tvaPercent: tvaPercent ?? this.tvaPercent,
+      puTTC: puTTC ?? this.puTTC,
+      totalTTC: totalTTC ?? this.totalTTC,
+      stock: stock ?? this.stock,
+      serialNumbers: serialNumbers ?? this.serialNumbers,
+      rawJson: rawJson ?? this.rawJson,
+      numSerie: numSerie ?? this.numSerie,
+      familyId: familyId ?? this.familyId,
+      familyName: familyName ?? this.familyName,
+    );
+  }
 }
 
 class CommandTimeline {
@@ -211,24 +279,43 @@ class ClasseDocument {
 }
 
 class Command implements BaseDocument {
+  @override
   final String id;
+  @override
   final String documentCode;     // e.g. "000005"
+  @override
   final String documentType;     // e.g. "Bon de Commande Client"
+  @override
   final String documentTypeCode; // e.g. "BCC"
+  @override
   final String customerName;     // nomPrenomTier
+  @override
   final DateTime date;           // dateDocument
+  @override
   final String status;           // libelleEtatDoc
+  @override
   final String statusColor;      // couleurEtatDoc (CSS color string)
+  @override
   final double amount;           // mntNetht (HT)
+  @override
   final double amountTTC;        // mntTtc
+  @override
   final double amountTVA;        // mntTva
+  @override
   final double reste;            // remaining amount
+  @override
   final String representative;   // nomPrenomRep / RepDoc
+  @override
   final String tier;             // idTier or codeTier
+  @override
   final String deliveryAddress;  // adresseTier
+  @override
   final String phone;            // telTier
+  @override
   final String currency;         // symbole (e.g. "DT") or codeDev (e.g. "TND")
+  @override
   final String stationName;      // libelleStation
+  @override
   final String idStation;        // Station ID (e.g. "1")
   final List<ArticleItem> articles;
   final CommandTimeline timeline;
@@ -375,6 +462,80 @@ class Command implements BaseDocument {
         'clientContactPerson': clientContactPerson,
         'clientCustomStatus': clientCustomStatus,
       };
+
+  Command copyWith({
+    String? id,
+    String? documentCode,
+    String? documentType,
+    String? documentTypeCode,
+    String? customerName,
+    DateTime? date,
+    String? status,
+    String? statusColor,
+    double? amount,
+    double? amountTTC,
+    double? amountTVA,
+    double? reste,
+    String? representative,
+    String? tier,
+    String? deliveryAddress,
+    String? phone,
+    String? currency,
+    String? stationName,
+    String? idStation,
+    List<ArticleItem>? articles,
+    CommandTimeline? timeline,
+    ClasseDocument? classeDocument,
+    String? codePiece,
+    String? preparedBy,
+    String? concretizedBy,
+    String? apporteur,
+    double? exchangeRate,
+    String? affecterSur,
+    String? clientRaisonSociale,
+    String? clientTaxNumber,
+    String? clientAddress,
+    String? clientPhone,
+    String? clientContactPerson,
+    String? clientCustomStatus,
+  }) {
+    return Command(
+      id: id ?? this.id,
+      documentCode: documentCode ?? this.documentCode,
+      documentType: documentType ?? this.documentType,
+      documentTypeCode: documentTypeCode ?? this.documentTypeCode,
+      customerName: customerName ?? this.customerName,
+      date: date ?? this.date,
+      status: status ?? this.status,
+      statusColor: statusColor ?? this.statusColor,
+      amount: amount ?? this.amount,
+      amountTTC: amountTTC ?? this.amountTTC,
+      amountTVA: amountTVA ?? this.amountTVA,
+      reste: reste ?? this.reste,
+      representative: representative ?? this.representative,
+      tier: tier ?? this.tier,
+      deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      phone: phone ?? this.phone,
+      currency: currency ?? this.currency,
+      stationName: stationName ?? this.stationName,
+      idStation: idStation ?? this.idStation,
+      articles: articles ?? this.articles,
+      timeline: timeline ?? this.timeline,
+      classeDocument: classeDocument ?? this.classeDocument,
+      codePiece: codePiece ?? this.codePiece,
+      preparedBy: preparedBy ?? this.preparedBy,
+      concretizedBy: concretizedBy ?? this.concretizedBy,
+      apporteur: apporteur ?? this.apporteur,
+      exchangeRate: exchangeRate ?? this.exchangeRate,
+      affecterSur: affecterSur ?? this.affecterSur,
+      clientRaisonSociale: clientRaisonSociale ?? this.clientRaisonSociale,
+      clientTaxNumber: clientTaxNumber ?? this.clientTaxNumber,
+      clientAddress: clientAddress ?? this.clientAddress,
+      clientPhone: clientPhone ?? this.clientPhone,
+      clientContactPerson: clientContactPerson ?? this.clientContactPerson,
+      clientCustomStatus: clientCustomStatus ?? this.clientCustomStatus,
+    );
+  }
 }
 
 enum CommandSortOrder {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
+import '../../core/utils/task_type.dart';
 import 'route_constants.dart';
 import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
@@ -20,10 +20,14 @@ import '../../features/bon_preparation/presentation/screens/bon_preparation_list
 import '../../features/bon_preparation/presentation/screens/bon_preparation_detail_screen.dart';
 import '../../features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
 import '../../features/bon_preparation/presentation/screens/preparation_checklist_screen.dart';
+import '../../features/bon_preparation/presentation/screens/article_checklist_screen.dart';
+import '../../features/bon_preparation/domain/models/bon_preparation.dart';
 import '../../features/checklist/presentation/screens/checklist_admin_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_admin_screen.dart';
 import '../../features/dashboard/presentation/screens/dynamic_screens_config_screen.dart';
 import '../../features/dashboard/presentation/screens/edit_screen_config_screen.dart';
+import '../../features/dashboard/presentation/screens/categories_admin_screen.dart';
+import '../../features/dashboard/presentation/screens/dynamic_document_list_screen.dart';
 import '../../features/dashboard/presentation/screens/gestion_vente_screen.dart';
 import '../../features/checklist/presentation/screens/groups_admin_screen.dart';
 import '../../features/checklist/presentation/screens/task_types_admin_screen.dart';
@@ -80,6 +84,132 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.login,
         builder: (context, state) => const LoginScreen(),
       ),
+      
+      // Detail and full-screen routes configured on the root navigator (sibling to Shells)
+      GoRoute(
+        path: '/clients/details/:id',
+        name: RouteNames.clientDetails,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return ClientDetailsScreen(clientId: id);
+        },
+      ),
+      GoRoute(
+        path: '/commands/details/:id',
+        name: RouteNames.commandDetails,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return CommandDetailsScreen(commandId: id);
+        },
+      ),
+      
+      // Bon de Préparation details
+      GoRoute(
+        path: '/pages/bon-preparation/detail/:id',
+        name: RouteNames.bonPreparationDetail,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          final docTypeParam = state.uri.queryParameters['type'];
+          final task = TaskTypeExtension.fromKey(docTypeParam);
+          final docType = task?.key ?? 'BP';
+          debugPrint('Router: Building detail page with id: $id, type: $docType');
+          return BonPreparationDetailScreen(preparationId: id, docType: docType);
+        },
+      ),
+      GoRoute(
+        path: '/pages/bon-preparation/serial-number',
+        name: RouteNames.bonPreparationSerialNumber,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as SerialNumberArgs;
+          return SerialNumberEntryScreen(args: args);
+        },
+      ),
+      GoRoute(
+        path: '/pages/bon-preparation/checklist',
+        name: RouteNames.bonPreparationChecklist,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>;
+          return PreparationChecklistScreen(
+            preparationId: args['preparationId'] as String,
+            docType: args['docType'] as String? ?? 'BP',
+          );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.bonPreparationArticleChecklist,
+        name: RouteNames.bonPreparationArticleChecklist,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>;
+          return ArticleChecklistScreen(
+            preparationId: args['preparationId'] as String,
+            article: args['article'] as PreparationArticle,
+            docType: args['docType'] as String? ?? 'BP',
+          );
+        },
+      ),
+
+      // Bon de Sortie details
+      GoRoute(
+        path: '/pages/bon-sortie/detail/:id',
+        name: RouteNames.bonSortieDetail,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return BonSortieDetailScreen(sortieId: id);
+        },
+      ),
+
+      // Bon de Réservation details
+      GoRoute(
+        path: '/pages/bon-reservation/detail/:id',
+        name: RouteNames.bonReservationDetail,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return BonPreparationDetailScreen(preparationId: id, docType: 'BPR');
+        },
+      ),
+      GoRoute(
+        path: '/pages/bon-reservation/serial-number',
+        name: RouteNames.bonReservationSerialNumber,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as SerialNumberArgs;
+          return SerialNumberEntryScreen(args: args);
+        },
+      ),
+      GoRoute(
+        path: '/pages/bon-reservation/checklist',
+        name: RouteNames.bonReservationChecklist,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>;
+          return PreparationChecklistScreen(
+            preparationId: args['preparationId'] as String,
+            docType: args['docType'] as String? ?? 'BPR',
+          );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.bonReservationArticleChecklist,
+        name: RouteNames.bonReservationArticleChecklist,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>;
+          return ArticleChecklistScreen(
+            preparationId: args['preparationId'] as String,
+            article: args['article'] as PreparationArticle,
+            docType: args['docType'] as String? ?? 'BPR',
+          );
+        },
+      ),
+
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return HomeShell(navigationShell: navigationShell);
@@ -106,17 +236,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: RoutePaths.clients,
                 name: RouteNames.clients,
                 builder: (context, state) => const ClientsListScreen(),
-                routes: [
-                  GoRoute(
-                    path: RoutePaths.clientDetails,
-                    name: RouteNames.clientDetails,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final id = state.pathParameters['id'] ?? '';
-                      return ClientDetailsScreen(clientId: id);
-                    },
-                  ),
-                ],
               ),
               GoRoute(
                 path: '/dashboard-admin',
@@ -163,9 +282,35 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ],
               ),
               GoRoute(
+                path: '/admin/categories',
+                name: 'categoriesAdmin',
+                builder: (context, state) => const CategoriesAdminScreen(),
+              ),
+              GoRoute(
+                path: '/pages/dynamic-list/:type',
+                name: 'dynamicDocumentList',
+                builder: (context, state) {
+                  final type = state.pathParameters['type'] ?? '';
+                  return DynamicDocumentListScreen(docType: type);
+                },
+              ),
+              GoRoute(
+                path: '/pages/bon-reservation/list',
+                name: RouteNames.bonReservationList,
+                builder: (context, state) => const DynamicDocumentListScreen(docType: 'BPR'),
+              ),
+              GoRoute(
                 path: RoutePaths.gestionVente,
                 name: RouteNames.gestionVente,
                 builder: (context, state) => const GestionVenteScreen(),
+              ),
+              GoRoute(
+                path: '/pages/category/:name',
+                name: 'categoryScreen',
+                builder: (context, state) {
+                  final name = state.pathParameters['name'] ?? '';
+                  return GestionVenteScreen(categoryName: name);
+                },
               ),
             ],
           ),
@@ -175,17 +320,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: RoutePaths.commands,
                 name: RouteNames.commands,
                 builder: (context, state) => const CommandsListScreen(),
-                routes: [
-                  GoRoute(
-                    path: RoutePaths.commandDetails,
-                    name: RouteNames.commandDetails,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final id = state.pathParameters['id'] ?? '';
-                      return CommandDetailsScreen(commandId: id);
-                    },
-                  ),
-                ],
               ),
             ],
           ),
@@ -208,36 +342,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                     name: RouteNames.bonPreparationList,
                     builder: (context, state) => const BonPreparationListScreen(),
                   ),
-                  GoRoute(
-                    path: 'detail/:id',
-                    name: RouteNames.bonPreparationDetail,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final id = state.pathParameters['id'] ?? '';
-                      debugPrint('Router: Building detail page with id: $id');
-                      return BonPreparationDetailScreen(preparationId: id);
-                    },
-                  ),
-                  GoRoute(
-                    path: 'serial-number',
-                    name: RouteNames.bonPreparationSerialNumber,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final args = state.extra as SerialNumberArgs;
-                      return SerialNumberEntryScreen(args: args);
-                    },
-                  ),
-                  GoRoute(
-                    path: 'checklist',
-                    name: RouteNames.bonPreparationChecklist,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final args = state.extra as Map<String, dynamic>;
-                      return PreparationChecklistScreen(
-                        preparationId: args['preparationId'] as String,
-                      );
-                    },
-                  ),
                 ],
               ),
             ],
@@ -259,15 +363,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'list',
                     name: RouteNames.bonSortieList,
                     builder: (context, state) => const BonSortieListScreen(),
-                  ),
-                  GoRoute(
-                    path: 'detail/:id',
-                    name: RouteNames.bonSortieDetail,
-                    parentNavigatorKey: _rootNavigatorKey,
-                    builder: (context, state) {
-                      final id = state.pathParameters['id'] ?? '';
-                      return BonSortieDetailScreen(sortieId: id);
-                    },
                   ),
                 ],
               ),

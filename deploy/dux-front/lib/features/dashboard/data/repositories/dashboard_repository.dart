@@ -6,29 +6,45 @@ import '../../../../core/network/api_exceptions.dart';
 import '../../../../core/utils/logger.dart';
 
 class DashboardStats {
-  final int scansToday;
-  final int deletionsToday;
-  final int checklistResponsesToday;
-  final List<Map<String, dynamic>> scansLast7Days;
-  final List<Map<String, dynamic>> scansByHour;
+  final int scansCount;
+  final int deletionsCount;
+  final int checklistResponsesCount;
+  final int totalCommands;
+  final double totalRevenue;
+  final double avgAccuracy;
+
+  final List<Map<String, dynamic>> byType;
+  final List<Map<String, dynamic>> byStatus;
+  final List<Map<String, dynamic>> timeline;
   final List<Map<String, dynamic>> operatorPerformance;
 
   DashboardStats({
-    required this.scansToday,
-    required this.deletionsToday,
-    required this.checklistResponsesToday,
-    required this.scansLast7Days,
-    required this.scansByHour,
+    required this.scansCount,
+    required this.deletionsCount,
+    required this.checklistResponsesCount,
+    required this.totalCommands,
+    required this.totalRevenue,
+    required this.avgAccuracy,
+    required this.byType,
+    required this.byStatus,
+    required this.timeline,
     required this.operatorPerformance,
   });
 
   factory DashboardStats.fromJson(Map<String, dynamic> json) {
+    final summary = json['summary'] as Map<String, dynamic>? ?? {};
+    final docStats = json['documentStats'] as Map<String, dynamic>? ?? {};
+
     return DashboardStats(
-      scansToday: json['scansToday'] ?? 0,
-      deletionsToday: json['deletionsToday'] ?? 0,
-      checklistResponsesToday: json['checklistResponsesToday'] ?? 0,
-      scansLast7Days: List<Map<String, dynamic>>.from(json['scansLast7Days'] ?? []),
-      scansByHour: List<Map<String, dynamic>>.from(json['scansByHour'] ?? []),
+      scansCount: (summary['scansCount'] ?? 0).toInt(),
+      deletionsCount: (summary['deletionsCount'] ?? 0).toInt(),
+      checklistResponsesCount: (summary['checklistResponsesCount'] ?? 0).toInt(),
+      totalCommands: (summary['totalCommands'] ?? 0).toInt(),
+      totalRevenue: (summary['totalRevenue'] ?? 0.0).toDouble(),
+      avgAccuracy: (summary['avgAccuracy'] ?? 100.0).toDouble(),
+      byType: List<Map<String, dynamic>>.from(docStats['byType'] ?? []),
+      byStatus: List<Map<String, dynamic>>.from(docStats['byStatus'] ?? []),
+      timeline: List<Map<String, dynamic>>.from(json['timeline'] ?? []),
       operatorPerformance: List<Map<String, dynamic>>.from(json['operatorPerformance'] ?? []),
     );
   }
@@ -50,11 +66,15 @@ class DashboardRepository {
         return DashboardStats.fromJson(response.data);
       }
       return DashboardStats(
-        scansToday: 0,
-        deletionsToday: 0,
-        checklistResponsesToday: 0,
-        scansLast7Days: const [],
-        scansByHour: const [],
+        scansCount: 0,
+        deletionsCount: 0,
+        checklistResponsesCount: 0,
+        totalCommands: 0,
+        totalRevenue: 0.0,
+        avgAccuracy: 100.0,
+        byType: const [],
+        byStatus: const [],
+        timeline: const [],
         operatorPerformance: const [],
       );
     } catch (e) {

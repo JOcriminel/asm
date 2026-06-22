@@ -20,10 +20,15 @@ ThemeData getDynamicTheme(BuildContext context, String? primaryColorHex) {
 
   final primaryColor = parseHexColor(primaryColorHex, theme.colorScheme.primary);
   
+  final dynamicColorScheme = ColorScheme.fromSeed(
+    seedColor: primaryColor,
+    brightness: theme.brightness,
+    primary: primaryColor,
+  );
+
   return theme.copyWith(
-    colorScheme: theme.colorScheme.copyWith(
-      primary: primaryColor,
-    ),
+    colorScheme: dynamicColorScheme,
+    primaryColor: primaryColor,
     appBarTheme: theme.appBarTheme.copyWith(
       titleTextStyle: theme.appBarTheme.titleTextStyle?.copyWith(
         color: primaryColor,
@@ -31,6 +36,11 @@ ThemeData getDynamicTheme(BuildContext context, String? primaryColorHex) {
       iconTheme: theme.appBarTheme.iconTheme?.copyWith(
         color: primaryColor,
       ),
+    ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: primaryColor,
+      selectionColor: primaryColor.withValues(alpha: 0.3),
+      selectionHandleColor: primaryColor,
     ),
   );
 }

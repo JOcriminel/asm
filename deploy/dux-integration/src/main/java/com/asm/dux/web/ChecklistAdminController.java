@@ -53,11 +53,17 @@ public class ChecklistAdminController {
 
     @DeleteMapping("/groups/{id}")
     public ResponseEntity<?> deleteGroup(@PathVariable Long id) {
-        mappingRepository.deleteByGroupId(id);
-        List<ChecklistTask> tasks = taskRepository.findByGroupId(id);
-        taskRepository.deleteAll(tasks);
-        groupRepository.deleteById(id);
+        ChecklistGroup group = groupRepository.findById(id).orElseThrow();
+        group.setActive(false);
+        groupRepository.save(group);
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/groups/{id}/active")
+    public ChecklistGroup toggleGroupActive(@PathVariable Long id, @RequestParam boolean active) {
+        ChecklistGroup group = groupRepository.findById(id).orElseThrow();
+        group.setActive(active);
+        return groupRepository.save(group);
     }
 
     // ============================================
@@ -120,15 +126,24 @@ public class ChecklistAdminController {
         ChecklistTaskType type = typeRepository.findById(id).orElseThrow();
         type.setName(typeDetails.getName());
         type.setInformation(typeDetails.getInformation());
+        type.setCodeDoc(typeDetails.getCodeDoc());
+        type.setRoles(typeDetails.getRoles());
         return typeRepository.save(type);
     }
 
     @DeleteMapping("/types/{id}")
     public ResponseEntity<?> deleteType(@PathVariable Long id) {
-        List<ChecklistTask> tasks = taskRepository.findByTypeId(id);
-        taskRepository.deleteAll(tasks);
-        typeRepository.deleteById(id);
+        ChecklistTaskType type = typeRepository.findById(id).orElseThrow();
+        type.setActive(false);
+        typeRepository.save(type);
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/types/{id}/active")
+    public ChecklistTaskType toggleTypeActive(@PathVariable Long id, @RequestParam boolean active) {
+        ChecklistTaskType type = typeRepository.findById(id).orElseThrow();
+        type.setActive(active);
+        return typeRepository.save(type);
     }
 
     // ============================================
@@ -197,7 +212,9 @@ public class ChecklistAdminController {
 
     @DeleteMapping("/tasks/{id}")
     public ResponseEntity<?> deleteTask(@PathVariable Long id) {
-        taskRepository.deleteById(id);
+        ChecklistTask task = taskRepository.findById(id).orElseThrow();
+        task.setActive(false);
+        taskRepository.save(task);
         return ResponseEntity.ok().build();
     }
 

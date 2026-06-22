@@ -1,24 +1,118 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/core/routing/page_route_registry.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final configState = ref.watch(screenConfigControllerProvider);
 
-    final List<Map<String, dynamic>> menuItems = [
-      {'title': 'KPI\nDashboard', 'icon': Icons.dashboard_outlined, 'route': '/kpi-dashboard', 'color': Colors.teal},
-      {'title': 'Gestion De\nVente', 'icon': Icons.shopping_bag_outlined, 'route': '/gestion-vente', 'color': Colors.blue},
-      {'title': 'Clients', 'icon': Icons.group_outlined, 'route': '/clients', 'color': Colors.purple},
-      {'title': 'Journal\nd\'Activité', 'icon': Icons.history_outlined, 'route': '/activity-feed', 'color': Colors.amber},
-      {'title': 'Station', 'icon': Icons.storefront_outlined, 'route': '/station', 'color': Colors.green},
-      {'title': 'Profil', 'icon': Icons.person_outline, 'route': '/profile', 'color': Colors.pink},
-      {'title': 'Dashboard\nAdmin', 'icon': Icons.admin_panel_settings_outlined, 'route': '/dashboard-admin', 'color': Colors.indigo},
+    if (configState.isLoading) {
+      return const DuxLoadingScreen(isFullScreen: true);
+    }
+
+    final configs = configState.configs;
+
+    final List<Map<String, dynamic>> menuItems = [];
+
+    // 1. Add active categories as home cards dynamically
+    for (final category in configState.categories) {
+      if (category.active) {
+        IconData icon = Icons.folder_open_outlined;
+        Color color = Colors.blueGrey;
+        
+        if (category.name == 'Gestion de Vente') {
+          icon = Icons.shopping_bag_outlined;
+          color = Colors.blue;
+        }
+        
+        menuItems.add({
+          'title': category.name.replaceAll(' ', '\n'),
+          'icon': icon,
+          'route': '/pages/category/${category.name}',
+          'color': color,
+        });
+      }
+    }
+
+    // 2. Add active pages directly belonging to Accueil
+    configs.forEach((key, config) {
+      if (key == 'HOME' || key == 'BC' || key == 'BP' || key == 'BS') return;
+      if (!config.isActive) return;
+
+      final isCatInactive = config.category != null &&
+          config.category!.isNotEmpty &&
+          configState.categories.any((c) => c.name == config.category && !c.active);
+
+      final isAccueil = config.category == null ||
+          config.category!.isEmpty ||
+          config.category == 'Accueil' ||
+          isCatInactive;
+
+      if (!isAccueil) return; // Belongs to an active category, shown inside category details
+
+      final reg = pageRouteRegistry[key];
+      if (reg != null) {
+        final title = config.pageTitle.isNotEmpty ? config.pageTitle : reg.routeName;
+        menuItems.add({
+          'title': title.replaceAll(' ', '\n'),
+          'icon': reg.icon,
+          'route': reg.pathToGo,
+          'color': reg.defaultColor,
+        });
+      } else {
+        // Custom dynamic pages without category
+        Color primaryColor = Colors.blue;
+        try {
+          final cleaned = config.primaryColor.replaceAll('#', '');
+          primaryColor = Color(int.parse('FF$cleaned', radix: 16));
+        } catch (_) {}
+
+        menuItems.add({
+          'title': config.pageTitle.replaceAll(' ', '\n'),
+          'icon': Icons.assignment_rounded,
+          'route': '/pages/dynamic-list/$key',
+          'color': primaryColor,
+        });
+      }
+    });
+
+    // 3. Sort menuItems to keep a predictable layout order
+    final predefinedHomeOrder = [
+      '/kpi-dashboard',
+      '/pages/category/Gestion de Vente',
+      '/clients',
+      '/activity-feed',
+      '/station',
+      '/profile',
+      '/dashboard-admin'
     ];
+
+    menuItems.sort((a, b) {
+      final routeA = a['route'] as String;
+      final routeB = b['route'] as String;
+
+      final indexA = predefinedHomeOrder.indexOf(routeA);
+      final indexB = predefinedHomeOrder.indexOf(routeB);
+
+      if (indexA != -1 && indexB != -1) {
+        return indexA.compareTo(indexB);
+      } else if (indexA != -1) {
+        return -1;
+      } else if (indexB != -1) {
+        return 1;
+      } else {
+        return routeA.compareTo(routeB);
+      }
+    });
 
     return Scaffold(
       drawer: const DuxDrawer(),
@@ -152,14 +246,19 @@ class _MenuCardState extends State<_MenuCard> {
               AppSpacing.gapM,
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: Text(
-                  widget.title,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10.5,
-                    height: 1.2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10.5,
+                      height: 1.2,
+                    ),
                   ),
                 ),
               ),

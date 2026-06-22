@@ -6,8 +6,11 @@ import 'package:dux_front/core/widgets/primary_button.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/features/bon_preparation/data/repositories/bon_preparation_repository_impl.dart';
 import '../controllers/bon_preparation_detail_controller.dart';
+import 'package:dux_front/features/bon_sortie/presentation/controllers/bon_sortie_detail_controller.dart';
+import 'package:dux_front/features/command_details/presentation/controllers/command_details_controller.dart';
 import '../widgets/scanner_overlay.dart';
 import 'package:dux_front/core/services/serial_number_cache_service.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
 
 class SerialNumberArgs {
   final String documentId;
@@ -16,6 +19,9 @@ class SerialNumberArgs {
   final String productName;
   final int quantity;
   final List<String> initialSerialNumbers;
+  final String docType;
+  final String? idClassedocument;
+  final Map<String, dynamic>? rawArticleJson;
 
   const SerialNumberArgs({
     required this.documentId,
@@ -24,6 +30,9 @@ class SerialNumberArgs {
     required this.productName,
     required this.quantity,
     required this.initialSerialNumbers,
+    required this.docType,
+    this.idClassedocument,
+    this.rawArticleJson,
   });
 }
 
@@ -45,6 +54,7 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
   String? _validationError;
   Map<String, String> _serialNumberIds = {};
   bool _isLoadingIds = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -98,9 +108,9 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     super.dispose();
   }
 
-
   Future<void> _openScanner(int startIndex) async {
     final initialScanned = _controllers.where((c) => c.text.trim().isNotEmpty).length;
+    final config = ref.read(screenConfigControllerProvider).configs[widget.args.docType];
 
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -109,8 +119,9 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
           continuousMode: true,
           expectedCount: widget.args.quantity,
           initialScannedCount: initialScanned,
+          enableSoundAlerts: config?.enableSoundAlerts ?? true,
+          enableVibrationAlerts: config?.enableVibrationAlerts ?? true,
           onBarcodeScanned: (scannedCode) {
-            // Find next empty input starting from startIndex
             int? nextEmptyIndex;
             for (int i = 0; i < _controllers.length; i++) {
               final checkIndex = (startIndex + i) % _controllers.length;
@@ -121,12 +132,11 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             }
 
             if (nextEmptyIndex != null) {
-              final index = nextEmptyIndex; // Assign to local non-nullable to help flow analysis
+              final index = nextEmptyIndex;
               setState(() {
                 _controllers[index].text = scannedCode;
                 _validationError = null;
               });
-              // Optional: move focus to next empty for visual cue
               _focusNextEmpty(index);
             }
           },
@@ -138,7 +148,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
   void _focusNextEmpty(int currentIndex) {
     int? nextEmptyIndex;
     
-    // Check fields after current
     for (int i = currentIndex + 1; i < _controllers.length; i++) {
       if (_controllers[i].text.trim().isEmpty) {
         nextEmptyIndex = i;
@@ -146,7 +155,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
       }
     }
     
-    // Fallback: check fields before current
     if (nextEmptyIndex == null) {
       for (int i = 0; i < currentIndex; i++) {
         if (_controllers[i].text.trim().isEmpty) {
@@ -159,7 +167,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     if (nextEmptyIndex != null) {
       _focusNodes[nextEmptyIndex].requestFocus();
     } else {
-      // All filled, remove focus
       FocusScope.of(context).unfocus();
     }
   }
@@ -175,7 +182,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
       return false;
     }
 
-    // Check for duplicate fields among non-empty values
     final uniqueValues = nonExactEmptyValues.toSet();
     if (uniqueValues.length < nonExactEmptyValues.length) {
       setState(() {
@@ -195,7 +201,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     final id = _serialNumberIds[snValue];
 
     if (id != null && id.isNotEmpty) {
-      // It exists in the database, confirm and delete via API
       final confirm = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -220,15 +225,13 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
           _isLoadingIds = true;
         });
         
-        final controller = ref.read(bonPreparationDetailControllerProvider(widget.args.documentId).notifier);
-        final success = await controller.deleteSerialNumber(id);
-        
-        if (mounted) {
-          setState(() {
-            _isLoadingIds = false;
-          });
-          if (success) {
-            // Untrack globally
+        try {
+          await ref.read(bonPreparationRepositoryProvider).deleteSerialNumber(id);
+          
+          if (mounted) {
+            setState(() {
+              _isLoadingIds = false;
+            });
             ref.read(serialNumberCacheServiceProvider).untrackSerialNumber(snValue);
             
             setState(() {
@@ -238,15 +241,19 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Numéro de série supprimé avec succès.')),
             );
-          } else {
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isLoadingIds = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Échec de la suppression du numéro de série.')),
+              SnackBar(content: Text('Échec de la suppression : ${e.toString()}')),
             );
           }
         }
       }
     } else {
-      // Just local clean
       setState(() {
         _controllers[index].clear();
       });
@@ -261,43 +268,81 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
         .where((val) => val.isNotEmpty)
         .toList();
 
-    // Validate locally within the same document (other lines)
-    final state = ref.read(bonPreparationDetailControllerProvider(widget.args.documentId));
-    final preparation = state.preparation;
-    if (preparation != null) {
-      for (var sn in serials) {
-        final existsInOtherArticle = preparation.articles.any((article) =>
-            article.id != widget.args.lineId &&
-            article.serialNumbers.map((s) => s.trim().toLowerCase()).contains(sn.toLowerCase()));
-
-        if (existsInOtherArticle) {
-          setState(() {
-            _validationError = 'Le numéro de série $sn est déjà utilisé dans une autre ligne de ce document.';
-          });
-          return;
+    List<String> otherLinesSerialNumbers = [];
+    if (widget.args.docType == 'BP') {
+      final state = ref.read(bonPreparationDetailControllerProvider(widget.args.documentId));
+      if (state.preparation != null) {
+        for (var article in state.preparation!.articles) {
+          if (article.id != widget.args.lineId) {
+            otherLinesSerialNumbers.addAll(article.serialNumbers.map((s) => s.trim().toLowerCase()));
+          }
+        }
+      }
+    } else if (widget.args.docType == 'BS') {
+      final state = ref.read(bonSortieDetailControllerProvider(widget.args.documentId));
+      if (state.sortie != null) {
+        for (var article in state.sortie!.articles) {
+          if (article.id != widget.args.lineId) {
+            otherLinesSerialNumbers.addAll(article.serialNumbers.map((s) => s.trim().toLowerCase()));
+          }
+        }
+      }
+    } else if (widget.args.docType == 'BC') {
+      final state = ref.read(commandDetailsControllerProvider(widget.args.documentId));
+      if (state.command != null) {
+        for (var article in state.command!.articles) {
+          if (article.id != widget.args.lineId) {
+            otherLinesSerialNumbers.addAll(article.serialNumbers.map((s) => s.trim().toLowerCase()));
+          }
         }
       }
     }
 
-    final controller = ref.read(bonPreparationDetailControllerProvider(widget.args.documentId).notifier);
+    for (var sn in serials) {
+      if (otherLinesSerialNumbers.contains(sn.toLowerCase())) {
+        setState(() {
+          _validationError = 'Le numéro de série $sn est déjà utilisé dans une autre ligne de ce document.';
+        });
+        return;
+      }
+    }
 
-    final success = await controller.saveSerialNumbers(
-      lineId: widget.args.lineId,
-      serialNumbers: serials,
-    );
+    setState(() {
+      _isSaving = true;
+      _validationError = null;
+    });
 
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Numéros de série enregistrés avec succès !')),
+    try {
+      await ref.read(bonPreparationRepositoryProvider).saveSerialNumbers(
+        documentId: widget.args.documentId,
+        lineId: widget.args.lineId,
+        serialNumbers: serials,
+        idClassedocument: widget.args.idClassedocument,
+        rawArticleJson: widget.args.rawArticleJson,
       );
-      Navigator.of(context).pop(true); // Return success to details page
+
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Numéros de série enregistrés avec succès !')),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _validationError = 'Erreur lors de l\'enregistrement : ${e.toString()}';
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final state = ref.watch(bonPreparationDetailControllerProvider(widget.args.documentId));
 
     return Scaffold(
       appBar: AppBar(title: const DuxAppBarTitle(title: 'Saisie N° Série')),
@@ -306,7 +351,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product Info Card
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(AppSpacing.l),
@@ -343,7 +387,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             ),
             AppSpacing.gapL,
 
-            // Validation Error alert banner
             if (_validationError != null) ...[
               Container(
                 width: double.infinity,
@@ -374,7 +417,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
               AppSpacing.gapM,
             ],
 
-            // Dynamic Inputs List
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -401,7 +443,7 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
                             prefixIcon: const Icon(Icons.qr_code_2_rounded, size: 20),
                           ),
                           onChanged: (_) {
-                            setState(() {}); // Rebuild to toggle scanner/delete button
+                            setState(() {});
                             if (_validationError != null) {
                               setState(() {
                                 _validationError = null;
@@ -412,7 +454,6 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
                       ),
                       AppSpacing.gapM,
                       
-                      // Scanner or Delete button
                       isFilled
                           ? IconButton(
                               icon: Icon(Icons.close_rounded, color: theme.colorScheme.error),
@@ -431,8 +472,7 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
             ),
             AppSpacing.gapL,
 
-            // Save / Submit Button
-            state.isSaving
+            _isSaving
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -449,4 +489,3 @@ class _SerialNumberEntryScreenState extends ConsumerState<SerialNumberEntryScree
     );
   }
 }
-

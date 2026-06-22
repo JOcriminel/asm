@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/generic_document_list_screen.dart';
-import 'package:dux_front/core/models/base_document.dart';
 import '../controllers/bon_preparation_list_controller.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
 import '../../domain/models/bon_preparation.dart';
@@ -13,6 +11,7 @@ import '../widgets/preparation_filter_bottom_sheet.dart';
 import '../widgets/scanner_overlay.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
+import '../../../checklist/presentation/controllers/checklist_response_controller.dart';
 
 class BonPreparationListScreen extends ConsumerWidget {
   const BonPreparationListScreen({super.key});
@@ -20,11 +19,16 @@ class BonPreparationListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final state = ref.watch(bonPreparationListControllerProvider);
+    final preparations = state.preparations;
+
+    final isListLoading = state.isLoading;
 
     return GenericDocumentListScreen<BonPreparation, BonPreparationListState>(
       title: 'BP',
       searchHint: 'Search code, customer or representative...',
       stateProvider: bonPreparationListControllerProvider,
+      isLoadingOverride: isListLoading,
       
       // State Getters
       getItems: (state) => state.preparations,
@@ -34,6 +38,13 @@ class BonPreparationListScreen extends ConsumerWidget {
       getHasMore: (state) => state.hasMore,
       getSearchQuery: (state) => state.searchQuery,
       getIsFilterActive: (state) => state.filter.advancedFilterActive,
+      
+      getStatusFilter: (state) => state.filter.status ?? '',
+      onStatusFilterChanged: (ref, status) {
+        final controller = ref.read(bonPreparationListControllerProvider.notifier);
+        final currentFilter = ref.read(bonPreparationListControllerProvider).filter;
+        controller.applyFilter(currentFilter.copyWith(status: status));
+      },
       
       // Callbacks
       onRefresh: (ref, {required refresh}) => ref.read(bonPreparationListControllerProvider.notifier).fetchPreparations(refresh: refresh),
@@ -61,10 +72,13 @@ class BonPreparationListScreen extends ConsumerWidget {
       },
       
       onCustomScanPressed: (context) async {
+        final bpConfig = ref.read(screenConfigControllerProvider).configs['BP'];
         return await Navigator.of(context).push<String>(
           MaterialPageRoute(
-            builder: (context) => const ScannerOverlay(
+            builder: (context) => ScannerOverlay(
               title: 'Scanner un Bon de Préparation',
+              enableSoundAlerts: bpConfig?.enableSoundAlerts ?? true,
+              enableVibrationAlerts: bpConfig?.enableVibrationAlerts ?? true,
             ),
           ),
         );
@@ -120,7 +134,7 @@ class BonPreparationListScreen extends ConsumerWidget {
                   width: 1,
                 ),
               ),
-              backgroundColor: theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
           ),
@@ -254,7 +268,9 @@ class BonPreparationListScreen extends ConsumerWidget {
       },
       
       buildItemCard: (context, preparation, ref) {
-        final showSN = ref.watch(screenConfigControllerProvider).configs['BP']?.enableSerialNumberTracking ?? true;
+        var docType = preparation.documentTypeCode.isNotEmpty ? preparation.documentTypeCode : 'BP';
+        if (docType == 'DPR') docType = 'BP';
+        final showSN = ref.watch(screenConfigControllerProvider).configs[docType]?.enableSerialNumberTracking ?? true;
         final formattedDate = DateFormat('dd/MM/yyyy').format(preparation.date);
         
         return Container(
@@ -368,73 +384,154 @@ class BonPreparationListScreen extends ConsumerWidget {
                     ),
                   ),
                   
-                  if (showSN)
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final snCountAsync = ref.watch(snCountProvider(preparation.id));
-                        return snCountAsync.when(
-                          data: (updatedPrep) {
-                            if (updatedPrep == null) return const SizedBox.shrink();
-                            
-                            final scanned = updatedPrep.totalScannedSerialNumbers;
-                            final required = updatedPrep.totalRequiredSerialNumbers;
-                            
-                            final isComplete = scanned == required && required > 0;
-                            final isOverscan = scanned > required;
-                            
-                            Color bgColor = Colors.orange.shade50;
-                            Color borderColor = Colors.orange.shade300;
-                            Color textColor = Colors.orange.shade700;
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      if (showSN)
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final snCountAsync = ref.watch(snCountProvider(preparation.id));
+                            return snCountAsync.when(
+                              data: (updatedPrep) {
+                                if (updatedPrep == null) return const SizedBox.shrink();
+                                
+                                final scanned = updatedPrep.totalScannedSerialNumbers;
+                                final required = updatedPrep.totalRequiredSerialNumbers;
+                                
+                                final isComplete = scanned == required && required > 0;
+                                final isOverscan = scanned > required;
+                                
+                                Color bgColor = Colors.orange.shade50;
+                                Color borderColor = Colors.orange.shade300;
+                                Color textColor = Colors.orange.shade700;
 
-                            if (isOverscan) {
-                              bgColor = Colors.red.shade50;
-                              borderColor = Colors.red.shade300;
-                              textColor = Colors.red.shade700;
-                            } else if (isComplete) {
-                              bgColor = Colors.green.shade50;
-                              borderColor = Colors.green.shade300;
-                              textColor = Colors.green.shade700;
-                            }
+                                if (isOverscan) {
+                                  bgColor = Colors.red.shade50;
+                                  borderColor = Colors.red.shade300;
+                                  textColor = Colors.red.shade700;
+                                } else if (isComplete) {
+                                  bgColor = Colors.green.shade50;
+                                  borderColor = Colors.green.shade300;
+                                  textColor = Colors.green.shade700;
+                                }
 
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: bgColor,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: borderColor),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      isOverscan ? Icons.warning_amber_rounded : Icons.qr_code_scanner, 
-                                      size: 14, 
-                                      color: textColor
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: bgColor,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: borderColor),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'SN: $scanned / $required',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                        color: textColor,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isOverscan ? Icons.warning_amber_rounded : Icons.qr_code_scanner, 
+                                          size: 14, 
+                                          color: textColor
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'SN: $scanned / $required',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                );
+                              },
+                              loading: () => const Padding(
+                                padding: EdgeInsets.only(top: 4.0),
+                                child: SizedBox(height: 12, width: 12, child: CircularProgressIndicator(strokeWidth: 2)),
                               ),
+                              error: (_, _) => const SizedBox.shrink(),
                             );
                           },
-                          loading: () => const Padding(
-                            padding: EdgeInsets.only(top: 4.0),
-                            child: SizedBox(height: 12, width: 12, child: CircularProgressIndicator(strokeWidth: 2)),
-                          ),
-                          error: (_, _) => const SizedBox.shrink(),
-                        );
-                      },
-                    ),
+                        ),
+                      Consumer(
+                        builder: (context, ref, child) {
+                          var docType = preparation.documentTypeCode.isNotEmpty ? preparation.documentTypeCode : 'BP';
+                          if (docType == 'DPR') docType = 'BP';
+                          final configsState = ref.watch(screenConfigControllerProvider);
+                          final config = configsState.configs[docType];
+                          final isChecklistEnabled = config?.enableChecklistTracking ?? false;
+                          if (!isChecklistEnabled) return const SizedBox.shrink();
+
+                          final countAsync = ref.watch(documentChecklistCountProvider('${preparation.id}:$docType'));
+                          return countAsync.when(
+                            data: (count) {
+                              if (count.total == 0) return const SizedBox.shrink();
+                              
+                              final checked = count.checked;
+                              final total = count.total;
+                              final isComplete = checked == total && total > 0;
+                              
+                              Color bgColor;
+                              Color borderColor;
+                              Color textColor;
+
+                              if (checked == 0) {
+                                bgColor = Colors.red.shade50;
+                                borderColor = Colors.red.shade300;
+                                textColor = Colors.red.shade700;
+                              } else if (isComplete) {
+                                bgColor = Colors.green.shade50;
+                                borderColor = Colors.green.shade300;
+                                textColor = Colors.green.shade700;
+                              } else {
+                                bgColor = Colors.orange.shade50;
+                                borderColor = Colors.orange.shade300;
+                                textColor = Colors.orange.shade700;
+                              }
+
+                              return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: bgColor,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: borderColor),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isComplete ? Icons.check_circle_outline : (checked == 0 ? Icons.playlist_add : Icons.playlist_add_check), 
+                                          size: 14, 
+                                          color: textColor
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Tasks ($checked/$total)',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                            },
+                            loading: () => const Padding(
+                              padding: EdgeInsets.only(top: 4.0),
+                              child: SizedBox(height: 12, width: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+                            ),
+                            error: (_, _) => const SizedBox.shrink(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 16),
                   
@@ -486,11 +583,10 @@ class BonPreparationListScreen extends ConsumerWidget {
               onSurface: Colors.white,
               secondary: Color(0xFF60A5FA),
             ),
-            dialogBackgroundColor: const Color(0xFF1E293B),
             appBarTheme: const AppBarTheme(
               backgroundColor: Color(0xFF0F172A),
               foregroundColor: Colors.white,
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1E293B)),
           ),
           child: child!,
         );
@@ -554,20 +650,9 @@ class BonPreparationListScreen extends ConsumerWidget {
 final snCountProvider = FutureProvider.family<BonPreparation?, String>((ref, id) async {
   final repo = ref.read(bonPreparationRepositoryProvider);
   
-  BonPreparation? details;
-  int retries = 3;
-  while (retries > 0) {
-    try {
-      details = await repo.getBonPreparationDetails(id);
-      break;
-    } catch (e) {
-      retries--;
-      if (retries == 0) rethrow;
-      await Future.delayed(Duration(milliseconds: 300 * (4 - retries)));
-    }
-  }
+  final details = await ref.watch(bonPreparationDetailsProvider(id).future);
   
-  if (details == null || !details.requiresSerialNumbers) return null;
+  if (!details.requiresSerialNumbers) return null;
 
   // Fetch actual SNs for the lines
   final updatedArticles = await Future.wait(details.articles.map((article) async {

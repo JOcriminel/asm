@@ -12,8 +12,11 @@ import 'package:dux_front/core/widgets/loading_skeleton.dart';
 import 'package:dux_front/core/services/search_history_service.dart';
 import 'package:dux_front/core/models/base_document.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/core/models/screen_config.dart';
 import 'package:dux_front/core/theme/theme_helper.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
+import 'package:dux_front/features/bon_preparation/presentation/widgets/scanner_overlay.dart';
 
 class GenericDocumentListScreen<T extends BaseDocument, S> extends ConsumerStatefulWidget {
   final String title;
@@ -29,6 +32,10 @@ class GenericDocumentListScreen<T extends BaseDocument, S> extends ConsumerState
   final String Function(S state) getSearchQuery;
   final bool Function(S state) getIsFilterActive;
   
+  // Status filter integration
+  final String Function(S state)? getStatusFilter;
+  final void Function(WidgetRef ref, String status)? onStatusFilterChanged;
+  
   // Action callbacks
   final Future<void> Function(WidgetRef ref, {required bool refresh}) onRefresh;
   final void Function(WidgetRef ref, String query) onSearchChanged;
@@ -43,6 +50,7 @@ class GenericDocumentListScreen<T extends BaseDocument, S> extends ConsumerState
   final String emptyStateTitle;
   final String emptyStateDescription;
   final IconData emptyStateIcon;
+  final bool? isLoadingOverride;
 
   const GenericDocumentListScreen({
     super.key,
@@ -67,6 +75,9 @@ class GenericDocumentListScreen<T extends BaseDocument, S> extends ConsumerState
     required this.emptyStateTitle,
     required this.emptyStateDescription,
     required this.emptyStateIcon,
+    this.isLoadingOverride,
+    this.getStatusFilter,
+    this.onStatusFilterChanged,
   });
 
   @override
@@ -108,7 +119,7 @@ class _GenericDocumentListScreenState<T extends BaseDocument, S> extends Consume
     if (!isAllowed) {
       return Scaffold(
         appBar: AppBar(
-          title: DuxAppBarTitle(title: config?.pageTitle ?? widget.title),
+          title: DuxAppBarTitle(title: config.pageTitle ?? widget.title),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.go('/dashboard'),
@@ -155,12 +166,16 @@ class _GenericDocumentListScreenState<T extends BaseDocument, S> extends Consume
     }
     
     final items = widget.getItems(state);
-    final isLoading = widget.getIsLoading(state);
+    final isLoading = widget.isLoadingOverride ?? widget.getIsLoading(state);
     final error = widget.getError(state);
     final page = widget.getPage(state);
     final hasMore = widget.getHasMore(state);
     final searchQuery = widget.getSearchQuery(state);
     final isFilterActive = widget.getIsFilterActive(state);
+
+    if (isLoading) {
+      return const DuxLoadingScreen(isFullScreen: true);
+    }
 
     // Sync state search query with local text controller if different
     if (_searchController.text != searchQuery) {
@@ -222,9 +237,19 @@ class _GenericDocumentListScreenState<T extends BaseDocument, S> extends Consume
                           ref.read(searchHistoryProvider.notifier).addSearchQuery(value);
                         }
                       },
-                      onScanPressed: displayScan && widget.onCustomScanPressed != null
+                      onScanPressed: displayScan
                           ? () async {
-                              final scanned = await widget.onCustomScanPressed!(context);
+                              final scanned = widget.onCustomScanPressed != null
+                                  ? await widget.onCustomScanPressed!(context)
+                                  : await Navigator.of(context).push<String>(
+                                      MaterialPageRoute(
+                                        builder: (context) => ScannerOverlay(
+                                          title: "Scanner",
+                                          enableSoundAlerts: config?.enableSoundAlerts ?? true,
+                                          enableVibrationAlerts: config?.enableVibrationAlerts ?? true,
+                                        ),
+                                      ),
+                                    );
                               if (scanned != null && scanned.isNotEmpty) {
                                 _searchController.text = scanned;
                                 widget.onSearchChanged(ref, scanned);
@@ -238,7 +263,7 @@ class _GenericDocumentListScreenState<T extends BaseDocument, S> extends Consume
                   Material(
                     color: isFilterActive
                         ? dynamicTheme.colorScheme.primary
-                        : dynamicTheme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+                        : dynamicTheme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(12),
                     child: InkWell(
                       onTap: () => widget.onFilterPressed(context, ref),
@@ -260,6 +285,7 @@ class _GenericDocumentListScreenState<T extends BaseDocument, S> extends Consume
               ),
             ),
             
+            _buildStatusFiltersRow(dynamicTheme, config, state),
             _buildFilterChipsRow(dynamicTheme, state, isFilterActive),
   
             // Main list or state widgets
@@ -270,6 +296,75 @@ class _GenericDocumentListScreenState<T extends BaseDocument, S> extends Consume
             _buildPaginationFooter(dynamicTheme, items, isLoading, page, hasMore),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatusFiltersRow(ThemeData theme, ScreenConfig? config, S state) {
+    final statusStr = config?.statusFilters;
+    if (statusStr == null || statusStr.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (widget.getStatusFilter == null || widget.onStatusFilterChanged == null) {
+      return const SizedBox.shrink();
+    }
+    
+    final currentStatus = widget.getStatusFilter!(state);
+    
+    // Parse mapping
+    final pairs = statusStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty);
+    final options = <MapEntry<String, String>>[];
+    for (final pair in pairs) {
+      final parts = pair.split(':');
+      if (parts.length == 2) {
+        options.add(MapEntry(parts[0].trim(), parts[1].trim()));
+      }
+    }
+    
+    if (options.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.only(bottom: AppSpacing.s, top: AppSpacing.xs),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+        itemCount: options.length,
+        itemBuilder: (context, index) {
+          final option = options[index];
+          final isSelected = currentStatus == option.key || (currentStatus.isEmpty && option.key == 'all');
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: ChoiceChip(
+              label: Text(
+                option.value,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              selected: isSelected,
+              selectedColor: theme.colorScheme.primary,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
+              showCheckmark: false,
+              onSelected: (selected) {
+                if (selected) {
+                  widget.onStatusFilterChanged!(ref, option.key);
+                }
+              },
+            ),
+          );
+        },
       ),
     );
   }

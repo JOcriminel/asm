@@ -23,7 +23,7 @@ class ChecklistRepository {
   Future<List<Map<String, dynamic>>> getArticles({String? search, int page = 0, int size = 25}) => _apiService.getArticles(search: search, page: page, size: size);
 
   Future<List<ChecklistTaskType>> getTaskTypes() => _apiService.getTaskTypes();
-  Future<ChecklistTaskType> createTaskType(String name, {String? information}) => _apiService.createTaskType(name, information: information);
+  Future<ChecklistTaskType> createTaskType(String name, {String? information, String? codeDoc, List<String>? roles}) => _apiService.createTaskType(name, information: information, codeDoc: codeDoc, roles: roles);
   Future<void> deleteTaskType(int id) => _apiService.deleteTaskType(id);
 
   Future<List<ChecklistTask>> getAllTasks() => _apiService.getAllTasks();
@@ -36,6 +36,8 @@ class ChecklistRepository {
   Future<ChecklistResponse> toggleResponse(String idLigneDocument, int taskId, bool isChecked) => _apiService.toggleResponse(idLigneDocument, taskId, isChecked);
   Future<ChecklistResponse> saveResponseNote(String idLigneDocument, int taskId, String? note) => _apiService.saveResponseNote(idLigneDocument, taskId, note);
 
-  Future<ChecklistTaskType> updateTaskType(int id, String name, {String? information}) => _apiService.updateTaskType(id, name, information: information);
+  Future<ChecklistTaskType> updateTaskType(int id, String name, {String? information, String? codeDoc, List<String>? roles}) => _apiService.updateTaskType(id, name, information: information, codeDoc: codeDoc, roles: roles);
   Future<ChecklistTask> updateTask(int id, int? groupId, String? codeFamille, int typeId, String nomTache, {String? information}) => _apiService.updateTask(id, groupId, codeFamille, typeId, nomTache, information: information);
+  Future<ChecklistGroup> toggleGroupActive(int id, bool active) => _apiService.toggleGroupActive(id, active);
+  Future<ChecklistTaskType> toggleTaskTypeActive(int id, bool active) => _apiService.toggleTaskTypeActive(id, active);
 }

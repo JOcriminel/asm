@@ -55,22 +55,19 @@ class BonPreparationDetailController extends StateNotifier<BonPreparationDetailS
     try {
       final item = await _getDetailsUseCase(_id);
       debugPrint('DetailController: fetchDetails succeeded for $_id');
-      state = BonPreparationDetailState(preparation: item, isLoading: false);
       
-      // Auto-import serial numbers from DUX
-      _autoImportSerialNumbers(item);
+      // Auto-import serial numbers from DUX and await completion
+      final itemWithSerials = await _autoImportSerialNumbers(item);
+      
+      state = BonPreparationDetailState(preparation: itemWithSerials, isLoading: false);
     } catch (e, stack) {
       debugPrint('DetailController: fetchDetails failed for $_id: $e\n$stack');
       state = BonPreparationDetailState(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> _autoImportSerialNumbers(BonPreparation preparation) async {
-    bool updatedAny = false;
-    List<PreparationArticle> updatedArticles = List.from(preparation.articles);
-
-    for (int i = 0; i < updatedArticles.length; i++) {
-      final article = updatedArticles[i];
+  Future<BonPreparation> _autoImportSerialNumbers(BonPreparation preparation) async {
+    final futures = preparation.articles.map((article) async {
       if (article.serialNumbers.isEmpty && article.quantity > 0) {
         try {
           debugPrint('DetailController: Auto-importing serial numbers for line ${article.id} (${article.code})');
@@ -82,24 +79,19 @@ class BonPreparationDetailController extends StateNotifier<BonPreparationDetailS
 
           if (fetchedSerials.isNotEmpty) {
             debugPrint('DetailController: Fetched ${fetchedSerials.length} serials for line ${article.id}');
-            
             // Limit fetched serials to quantity to prevent overflow
             final toSave = fetchedSerials.take(article.quantity).toList();
-            
-            updatedArticles[i] = article.copyWith(serialNumbers: toSave);
-            updatedAny = true;
+            return article.copyWith(serialNumbers: toSave);
           }
         } catch (e) {
           debugPrint('DetailController: Failed to auto-import serials for line ${article.id}: $e');
         }
       }
-    }
+      return article;
+    }).toList();
 
-    if (updatedAny && mounted) {
-      state = state.copyWith(
-        preparation: preparation.copyWith(articles: updatedArticles),
-      );
-    }
+    final updatedArticles = await Future.wait(futures);
+    return preparation.copyWith(articles: updatedArticles);
   }
 
   Future<bool> saveSerialNumbers({

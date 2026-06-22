@@ -56,10 +56,27 @@ class GroupsManagerTab extends ConsumerWidget {
                               icon: const Icon(Icons.add_link_rounded),
                               label: const Text('Associer Famille'),
                             ),
-                            TextButton.icon(
-                              onPressed: () => ref.read(checklistAdminControllerProvider.notifier).deleteGroup(group.id!),
-                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                              label: const Text('Supprimer Groupe', style: TextStyle(color: Colors.red)),
+                            const SizedBox(width: 12),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  group.active ? 'Actif (apparaît)' : 'Non (n\'apparaît pas)',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: group.active ? Colors.green : Colors.grey,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Switch(
+                                  value: group.active,
+                                  onChanged: (val) {
+                                    ref.read(checklistAdminControllerProvider.notifier).toggleGroupActive(group.id!, val);
+                                  },
+                                  activeThumbColor: theme.colorScheme.primary,
+                                ),
+                              ],
                             ),
                           ],
                         ),

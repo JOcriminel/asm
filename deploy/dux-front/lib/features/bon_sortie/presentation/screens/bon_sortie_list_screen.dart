@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/generic_document_list_screen.dart';
-import 'package:dux_front/core/models/base_document.dart';
 import '../controllers/bon_sortie_list_controller.dart';
 import '../../domain/models/bon_sortie.dart';
 import '../widgets/sortie_filter_bottom_sheet.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
+import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 
 class BonSortieListScreen extends ConsumerWidget {
   const BonSortieListScreen({super.key});
@@ -31,6 +31,13 @@ class BonSortieListScreen extends ConsumerWidget {
       getHasMore: (state) => state.hasMore,
       getSearchQuery: (state) => state.searchQuery,
       getIsFilterActive: (state) => state.filter.advancedFilterActive,
+      
+      getStatusFilter: (state) => state.filter.status ?? '',
+      onStatusFilterChanged: (ref, status) {
+        final controller = ref.read(bonSortieListControllerProvider.notifier);
+        final currentFilter = ref.read(bonSortieListControllerProvider).filter;
+        controller.applyFilter(currentFilter.copyWith(status: status));
+      },
       
       // Callbacks
       onRefresh: (ref, {required refresh}) => ref.read(bonSortieListControllerProvider.notifier).fetchSorties(refresh: refresh),
@@ -107,7 +114,7 @@ class BonSortieListScreen extends ConsumerWidget {
                   width: 1,
                 ),
               ),
-              backgroundColor: theme.colorScheme.surfaceVariant.withValues(alpha: 0.3),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
           ),
@@ -241,6 +248,15 @@ class BonSortieListScreen extends ConsumerWidget {
       },
       
       buildItemCard: (context, sortie, ref) {
+        final configState = ref.watch(screenConfigControllerProvider);
+        final bsConfig = configState.configs['BS'];
+        
+        final authState = ref.watch(authControllerProvider);
+        final userRole = authState.user?.role.toLowerCase() ?? '';
+        final isOperator = userRole == 'operateur' || userRole == 'opérateur';
+        final hidePrices = (bsConfig?.hidePrices ?? false) ||
+                           ((bsConfig?.hidePricesForOperateurs ?? false) && isOperator) ||
+                           (bsConfig?.hidePricesForRoles.any((r) => r.trim().toLowerCase() == userRole) ?? false);
         final formattedDate = DateFormat('dd/MM/yyyy').format(sortie.date);
         
         final formattedAmount = NumberFormat.currency(
@@ -357,19 +373,21 @@ class BonSortieListScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text.rich(
-                    TextSpan(
-                      text: 'Montant HT: ',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
-                      children: [
-                        TextSpan(
-                          text: formattedAmount,
-                          style: const TextStyle(fontWeight: FontWeight.normal),
-                        ),
-                      ],
+                  if (!hidePrices) ...[
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        text: 'Montant HT: ',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13),
+                        children: [
+                          TextSpan(
+                            text: formattedAmount,
+                            style: const TextStyle(fontWeight: FontWeight.normal),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
 
                   const SizedBox(height: 16),
                   
@@ -421,11 +439,10 @@ class BonSortieListScreen extends ConsumerWidget {
               onSurface: Colors.white,
               secondary: Color(0xFF60A5FA),
             ),
-            dialogBackgroundColor: const Color(0xFF1E293B),
             appBarTheme: const AppBarTheme(
               backgroundColor: Color(0xFF0F172A),
               foregroundColor: Colors.white,
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: const Color(0xFF1E293B)),
           ),
           child: child!,
         );

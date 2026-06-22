@@ -4,6 +4,7 @@ import '../../domain/usecases/get_bon_preparations_use_case.dart';
 import '../../data/repositories/bon_preparation_repository_impl.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../../../core/services/serial_number_cache_service.dart';
+import '../../../checklist/presentation/controllers/checklist_response_controller.dart';
 
 class BonPreparationListState {
   final List<BonPreparation> preparations;
@@ -63,6 +64,9 @@ class BonPreparationListController extends StateNotifier<BonPreparationListState
   Future<void> fetchPreparations({bool refresh = false}) async {
     if (refresh) {
       state = state.copyWith(page: 1, preparations: [], isLoading: true, clearError: true);
+      _ref.invalidate(bonPreparationDetailsProvider);
+      _ref.invalidate(documentChecklistCountProvider);
+      _ref.invalidate(articleChecklistCountProvider);
     } else {
       state = state.copyWith(isLoading: true, clearError: true);
     }

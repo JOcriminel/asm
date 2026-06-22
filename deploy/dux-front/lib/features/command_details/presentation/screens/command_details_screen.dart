@@ -1,13 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dux_front/core/models/screen_config.dart';
 import 'package:intl/intl.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
-import 'package:dux_front/core/widgets/loading_skeleton.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import '../controllers/command_details_controller.dart';
 import 'package:dux_front/features/commands/domain/models/command.dart';
@@ -15,6 +17,14 @@ import '../widgets/timeline_widget.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/theme/theme_helper.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:dux_front/features/bon_preparation/data/repositories/bon_preparation_repository_impl.dart';
+import 'package:dux_front/features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
+import 'package:dux_front/features/bon_preparation/domain/models/bon_preparation.dart';
+import 'package:dux_front/features/command_details/presentation/utils/pdf_generation_helper.dart';
+import 'package:dux_front/core/widgets/signature_pad_dialog.dart';
+import 'package:dux_front/core/widgets/photo_proof_overlay.dart';
+import 'package:dux_front/core/routing/route_constants.dart';
+import 'package:dux_front/features/checklist/presentation/controllers/checklist_response_controller.dart';
 
 class CommandDetailsScreen extends ConsumerWidget {
   final String commandId;
@@ -29,62 +39,92 @@ class CommandDetailsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final state = ref.watch(commandDetailsControllerProvider(commandId));
     final configState = ref.watch(screenConfigControllerProvider);
-    final bcConfig = configState.configs['BC'];
-    final pageTitle = bcConfig?.detailPageTitle ?? 'BC-D';
+    
+    final docTypeCode = state.command?.documentTypeCode ?? 'BC';
+    final normalizedDocType = docTypeCode == 'BCC' ? 'BC' : (docTypeCode == 'DPR' ? 'BP' : docTypeCode);
+    final bcConfig = configState.configs[normalizedDocType];
+    final pageTitle = bcConfig?.detailPageTitle ?? ('$docTypeCode-D');
 
     final authState = ref.watch(authControllerProvider);
     final userRole = authState.user?.role.toLowerCase() ?? '';
     final isOperator = userRole == 'operateur' || userRole == 'opérateur';
-    final hidePrices = (bcConfig?.hidePricesForOperateurs ?? false) && isOperator;
+    final hidePrices = (bcConfig?.hidePrices ?? false) ||
+                       ((bcConfig?.hidePricesForOperateurs ?? false) && isOperator) ||
+                       (bcConfig?.hidePricesForRoles.any((r) => r.trim().toLowerCase() == userRole) ?? false);
+
+    final isTrackingSN = bcConfig?.enableSerialNumberTracking ?? false;
+    final isChecklistEnabled = bcConfig?.enableChecklistTracking ?? false;
+    final enablePdfPrinting = bcConfig?.enablePdfPrinting ?? false;
+    final requireSignature = bcConfig?.requireSignature ?? false;
+    final requirePhoto = bcConfig?.requirePhoto ?? false;
 
     final dynamicTheme = getDynamicTheme(context, bcConfig?.primaryColor);
 
     return Theme(
       data: dynamicTheme,
       child: Scaffold(
-      appBar: AppBar(
-        title: DuxAppBarTitle(title: pageTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/commands');
-            }
-          },
+        appBar: AppBar(
+          title: DuxAppBarTitle(title: pageTitle),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/commands');
+              }
+            },
+          ),
+          actions: [
+            if (enablePdfPrinting && state.command != null)
+              IconButton(
+                icon: const Icon(Icons.print_rounded),
+                tooltip: 'Imprimer',
+                onPressed: () async {
+                  await PdfGenerationHelper.printCommand(state.command!);
+                },
+              ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Actualiser',
+              onPressed: () =>
+                  ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails(),
+            ),
+            IconButton(
+              icon: const Icon(Icons.wifi, color: Colors.green),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: const Icon(Icons.home_outlined),
+              onPressed: () => context.go('/dashboard'),
+            ),
+          ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.wifi, color: Colors.green),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go('/dashboard'),
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 768;
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 768;
 
-          if (state.isLoading && state.command == null) {
-            return _buildLoadingState();
-          }
+            if (state.isLoading) {
+              return const DuxLoadingScreen(isFullScreen: false);
+            }
 
-          if (state.error != null && state.command == null) {
-            return ErrorStateWidget(
-              description: state.error!,
-              onRetry: () => ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails(commandId),
-            );
-          }
+            if (state.error != null && state.command == null) {
+              return ErrorStateWidget(
+                description: state.error!,
+                onRetry: () => ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails(),
+              );
+            }
 
           final command = state.command!;
           final formattedDate = DateFormat('MMMM dd, yyyy').format(command.date);
 
+          final totalRequiredSerialNumbers = command.articles.where((a) => a.hasSerialNumbers).fold(0, (sum, a) => sum + a.quantity);
+          final totalScannedSerialNumbers = command.articles.where((a) => a.hasSerialNumbers).fold(0, (sum, a) => sum + a.serialNumbers.length);
+          final allowedRoles = bcConfig?.allowedRolesToFinalize ?? const ['admin', 'commercial', 'operateur', 'Administrateur', 'Commercial', 'Opérateur'];
+          final isAllowed = allowedRoles.isEmpty || allowedRoles.contains(userRole);
+
           Widget content = RefreshIndicator(
-            onRefresh: () => ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails(commandId),
+            onRefresh: () => ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails(),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(AppSpacing.l),
@@ -151,24 +191,90 @@ class CommandDetailsScreen extends ConsumerWidget {
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: _buildInfoSection(theme, command)),
+                            Expanded(child: _buildInfoSection(theme, command, bcConfig)),
                           ],
                         )
                       : Column(
                           children: [
-                            _buildInfoSection(theme, command),
+                            _buildInfoSection(theme, command, bcConfig),
                           ],
                         ),
                   AppSpacing.gapL,
 
                   // Articles List Section
                   SectionHeader(title: 'Articles & Items'),
-                  _buildArticlesList(theme, command.articles, hidePrices),
+                  _buildArticlesList(context, ref, theme, command.articles, hidePrices, isTrackingSN, isChecklistEnabled, command.id, normalizedDocType, command),
                   AppSpacing.gapL,
 
                   // Summary Section moved to bottom
                   if (!hidePrices) ...[
                     _buildSummarySection(theme, command),
+                    AppSpacing.gapXxl,
+                  ],
+
+                  // Finalizer Button
+                  if (command.status != '12' && isAllowed) ...[
+                    if (!isTrackingSN || totalScannedSerialNumbers == totalRequiredSerialNumbers)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                            backgroundColor: theme.colorScheme.secondary,
+                            foregroundColor: theme.colorScheme.onSecondary,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                          ),
+                          onPressed: () => _handleFinalize(
+                            context,
+                            ref,
+                            command.id,
+                            normalizedDocType,
+                            requireSignature,
+                            requirePhoto,
+                            isChecklistEnabled,
+                            bcConfig?.customFinalizeMessage,
+                          ),
+                          child: const Text(
+                            'Finaliser la commande',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    if (isTrackingSN && totalScannedSerialNumbers < totalRequiredSerialNumbers)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                            backgroundColor: Colors.grey.shade400,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                          ),
+                          onPressed: null,
+                          child: const Text(
+                            'Scannez tous les SN pour finaliser',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    if (isTrackingSN && totalScannedSerialNumbers > totalRequiredSerialNumbers)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
+                            backgroundColor: theme.colorScheme.errorContainer,
+                            foregroundColor: theme.colorScheme.onErrorContainer,
+                            shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
+                          ),
+                          onPressed: null,
+                          child: const Text(
+                            'Trop de numéros de série scannés !',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
                     AppSpacing.gapXxl,
                   ],
                 ],
@@ -193,17 +299,70 @@ class CommandDetailsScreen extends ConsumerWidget {
 }
 
 
-  Widget _buildInfoSection(ThemeData theme, Command command) {
+  Map<String, Map<String, dynamic>> _getDetailsFields(String? configStr) {
+    final Map<String, Map<String, dynamic>> defaults = {
+      'date': {'label': 'Date document', 'visible': true},
+      'piece': {'label': 'Pièce', 'visible': true},
+      'status': {'label': 'Etat Document', 'visible': true},
+      'preparedBy': {'label': 'Préparé par', 'visible': true},
+      'concretizedBy': {'label': 'Concrétisé Par', 'visible': true},
+      'representative': {'label': 'Représentant', 'visible': true},
+      'apporteur': {'label': 'Apporteur', 'visible': true},
+      'currency': {'label': 'Devise', 'visible': true},
+      'exchangeRate': {'label': 'Taux de change', 'visible': true},
+      'deliveryDate': {'label': 'Date livraison', 'visible': true},
+      'station': {'label': 'Station', 'visible': true},
+      'affecterSur': {'label': 'Affecter sur', 'visible': true},
+      'customer': {'label': 'Client', 'visible': true},
+    };
+    if (configStr == null || configStr.isEmpty) {
+      return defaults;
+    }
+    try {
+      final parsed = jsonDecode(configStr);
+      if (parsed is Map<String, dynamic>) {
+        final merged = <String, Map<String, dynamic>>{};
+        defaults.forEach((key, defaultValue) {
+          if (parsed.containsKey(key)) {
+            final val = parsed[key];
+            if (val is Map) {
+              merged[key] = {
+                'label': val['label']?.toString() ?? defaultValue['label']?.toString() ?? '',
+                'visible': val['visible'] as bool? ?? defaultValue['visible'] as bool? ?? true,
+              };
+            } else {
+              merged[key] = defaultValue;
+            }
+          } else {
+            merged[key] = defaultValue;
+          }
+        });
+        return merged;
+      }
+    } catch (_) {}
+    return defaults;
+  }
+
+  Widget? _buildDynamicInfoRow(ThemeData theme, IconData icon, String key, String value, Map<String, Map<String, dynamic>> fields) {
+    final config = fields[key];
+    if (config == null || config['visible'] != true) {
+      return null;
+    }
+    final label = config['label']?.toString() ?? key;
+    return _buildInfoRow(theme, icon, label, value);
+  }
+
+  Widget _buildInfoSection(ThemeData theme, Command command, ScreenConfig? config) {
     return Column(
       children: [
-        _buildCommandInfoCard(theme, command),
+        _buildCommandInfoCard(theme, command, config),
         AppSpacing.gapL,
         _buildClientInfoCard(theme, command),
       ],
     );
   }
 
-  Widget _buildCommandInfoCard(ThemeData theme, Command command) {
+  Widget _buildCommandInfoCard(ThemeData theme, Command command, ScreenConfig? config) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final formattedDocDate = dateFormat.format(command.date);
     final formattedDelivDate = command.timeline.delivered != null
@@ -212,6 +371,38 @@ class CommandDetailsScreen extends ConsumerWidget {
     final exchangeRateStr = command.exchangeRate != null
         ? command.exchangeRate!.toStringAsFixed(3)
         : '1.000';
+
+    final fields = _getDetailsFields(config?.detailsFieldsConfig);
+    final List<Widget> rows = [];
+
+    void addRow(IconData icon, String key, String value) {
+      final row = _buildDynamicInfoRow(theme, icon, key, value, fields);
+      if (row != null) {
+        rows.add(row);
+      }
+    }
+
+    addRow(Icons.calendar_today_outlined, 'date', formattedDocDate);
+    addRow(Icons.receipt_long_outlined, 'piece', command.codePiece ?? command.documentCode);
+    addRow(Icons.info_outline, 'status', command.status);
+    addRow(Icons.person_outline, 'preparedBy', command.preparedBy ?? 'N/A');
+    addRow(Icons.assignment_turned_in_outlined, 'concretizedBy', command.concretizedBy ?? 'N/A');
+    addRow(Icons.badge_outlined, 'representative', command.representative);
+    addRow(Icons.handshake, 'apporteur', command.apporteur ?? 'N/A');
+    addRow(Icons.monetization_on_outlined, 'currency', command.currency);
+    addRow(Icons.currency_exchange_outlined, 'exchangeRate', exchangeRateStr);
+    addRow(Icons.local_shipping_outlined, 'deliveryDate', formattedDelivDate);
+    addRow(Icons.storefront_outlined, 'station', command.stationName.isNotEmpty ? command.stationName : 'N/A');
+    addRow(Icons.swap_horiz_outlined, 'affecterSur', command.affecterSur ?? 'N/A');
+    addRow(Icons.person_pin_outlined, 'customer', command.customerName);
+
+    final List<Widget> childrenWithDividers = [];
+    for (int i = 0; i < rows.length; i++) {
+      childrenWithDividers.add(rows[i]);
+      if (i < rows.length - 1) {
+        childrenWithDividers.add(const Divider());
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,38 +415,13 @@ class CommandDetailsScreen extends ConsumerWidget {
             tilePadding: EdgeInsets.zero,
             initiallyExpanded: false,
             children: [
-              InfoCard(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-                child: Column(
-                  children: [
-                    _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', command.codePiece ?? command.documentCode),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.info_outline, 'Etat Document', command.status),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.person_outline, 'Préparé par', command.preparedBy ?? 'N/A'),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.assignment_turned_in_outlined, 'Concrétisé Par', command.concretizedBy ?? 'N/A'),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', command.representative),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.handshake, 'Apporteur', command.apporteur ?? 'N/A'),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.monetization_on_outlined, 'Devise', command.currency),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.currency_exchange_outlined, 'Taux de change', exchangeRateStr),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.storefront_outlined, 'Station', command.stationName.isNotEmpty ? command.stationName : 'N/A'),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.swap_horiz_outlined, 'Affecter sur', command.affecterSur ?? 'N/A'),
-                    const Divider(),
-                    _buildInfoRow(theme, Icons.person_pin_outlined, 'Client', command.customerName),
-                  ],
+              if (childrenWithDividers.isNotEmpty)
+                InfoCard(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+                  child: Column(
+                    children: childrenWithDividers,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -356,7 +522,18 @@ class CommandDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildArticlesList(ThemeData theme, List<ArticleItem> articles, bool hidePrices) {
+  Widget _buildArticlesList(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeData theme,
+    List<ArticleItem> articles,
+    bool hidePrices,
+    bool isTrackingSN,
+    bool isChecklistEnabled,
+    String commandId,
+    String docTypeCode,
+    Command command,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 700;
@@ -408,11 +585,109 @@ class CommandDetailsScreen extends ConsumerWidget {
                       if (!hidePrices) DataCell(Text('${item.tvaPercent ?? 19.0} %')),
                       if (!hidePrices) DataCell(Text(currencyFormat.format(item.puTTC ?? (item.unitPrice * 1.19)))),
                       if (!hidePrices) DataCell(Text(currencyFormat.format(item.totalTTC ?? (item.total * 1.19)))),
-                      DataCell(IconButton(
-                        icon: const Icon(Icons.info_outline, size: 18),
-                        onPressed: () {
-                          _showItemDetailDialog(context, item, hidePrices);
-                        },
+                      DataCell(Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isTrackingSN && item.hasSerialNumbers) ...[
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: item.serialNumbers.isEmpty
+                                    ? const Color(0xFFEF5350)
+                                    : (item.serialNumbers.length < item.quantity ? const Color(0xFFFF9800) : const Color(0xFF4CAF50)),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                              ),
+                              onPressed: () async {
+                                final args = SerialNumberArgs(
+                                  documentId: commandId,
+                                  lineId: item.id,
+                                  productCode: item.code,
+                                  productName: item.name,
+                                  quantity: item.quantity,
+                                  initialSerialNumbers: item.serialNumbers,
+                                  docType: docTypeCode,
+                                  idClassedocument: command.classeDocument?.id,
+                                  rawArticleJson: item.rawJson,
+                                );
+                                final updated = await context.pushNamed<bool>(
+                                  RouteNames.bonPreparationSerialNumber,
+                                  extra: args,
+                                );
+                                if (updated == true) {
+                                  ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails();
+                                }
+                              },
+                              child: Text('SN (${item.serialNumbers.length}/${item.quantity})', style: const TextStyle(fontSize: 11)),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Consumer(
+                            builder: (context, ref, child) {
+                              if (!isChecklistEnabled) return const SizedBox.shrink();
+                              final familyId = item.familyId ?? '';
+                              final countAsync = ref.watch(articleChecklistCountProvider('${item.id}:$familyId:$docTypeCode'));
+                              return countAsync.when(
+                                data: (count) {
+                                  if (count.total == 0) return const SizedBox.shrink();
+                                  final checked = count.checked;
+                                  final total = count.total;
+                                  Color btnColor = checked == 0
+                                      ? const Color(0xFFEF5350)
+                                      : (checked < total ? const Color(0xFFFF9800) : const Color(0xFF4CAF50));
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 4.0),
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: btnColor,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                      ),
+                                      onPressed: () async {
+                                        final prepArticle = PreparationArticle(
+                                          id: item.id,
+                                          code: item.code,
+                                          name: item.name,
+                                          quantity: item.quantity,
+                                          unitPrice: item.unitPrice,
+                                          unite: item.unite,
+                                          discountPercent: item.discountPercent,
+                                          netHT: item.netHT,
+                                          tvaPercent: item.tvaPercent,
+                                          puTTC: item.puTTC,
+                                          totalTTC: item.totalTTC,
+                                          stock: item.stock,
+                                          serialNumbers: item.serialNumbers,
+                                          rawJson: item.rawJson,
+                                          familyId: item.familyId,
+                                          familyName: item.familyName,
+                                          numSerie: item.numSerie,
+                                        );
+                                        await context.pushNamed(
+                                          RouteNames.bonPreparationArticleChecklist,
+                                          extra: {
+                                            'preparationId': commandId,
+                                            'article': prepArticle,
+                                            'docType': docTypeCode,
+                                          },
+                                        );
+                                        ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails();
+                                      },
+                                      child: Text('Tasks ($checked/$total)', style: const TextStyle(fontSize: 11)),
+                                    ),
+                                  );
+                                },
+                                loading: () => const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                                error: (_, _) => const SizedBox.shrink(),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.info_outline, size: 18),
+                            onPressed: () {
+                              _showItemDetailDialog(context, item, hidePrices);
+                            },
+                          ),
+                        ],
                       )),
                     ],
                   );
@@ -438,11 +713,132 @@ class CommandDetailsScreen extends ConsumerWidget {
                 child: Theme(
                   data: theme.copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
-                    title: Text(
-                      item.name,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    title: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isTrackingSN && item.hasSerialNumbers) ...[
+                          AppSpacing.gapS,
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: item.serialNumbers.isEmpty
+                                    ? const Color(0xFFEF5350)
+                                    : (item.serialNumbers.length < item.quantity ? const Color(0xFFFF9800) : const Color(0xFF4CAF50)),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                              ),
+                              onPressed: () async {
+                                final args = SerialNumberArgs(
+                                  documentId: commandId,
+                                  lineId: item.id,
+                                  productCode: item.code,
+                                  productName: item.name,
+                                  quantity: item.quantity,
+                                  initialSerialNumbers: item.serialNumbers,
+                                  docType: docTypeCode,
+                                  idClassedocument: command.classeDocument?.id,
+                                  rawArticleJson: item.rawJson,
+                                );
+                                final updated = await context.pushNamed<bool>(
+                                  RouteNames.bonPreparationSerialNumber,
+                                  extra: args,
+                                );
+                                if (updated == true) {
+                                  ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails();
+                                }
+                              },
+                              child: Text(
+                                'SN (${item.serialNumbers.length}/${item.quantity})',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                        ],
+                        Consumer(
+                          builder: (context, ref, child) {
+                            if (!isChecklistEnabled) return const SizedBox.shrink();
+                            final familyId = item.familyId ?? '';
+                            final countAsync = ref.watch(articleChecklistCountProvider('${item.id}:$familyId:$docTypeCode'));
+                            return countAsync.when(
+                              data: (count) {
+                                if (count.total == 0) return const SizedBox.shrink();
+                                final checked = count.checked;
+                                final total = count.total;
+                                Color btnColor = checked == 0
+                                    ? const Color(0xFFEF5350)
+                                    : (checked < total ? const Color(0xFFFF9800) : const Color(0xFF4CAF50));
+                                return Padding(
+                                  padding: const EdgeInsets.only(left: 8.0),
+                                  child: SizedBox(
+                                    height: 36,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: btnColor,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                      ),
+                                      onPressed: () async {
+                                        final prepArticle = PreparationArticle(
+                                          id: item.id,
+                                          code: item.code,
+                                          name: item.name,
+                                          quantity: item.quantity,
+                                          unitPrice: item.unitPrice,
+                                          unite: item.unite,
+                                          discountPercent: item.discountPercent,
+                                          netHT: item.netHT,
+                                          tvaPercent: item.tvaPercent,
+                                          puTTC: item.puTTC,
+                                          totalTTC: item.totalTTC,
+                                          stock: item.stock,
+                                          serialNumbers: item.serialNumbers,
+                                          rawJson: item.rawJson,
+                                          familyId: item.familyId,
+                                          familyName: item.familyName,
+                                          numSerie: item.numSerie,
+                                        );
+                                        await context.pushNamed(
+                                          RouteNames.bonPreparationArticleChecklist,
+                                          extra: {
+                                            'preparationId': commandId,
+                                            'article': prepArticle,
+                                            'docType': docTypeCode,
+                                          },
+                                        );
+                                        ref.read(commandDetailsControllerProvider(commandId).notifier).fetchDetails();
+                                      },
+                                      child: Text(
+                                        'Tasks ($checked/$total)',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              loading: () => const Padding(
+                                padding: EdgeInsets.only(left: 8.0),
+                                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                              ),
+                              error: (_, _) => const SizedBox.shrink(),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     childrenPadding: const EdgeInsets.all(AppSpacing.l).copyWith(top: 0),
                     children: [
@@ -467,6 +863,92 @@ class CommandDetailsScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _handleFinalize(
+    BuildContext context,
+    WidgetRef ref,
+    String docId,
+    String docType,
+    bool requireSignature,
+    bool requirePhoto,
+    bool isChecklistEnabled,
+    String? customFinalizeMessage,
+  ) async {
+    if (requireSignature) {
+      final signature = await SignaturePadDialog.show(context);
+      if (signature == null) return;
+    }
+
+    if (requirePhoto) {
+      final photo = await PhotoProofOverlay.show(context);
+      if (photo == null) return;
+    }
+
+    if (!context.mounted) return;
+
+    if (isChecklistEnabled) {
+      final updated = await context.pushNamed<bool>(
+        RouteNames.bonPreparationChecklist,
+        extra: {
+          'preparationId': docId,
+          'docType': docType,
+        },
+      );
+      if (updated == true && context.mounted) {
+        ref.read(commandDetailsControllerProvider(docId).notifier).fetchDetails();
+      }
+    } else {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Finaliser le document'),
+          content: Text(customFinalizeMessage ?? 'Êtes-vous sûr de vouloir finaliser ce document ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Finaliser'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+
+      try {
+        final repository = ref.read(bonPreparationRepositoryProvider);
+        await repository.updateDocumentStatus(docId, '12', {});
+        
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Document finalisé avec succès!')),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        ref.read(commandDetailsControllerProvider(docId).notifier).fetchDetails();
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la finalisation: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildMobileDetailRow(String label, String value, {bool isHighlight = false}) {
@@ -551,26 +1033,6 @@ class CommandDetailsScreen extends ConsumerWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.l),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const LoadingSkeleton(height: 120, width: double.infinity),
-          AppSpacing.gapL,
-          const LoadingSkeleton(height: 24, width: 140),
-          AppSpacing.gapM,
-          const LoadingSkeleton(height: 100, width: double.infinity),
-          AppSpacing.gapL,
-          const LoadingSkeleton(height: 24, width: 180),
-          AppSpacing.gapM,
-          const LoadingSkeleton(height: 200, width: double.infinity),
         ],
       ),
     );

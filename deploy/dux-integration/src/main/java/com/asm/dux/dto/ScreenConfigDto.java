@@ -9,6 +9,7 @@ public class ScreenConfigDto {
     private boolean enableBarcodeScanner;
     private boolean enablePdfPrinting;
     private boolean enableSerialNumberTracking;
+    private boolean enableChecklistTracking;
     private List<String> visibleRoles;
     private String detailPageTitle;
     private boolean hidePricesForOperateurs;
@@ -19,6 +20,15 @@ public class ScreenConfigDto {
     private String defaultSortField;
     private boolean enableSoundAlerts;
     private boolean enableVibrationAlerts;
+    private boolean active = true;
+    private String category;
+    private boolean hidePrices;
+    private String detailsFieldsConfig;
+    private String cardFieldsConfig;
+    private String searchFieldsConfig;
+    private String customFinalizeMessage;
+    private List<String> hidePricesForRoles;
+    private String statusFilters;
 
     public ScreenConfigDto() {
     }
@@ -71,6 +81,14 @@ public class ScreenConfigDto {
         this.enableSerialNumberTracking = enableSerialNumberTracking;
     }
 
+    public boolean isEnableChecklistTracking() {
+        return enableChecklistTracking;
+    }
+
+    public void setEnableChecklistTracking(boolean enableChecklistTracking) {
+        this.enableChecklistTracking = enableChecklistTracking;
+    }
+
     public List<String> getVisibleRoles() {
         return visibleRoles;
     }
@@ -93,6 +111,14 @@ public class ScreenConfigDto {
 
     public void setHidePricesForOperateurs(boolean hidePricesForOperateurs) {
         this.hidePricesForOperateurs = hidePricesForOperateurs;
+    }
+
+    public boolean isHidePrices() {
+        return hidePrices;
+    }
+
+    public void setHidePrices(boolean hidePrices) {
+        this.hidePrices = hidePrices;
     }
 
     public List<String> getAllowedRolesToFinalize() {
@@ -149,5 +175,69 @@ public class ScreenConfigDto {
 
     public void setEnableVibrationAlerts(boolean enableVibrationAlerts) {
         this.enableVibrationAlerts = enableVibrationAlerts;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getDetailsFieldsConfig() {
+        return detailsFieldsConfig;
+    }
+
+    public void setDetailsFieldsConfig(String detailsFieldsConfig) {
+        this.detailsFieldsConfig = detailsFieldsConfig;
+    }
+
+    public String getCardFieldsConfig() {
+        return cardFieldsConfig;
+    }
+
+    public void setCardFieldsConfig(String cardFieldsConfig) {
+        this.cardFieldsConfig = cardFieldsConfig;
+    }
+
+    public String getSearchFieldsConfig() {
+        return searchFieldsConfig;
+    }
+
+    public void setSearchFieldsConfig(String searchFieldsConfig) {
+        this.searchFieldsConfig = searchFieldsConfig;
+    }
+
+    public String getCustomFinalizeMessage() {
+        return customFinalizeMessage;
+    }
+
+    public void setCustomFinalizeMessage(String customFinalizeMessage) {
+        this.customFinalizeMessage = customFinalizeMessage;
+    }
+
+    public List<String> getHidePricesForRoles() {
+        return hidePricesForRoles;
+    }
+
+    public void setHidePricesForRoles(List<String> hidePricesForRoles) {
+        this.hidePricesForRoles = hidePricesForRoles;
+    }
+
+    public String getStatusFilters() {
+        return statusFilters;
+    }
+
+    public void setStatusFilters(String statusFilters) {
+        this.statusFilters = statusFilters;
     }
 }

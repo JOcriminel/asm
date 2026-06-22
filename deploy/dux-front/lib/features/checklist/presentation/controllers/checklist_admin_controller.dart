@@ -69,10 +69,10 @@ class ChecklistAdminController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> createTaskType(String name, {String? information}) async {
+  Future<void> createTaskType(String name, {String? information, String? codeDoc, List<String>? roles}) async {
     state = const AsyncLoading();
     try {
-      await _repository.createTaskType(name, information: information);
+      await _repository.createTaskType(name, information: information, codeDoc: codeDoc, roles: roles);
       _ref.invalidate(taskTypesProvider);
       state = const AsyncData(null);
     } catch (e, st) {
@@ -114,10 +114,10 @@ class ChecklistAdminController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> updateTaskType(int id, String name, {String? information}) async {
+  Future<void> updateTaskType(int id, String name, {String? information, String? codeDoc, List<String>? roles}) async {
     state = const AsyncLoading();
     try {
-      await _repository.updateTaskType(id, name, information: information);
+      await _repository.updateTaskType(id, name, information: information, codeDoc: codeDoc, roles: roles);
       _ref.invalidate(taskTypesProvider);
       state = const AsyncData(null);
     } catch (e, st) {
@@ -141,6 +141,28 @@ class ChecklistAdminController extends StateNotifier<AsyncValue<void>> {
     try {
       await _repository.toggleTaskActive(id, active);
       _ref.invalidate(tasksProvider);
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> toggleGroupActive(int id, bool active) async {
+    state = const AsyncLoading();
+    try {
+      await _repository.toggleGroupActive(id, active);
+      _ref.invalidate(groupsProvider);
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> toggleTaskTypeActive(int id, bool active) async {
+    state = const AsyncLoading();
+    try {
+      await _repository.toggleTaskTypeActive(id, active);
+      _ref.invalidate(taskTypesProvider);
       state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);

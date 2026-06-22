@@ -39,6 +39,10 @@ class ArticleItemDto {
   final double? puTTC;
   final double? totalTTC;
   final String? stock;
+  final String? numSerie;
+  final String? familyId;
+  final String? familyName;
+  final Map<String, dynamic>? rawJson;
 
   ArticleItemDto({
     this.id,
@@ -53,6 +57,10 @@ class ArticleItemDto {
     this.puTTC,
     this.totalTTC,
     this.stock,
+    this.numSerie,
+    this.familyId,
+    this.familyName,
+    this.rawJson,
   });
 
   factory ArticleItemDto.fromJson(Map<String, dynamic> json) {
@@ -82,6 +90,10 @@ class ArticleItemDto {
       puTTC: _toDouble(json['puttc']) ?? _toDouble(json['puTTC']),
       totalTTC: _toDouble(json['mntttc']) ?? _toDouble(json['totalTTC']),
       stock: json['isStockable']?.toString() ?? json['stock']?.toString(),
+      numSerie: json['numSerie']?.toString() ?? json['numeroSerie']?.toString() ?? json['numeroserie']?.toString(),
+      familyId: json['idFamille']?.toString() ?? json['familyId']?.toString(),
+      familyName: json['libelleFamille']?.toString() ?? json['familyName']?.toString() ?? json['famille']?.toString(),
+      rawJson: json,
     );
   }
 
@@ -98,6 +110,10 @@ class ArticleItemDto {
         'puTTC': puTTC,
         'totalTTC': totalTTC,
         'stock': stock,
+        'numSerie': numSerie,
+        'familyId': familyId,
+        'familyName': familyName,
+        'rawJson': rawJson,
       };
 }
 

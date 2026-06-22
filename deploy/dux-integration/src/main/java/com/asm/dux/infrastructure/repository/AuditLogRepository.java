@@ -37,6 +37,17 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("endDate") LocalDateTime endDate
     );
 
+    @Query("SELECT YEAR(a.timestamp) as year, MONTH(a.timestamp) as month, COUNT(a) as count " +
+           "FROM AuditLog a " +
+           "WHERE a.action = :action AND a.timestamp BETWEEN :startDate AND :endDate " +
+           "GROUP BY YEAR(a.timestamp), MONTH(a.timestamp) " +
+           "ORDER BY year ASC, month ASC")
+    List<Map<String, Object>> countByActionGroupedByMonth(
+            @Param("action") String action,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
     @Query("SELECT a.userId as userId, " +
            "SUM(CASE WHEN a.action = 'SCAN' THEN 1 ELSE 0 END) as scans, " +
            "SUM(CASE WHEN a.action = 'DELETE' THEN 1 ELSE 0 END) as deletions " +

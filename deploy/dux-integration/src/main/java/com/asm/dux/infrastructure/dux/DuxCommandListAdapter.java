@@ -66,9 +66,13 @@ public class DuxCommandListAdapter implements CommandListGateway {
     // ─── Private helper methods ───────────────────────────────────────────────
 
     private String buildUrl(DocumentFilter f) {
+        // Match the exact DUX ERP web client URL format:
+        // /DetailsDoc2/{from}/{to}/{idTier}/{repres}/{codeDoc}/{idEtat}/{all}/{allDocuments}/{idArticle}/{affichAvanc}
         return detailsDocUrl
-                + f.from() + "/" + f.to() + "/" + f.idTier() + "/" + f.repres() + "/"
-                + f.codeDoc() + "/" + f.idEtat() + "/" + f.all() + "/" + f.allDocuments() + "/"
+                + f.from() + "/" + f.to() + "/"
+                + f.idTier() + "/" + f.repres() + "/"
+                + f.codeDoc() + "/" + f.idEtat() + "/"
+                + f.all() + "/" + f.allDocuments() + "/"
                 + f.idArticle() + "/" + f.affichAvanc();
     }
 

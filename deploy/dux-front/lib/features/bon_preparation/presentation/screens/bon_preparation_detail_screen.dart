@@ -1,15 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dux_front/core/models/screen_config.dart';
 import 'package:intl/intl.dart';
+import '../../../checklist/presentation/controllers/checklist_response_controller.dart';
+import 'package:dux_front/core/widgets/signature_pad_dialog.dart';
+import 'package:dux_front/core/widgets/photo_proof_overlay.dart';
 
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
 import 'package:dux_front/core/widgets/dux_app_bar_title.dart';
 import 'package:dux_front/core/widgets/status_badge.dart';
-import 'package:dux_front/core/widgets/loading_skeleton.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
@@ -17,33 +21,47 @@ import '../controllers/bon_preparation_detail_controller.dart';
 import '../../domain/models/bon_preparation.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/theme/theme_helper.dart';
+import 'package:dux_front/features/bon_preparation/data/repositories/bon_preparation_repository_impl.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 
 class BonPreparationDetailScreen extends ConsumerWidget {
   final String preparationId;
+  final String docType;
 
   const BonPreparationDetailScreen({
     super.key,
     required this.preparationId,
+    this.docType = 'BP',
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    debugPrint('DetailScreen: build called for preparationId: $preparationId');
+    debugPrint('DetailScreen: build called for preparationId: $preparationId, docType: $docType');
     final theme = Theme.of(context);
     final state = ref.watch(bonPreparationDetailControllerProvider(preparationId));
     debugPrint('DetailScreen: state (isLoading: ${state.isLoading}, error: ${state.error}, hasPrep: ${state.preparation != null})');
 
     final configState = ref.watch(screenConfigControllerProvider);
-    final bpConfig = configState.configs['BP'];
-    final pageTitle = bpConfig?.detailPageTitle ?? 'BP-D';
+    final normalizedDocType = docType == 'DPR' ? 'BP' : (docType == 'BCC' ? 'BC' : docType);
+    final bpConfig = configState.configs[normalizedDocType] ?? configState.configs['BP'];
+    final pageTitle = bpConfig?.detailPageTitle ?? (docType == 'BPR' ? 'BPR-D' : 'BP-D');
+    final isTrackingSN = bpConfig?.enableSerialNumberTracking ?? false;
+    final isChecklistEnabled = bpConfig?.enableChecklistTracking ?? false;
 
     final authState = ref.watch(authControllerProvider);
-    final userRole = authState.user?.role ?? '';
+    final userRole = authState.user?.role.toLowerCase() ?? '';
+    final isOperator = userRole == 'operateur' || userRole == 'opérateur';
+    final hidePrices = (bpConfig?.hidePrices ?? false) ||
+                       ((bpConfig?.hidePricesForOperateurs ?? false) && isOperator) ||
+                       (bpConfig?.hidePricesForRoles.any((r) => r.trim().toLowerCase() == userRole) ?? false);
+
+    final requireSignature = bpConfig?.requireSignature ?? false;
+    final requirePhoto = bpConfig?.requirePhoto ?? false;
+
     final isAllowed = bpConfig == null || 
-                      userRole.toLowerCase() == 'admin' || 
-                      userRole.toLowerCase() == 'administrateur' ||
-                      bpConfig.allowedRolesToFinalize.any((r) => r.trim().toLowerCase() == userRole.trim().toLowerCase());
+                      userRole == 'admin' || 
+                      userRole == 'administrateur' ||
+                      bpConfig.allowedRolesToFinalize.any((r) => r.trim().toLowerCase() == userRole.trim());
 
     final dynamicTheme = getDynamicTheme(context, bpConfig?.primaryColor);
 
@@ -58,7 +76,11 @@ class BonPreparationDetailScreen extends ConsumerWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.goNamed(RouteNames.bonPreparationList);
+              if (docType == 'BPR') {
+                context.go('/pages/bon-reservation/list');
+              } else {
+                context.goNamed(RouteNames.bonPreparationList);
+              }
             }
           },
         ),
@@ -77,8 +99,8 @@ class BonPreparationDetailScreen extends ConsumerWidget {
         builder: (context, constraints) {
           final isWide = constraints.maxWidth > 768;
 
-          if (state.isLoading && state.preparation == null) {
-            return _buildLoadingState();
+          if (state.isLoading) {
+            return const DuxLoadingScreen(isFullScreen: false);
           }
 
           if (state.error != null && state.preparation == null) {
@@ -152,14 +174,14 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: _buildDocDetailsCard(theme, preparation)),
+                            Expanded(child: _buildDocDetailsCard(theme, preparation, bpConfig)),
                             AppSpacing.gapL,
                             Expanded(child: _buildClientDetailsCard(theme, preparation)),
                           ],
                         )
                       : Column(
                           children: [
-                            _buildDocDetailsCard(theme, preparation),
+                            _buildDocDetailsCard(theme, preparation, bpConfig),
                             AppSpacing.gapL,
                             _buildClientDetailsCard(theme, preparation),
                           ],
@@ -167,34 +189,19 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                   AppSpacing.gapL,
 
                   // Articles / Product Lines Section
-                  SectionHeader(title: 'Articles & Lignes de Préparation'),
-                  _buildArticlesList(context, ref, theme, preparation.articles),
+                  SectionHeader(title: docType == 'BPR' ? 'Articles & Lignes de Réservation' : 'Articles & Lignes de Préparation'),
+                  _buildArticlesList(context, ref, theme, preparation.articles, isTrackingSN, isChecklistEnabled, preparation.idClassedocument),
                   AppSpacing.gapL,
                   
                   // Summary Section at the bottom
-                  _buildSummarySection(theme, preparation),
-                  AppSpacing.gapXxl,
+                  if (!hidePrices) ...[
+                    _buildSummarySection(theme, preparation),
+                    AppSpacing.gapXxl,
+                  ],
                   
-                  // Finaliser la préparation button
-                  if (!isAllowed)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.l),
-                          backgroundColor: Colors.grey.shade400,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
-                        ),
-                        onPressed: null, // disabled
-                        child: const Text(
-                          'Rôle non autorisé à finaliser',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    )
-                  else ...[
-                    if (preparation.totalScannedSerialNumbers == preparation.totalRequiredSerialNumbers)
+                  // Finaliser button
+                  if (isAllowed) ...[
+                    if (!isTrackingSN || preparation.totalScannedSerialNumbers == preparation.totalRequiredSerialNumbers)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -206,18 +213,25 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                             shape: RoundedRectangleBorder(borderRadius: AppBorderRadius.roundedM),
                           ),
                           onPressed: () {
-                            context.pushNamed(
-                              RouteNames.bonPreparationChecklist,
-                              extra: {'preparationId': preparation.id},
-                            );
+                            if (isChecklistEnabled) {
+                              context.pushNamed(
+                                docType == 'BPR' ? RouteNames.bonReservationChecklist : RouteNames.bonPreparationChecklist,
+                                extra: {
+                                  'preparationId': preparation.id,
+                                  'docType': normalizedDocType,
+                                },
+                              );
+                            } else {
+                              _finalizeDirectly(context, ref, preparation.id, requireSignature, requirePhoto, bpConfig?.customFinalizeMessage);
+                            }
                           },
-                          child: const Text(
-                            'Finaliser la préparation',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          child: Text(
+                            docType == 'BPR' ? 'Finaliser la réservation' : 'Finaliser la préparation',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
-                    if (preparation.totalScannedSerialNumbers < preparation.totalRequiredSerialNumbers)
+                    if (isTrackingSN && preparation.totalScannedSerialNumbers < preparation.totalRequiredSerialNumbers)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -234,7 +248,7 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    if (preparation.totalScannedSerialNumbers > preparation.totalRequiredSerialNumbers)
+                    if (isTrackingSN && preparation.totalScannedSerialNumbers > preparation.totalRequiredSerialNumbers)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -274,12 +288,99 @@ class BonPreparationDetailScreen extends ConsumerWidget {
   );
 }
 
-  Widget _buildDocDetailsCard(ThemeData theme, BonPreparation preparation) {
+  Map<String, Map<String, dynamic>> _getDetailsFields(String? configStr) {
+    final Map<String, Map<String, dynamic>> defaults = {
+      'date': {'label': 'Date document', 'visible': true},
+      'piece': {'label': 'Pièce', 'visible': true},
+      'status': {'label': 'Etat Document', 'visible': true},
+      'preparedBy': {'label': 'Préparé par', 'visible': true},
+      'concretizedBy': {'label': 'Concrétisé Par', 'visible': true},
+      'representative': {'label': 'Représentant', 'visible': true},
+      'apporteur': {'label': 'Apporteur', 'visible': true},
+      'currency': {'label': 'Devise', 'visible': true},
+      'exchangeRate': {'label': 'Taux de change', 'visible': true},
+      'deliveryDate': {'label': 'Date livraison', 'visible': true},
+      'station': {'label': 'Station', 'visible': true},
+      'affecterSur': {'label': 'Affecter sur', 'visible': true},
+      'customer': {'label': 'Client', 'visible': true},
+    };
+    if (configStr == null || configStr.isEmpty) {
+      return defaults;
+    }
+    try {
+      final parsed = jsonDecode(configStr);
+      if (parsed is Map<String, dynamic>) {
+        final merged = <String, Map<String, dynamic>>{};
+        defaults.forEach((key, defaultValue) {
+          if (parsed.containsKey(key)) {
+            final val = parsed[key];
+            if (val is Map) {
+              merged[key] = {
+                'label': val['label']?.toString() ?? defaultValue['label']?.toString() ?? '',
+                'visible': val['visible'] as bool? ?? defaultValue['visible'] as bool? ?? true,
+              };
+            } else {
+              merged[key] = defaultValue;
+            }
+          } else {
+            merged[key] = defaultValue;
+          }
+        });
+        return merged;
+      }
+    } catch (_) {}
+    return defaults;
+  }
+
+  Widget? _buildDynamicInfoRow(ThemeData theme, IconData icon, String key, String value, Map<String, Map<String, dynamic>> fields) {
+    final config = fields[key];
+    if (config == null || config['visible'] != true) {
+      return null;
+    }
+    final label = config['label']?.toString() ?? key;
+    return _buildInfoRow(theme, icon, label, value);
+  }
+
+  Widget _buildDocDetailsCard(ThemeData theme, BonPreparation preparation, ScreenConfig? config) {
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final formattedDocDate = dateFormat.format(preparation.date);
     final formattedDelivDate = preparation.timeline.delivered != null
         ? dateFormat.format(preparation.timeline.delivered!)
         : 'N/A';
+
+    final fields = _getDetailsFields(config?.detailsFieldsConfig);
+    final List<Widget> rows = [];
+
+    void addRow(IconData icon, String key, String value) {
+      final row = _buildDynamicInfoRow(theme, icon, key, value, fields);
+      if (row != null) {
+        rows.add(row);
+      }
+    }
+
+    addRow(Icons.calendar_today_outlined, 'date', formattedDocDate);
+    addRow(Icons.receipt_long_outlined, 'piece', preparation.codePiece ?? preparation.documentCode);
+    addRow(Icons.info_outline, 'status', preparation.status);
+    addRow(Icons.person_outline, 'preparedBy', preparation.preparedBy ?? 'N/A');
+    addRow(Icons.badge_outlined, 'representative', preparation.representative);
+    addRow(Icons.local_shipping_outlined, 'deliveryDate', formattedDelivDate);
+    addRow(Icons.storefront_outlined, 'station', preparation.stationName.isNotEmpty ? preparation.stationName : 'N/A');
+
+    // Note: We also map remaining fields from the 13 fields if they are set on the document, to keep all 13 supported
+    addRow(Icons.assignment_turned_in_outlined, 'concretizedBy', 'N/A');
+    addRow(Icons.handshake, 'apporteur', 'N/A');
+    addRow(Icons.monetization_on_outlined, 'currency', 'N/A');
+    addRow(Icons.currency_exchange_outlined, 'exchangeRate', '1.000');
+    addRow(Icons.swap_horiz_outlined, 'affecterSur', 'N/A');
+    addRow(Icons.person_pin_outlined, 'customer', preparation.customerName);
+
+    final List<Widget> childrenWithDividers = [];
+    for (int i = 0; i < rows.length; i++) {
+      childrenWithDividers.add(rows[i]);
+      if (i < rows.length - 1) {
+        childrenWithDividers.add(const Divider());
+      }
+    }
 
     return Theme(
       data: theme.copyWith(dividerColor: Colors.transparent),
@@ -288,26 +389,13 @@ class BonPreparationDetailScreen extends ConsumerWidget {
         initiallyExpanded: false,
         title: const SectionHeader(title: 'Détails du Document'),
         children: [
-          InfoCard(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-            child: Column(
-              children: [
-                _buildInfoRow(theme, Icons.calendar_today_outlined, 'Date document', formattedDocDate),
-                const Divider(),
-                _buildInfoRow(theme, Icons.receipt_long_outlined, 'Pièce', preparation.codePiece ?? preparation.documentCode),
-                const Divider(),
-                _buildInfoRow(theme, Icons.info_outline, 'Etat Document', preparation.status),
-                const Divider(),
-                _buildInfoRow(theme, Icons.person_outline, 'Préparé par', preparation.preparedBy ?? 'N/A'),
-                const Divider(),
-                _buildInfoRow(theme, Icons.badge_outlined, 'Représentant', preparation.representative),
-                const Divider(),
-                _buildInfoRow(theme, Icons.local_shipping_outlined, 'Date livraison', formattedDelivDate),
-                const Divider(),
-                _buildInfoRow(theme, Icons.storefront_outlined, 'Station', preparation.stationName.isNotEmpty ? preparation.stationName : 'N/A'),
-              ],
+          if (childrenWithDividers.isNotEmpty)
+            InfoCard(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
+              child: Column(
+                children: childrenWithDividers,
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -401,7 +489,11 @@ class BonPreparationDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     ThemeData theme,
     List<PreparationArticle> articles,
+    bool isTrackingSN,
+    bool isChecklistEnabled,
+    String? idClassedocument,
   ) {
+    final normalizedDocType = docType == 'DPR' ? 'BP' : (docType == 'BCC' ? 'BC' : docType);
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -441,7 +533,7 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (item.hasSerialNumbers) ...[
+                    if (isTrackingSN && item.hasSerialNumbers) ...[
                       AppSpacing.gapS,
                       SizedBox(
                         height: 36,
@@ -462,9 +554,12 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                               productName: item.name,
                               quantity: totalQte,
                               initialSerialNumbers: item.serialNumbers,
+                              docType: normalizedDocType,
+                              idClassedocument: idClassedocument,
+                              rawArticleJson: item.rawJson,
                             );
-                            final updated = await context.pushNamed<bool>(
-                              RouteNames.bonPreparationSerialNumber,
+                             final updated = await context.pushNamed<bool>(
+                              docType == 'BPR' ? RouteNames.bonReservationSerialNumber : RouteNames.bonPreparationSerialNumber,
                               extra: args,
                             );
                             if (updated == true) {
@@ -492,9 +587,77 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    Consumer(
+                      builder: (context, ref, child) {
+                        if (!isChecklistEnabled) return const SizedBox.shrink();
+                        final familyId = item.familyId ?? '';
+                        final countAsync = ref.watch(articleChecklistCountProvider('${item.id}:$familyId:$normalizedDocType'));
+                        return countAsync.when(
+                          data: (count) {
+                            if (count.total == 0) return const SizedBox.shrink();
+                            
+                            final checked = count.checked;
+                            final total = count.total;
+                            
+                            Color checklistButtonColor;
+                            if (checked == 0) {
+                              checklistButtonColor = const Color(0xFFEF5350); // Red
+                            } else if (checked < total) {
+                              checklistButtonColor = const Color(0xFFFF9800); // Orange
+                            } else {
+                              checklistButtonColor = const Color(0xFF4CAF50); // Green
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: SizedBox(
+                                height: 36,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: checklistButtonColor,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                                  ),
+                                  onPressed: () async {
+                                    await context.pushNamed(
+                                      docType == 'BPR' 
+                                          ? RouteNames.bonReservationArticleChecklist 
+                                          : RouteNames.bonPreparationArticleChecklist,
+                                      extra: {
+                                        'preparationId': preparationId,
+                                        'article': item,
+                                        'docType': normalizedDocType,
+                                      },
+                                    );
+                                    // Refresh details after returning from checklist page
+                                    ref.read(bonPreparationDetailControllerProvider(preparationId).notifier).fetchDetails();
+                                  },
+                                  child: Text(
+                                    'Tasks ($checked/$total)',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => const Padding(
+                            padding: EdgeInsets.only(left: 8.0),
+                            child: SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          error: (_, _) => const SizedBox.shrink(),
+                        );
+                      },
+                    ),
                   ],
                 ),
-                subtitle: (item.hasSerialNumbers && item.serialNumbers.isNotEmpty)
+                subtitle: (isTrackingSN && item.hasSerialNumbers && item.serialNumbers.isNotEmpty)
                     ? Padding(
                         padding: const EdgeInsets.only(top: AppSpacing.s),
                         child: Column(
@@ -551,6 +714,75 @@ class BonPreparationDetailScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _finalizeDirectly(
+    BuildContext context, 
+    WidgetRef ref, 
+    String preparationId,
+    bool requireSignature,
+    bool requirePhoto,
+    String? customFinalizeMessage,
+  ) async {
+    if (requireSignature) {
+      final signature = await SignaturePadDialog.show(context);
+      if (signature == null) return;
+    }
+
+    if (requirePhoto) {
+      final photo = await PhotoProofOverlay.show(context);
+      if (photo == null) return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Finaliser le document'),
+        content: Text(customFinalizeMessage ?? 'Êtes-vous sûr de vouloir finaliser ce document ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Finaliser'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final repository = ref.read(bonPreparationRepositoryProvider);
+      await repository.updateDocumentStatus(preparationId, '12', {});
+      
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Document finalisé avec succès!')),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      ref.read(bonPreparationDetailControllerProvider(preparationId).notifier).fetchDetails();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur lors de la finalisation: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   Widget _buildInfoRow(ThemeData theme, IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
@@ -580,23 +812,4 @@ class BonPreparationDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLoadingState() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.l),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const LoadingSkeleton(height: 120, width: double.infinity),
-          AppSpacing.gapL,
-          const LoadingSkeleton(height: 24, width: 140),
-          AppSpacing.gapM,
-          const LoadingSkeleton(height: 100, width: double.infinity),
-          AppSpacing.gapL,
-          const LoadingSkeleton(height: 24, width: 180),
-          AppSpacing.gapM,
-          const LoadingSkeleton(height: 200, width: double.infinity),
-        ],
-      ),
-    );
-  }
 }

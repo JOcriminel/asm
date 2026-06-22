@@ -17,8 +17,15 @@ class SortieArticle {
   final Map<String, dynamic>? rawJson;
   final String? familyId;
   final String? familyName;
+  final String? numSerie;
 
   double get total => quantity * unitPrice;
+
+  bool get hasSerialNumbers {
+    if (numSerie == null) return false;
+    final s = numSerie!.trim().toLowerCase();
+    return s == '1' || s == '1.0' || s == 'true' || s == 'oui' || s == 'o' || s == 'yes' || s == 'y';
+  }
 
   const SortieArticle({
     required this.id,
@@ -37,6 +44,7 @@ class SortieArticle {
     this.rawJson,
     this.familyId,
     this.familyName,
+    this.numSerie,
   });
 
   SortieArticle copyWith({
@@ -56,6 +64,7 @@ class SortieArticle {
     Map<String, dynamic>? rawJson,
     String? familyId,
     String? familyName,
+    String? numSerie,
   }) {
     return SortieArticle(
       id: id ?? this.id,
@@ -74,6 +83,7 @@ class SortieArticle {
       rawJson: rawJson ?? this.rawJson,
       familyId: familyId ?? this.familyId,
       familyName: familyName ?? this.familyName,
+      numSerie: numSerie ?? this.numSerie,
     );
   }
 }
@@ -87,24 +97,43 @@ class SortieTimeline {
 }
 
 class BonSortie implements BaseDocument {
+  @override
   final String id;
+  @override
   final String documentCode;
+  @override
   final String documentType;
+  @override
   final String documentTypeCode;
+  @override
   final String customerName;
+  @override
   final DateTime date;
+  @override
   final String status;
+  @override
   final String statusColor;
+  @override
   final double amount;
+  @override
   final double amountTTC;
+  @override
   final double amountTVA;
+  @override
   final double reste;
+  @override
   final String representative;
+  @override
   final String tier;
+  @override
   final String deliveryAddress;
+  @override
   final String phone;
+  @override
   final String currency;
+  @override
   final String stationName;
+  @override
   final String idStation;
   final List<SortieArticle> articles;
   final SortieTimeline timeline;
