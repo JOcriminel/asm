@@ -47,25 +47,7 @@ public class TimetreeSecurityService {
         if ("ADMIN".equals(role)) {
             return calendarRepository.findAll().stream().map(Calendar::getId).collect(Collectors.toList());
         }
-
-        List<Group> allGroups = groupRepository.findAll();
-        List<Group> allowedGroups = allGroups.stream().filter(g -> {
-            boolean isChef = g.getChef() != null && g.getChef().getId().equals(member.getId());
-            boolean isMember = g.getMembers() != null && g.getMembers().stream().anyMatch(m -> m.getId().equals(member.getId()));
-            return isChef || isMember;
-        }).collect(Collectors.toList());
-
-        List<Long> calendarIds = new ArrayList<>();
-        for (Group g : allowedGroups) {
-            if (g.getCalendars() != null) {
-                for (Calendar c : g.getCalendars()) {
-                    if (!calendarIds.contains(c.getId())) {
-                        calendarIds.add(c.getId());
-                    }
-                }
-            }
-        }
-        return calendarIds;
+        return calendarRepository.findAllowedCalendarIdsByMemberId(member.getId());
     }
 
     public boolean canReadEvent(Member member, Event event) {

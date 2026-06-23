@@ -66,8 +66,6 @@
             <column name="ORIGINAL_FILENAME" type="VARCHAR(255)"/>
             <column name="STORED_FILENAME" type="VARCHAR(255)"/>
             <column name="FILE_SIZE" type="BIGINT"/>
-            <column name="UPLOADED_BY" type="VARCHAR(100)"/>
-            <column name="UPLOADED_AT" type="DATETIME2"/>
         </addColumn>
     </changeSet>
 </databaseChangeLog>

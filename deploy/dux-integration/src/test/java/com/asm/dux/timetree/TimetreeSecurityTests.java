@@ -71,24 +71,7 @@ class TimetreeSecurityTests {
                 .role("CHEF")
                 .build();
 
-        Calendar cal1 = Calendar.builder().id(101L).name("Chef Managed Cal").build();
-        Calendar cal2 = Calendar.builder().id(102L).name("Other Cal").build();
-
-        Group managedGroup = Group.builder()
-                .id(10L)
-                .name("Group 1")
-                .chef(chef)
-                .calendars(Collections.singletonList(cal1))
-                .build();
-
-        Group otherGroup = Group.builder()
-                .id(11L)
-                .name("Group 2")
-                .chef(Member.builder().id(3L).role("CHEF").build())
-                .calendars(Collections.singletonList(cal2))
-                .build();
-
-        when(groupRepository.findAll()).thenReturn(Arrays.asList(managedGroup, otherGroup));
+        when(calendarRepository.findAllowedCalendarIdsByMemberId(2L)).thenReturn(Collections.singletonList(101L));
 
         List<Long> allowedIds = securityService.getAllowedCalendarIds(chef);
 
@@ -105,24 +88,7 @@ class TimetreeSecurityTests {
                 .role("MEMBER")
                 .build();
 
-        Calendar cal1 = Calendar.builder().id(101L).name("Member Cal").build();
-        Calendar cal2 = Calendar.builder().id(102L).name("Other Cal").build();
-
-        Group memberGroup = Group.builder()
-                .id(10L)
-                .name("Group 1")
-                .members(Collections.singletonList(member))
-                .calendars(Collections.singletonList(cal1))
-                .build();
-
-        Group otherGroup = Group.builder()
-                .id(11L)
-                .name("Group 2")
-                .members(Collections.emptyList())
-                .calendars(Collections.singletonList(cal2))
-                .build();
-
-        when(groupRepository.findAll()).thenReturn(Arrays.asList(memberGroup, otherGroup));
+        when(calendarRepository.findAllowedCalendarIdsByMemberId(4L)).thenReturn(Collections.singletonList(101L));
 
         List<Long> allowedIds = securityService.getAllowedCalendarIds(member);
 
@@ -142,13 +108,7 @@ class TimetreeSecurityTests {
         Calendar cal1 = Calendar.builder().id(101L).build();
         Event event = Event.builder().id(200L).calendar(cal1).build();
 
-        Group memberGroup = Group.builder()
-                .id(10L)
-                .members(Collections.singletonList(member))
-                .calendars(Collections.singletonList(cal1))
-                .build();
-
-        when(groupRepository.findAll()).thenReturn(Collections.singletonList(memberGroup));
+        when(calendarRepository.findAllowedCalendarIdsByMemberId(4L)).thenReturn(Collections.singletonList(101L));
 
         assertTrue(securityService.canReadEvent(member, event));
     }

@@ -4,6 +4,7 @@ import com.asm.dux.timetree.domain.*;
 import com.asm.dux.timetree.repository.*;
 import com.asm.dux.timetree.service.AuditService;
 import com.asm.dux.timetree.service.TimetreeSecurityService;
+import com.asm.dux.timetree.service.WebSocketMetricsService;
 import com.asm.dux.web.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ class TimetreeControllerTests {
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private TimetreeSecurityService securityService;
     @Mock private AuditService auditService;
+    @Mock private WebSocketMetricsService webSocketMetricsService;
 
     private SearchController searchController;
     private ExportController exportController;
@@ -49,7 +51,7 @@ class TimetreeControllerTests {
         searchController = new SearchController(eventRepository, calendarRepository, eventAttachmentRepository, eventMessageRepository, memberRepository, securityService);
         exportController = new ExportController(eventRepository, securityService);
         restoreController = new RestoreController(jdbcTemplate, securityService, auditService);
-        timetreeController = new TimetreeController(categoryRepository, pageRepository, groupRepository, auditLogRepository, memberRepository, calendarRepository, eventRepository, auditService, securityService);
+        timetreeController = new TimetreeController(categoryRepository, pageRepository, groupRepository, auditLogRepository, memberRepository, calendarRepository, eventRepository, auditService, securityService, webSocketMetricsService);
 
         mockMember = Member.builder().id(10L).username("testuser").fullName("Test User").role("MEMBER").build();
         mockCalendar = com.asm.dux.timetree.domain.Calendar.builder().id(100L).name("Mock Calendar").deleted(false).build();

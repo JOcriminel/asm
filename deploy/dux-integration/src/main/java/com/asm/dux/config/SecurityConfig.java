@@ -30,6 +30,7 @@ public class SecurityConfig {
             // Allow preflight OPTIONS requests without authentication, protect everything else
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/ws/**", "/ws-timetree/**").permitAll()
                 .anyRequest().authenticated()
             )
 

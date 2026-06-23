@@ -28,4 +28,7 @@ public class Member {
 
     @Column(name = "ROLE", nullable = false, length = 50)
     private String role; // "ADMIN", "CHEF", "MEMBER"
+
+    @Column(name = "LAST_SEEN")
+    private java.time.LocalDateTime lastSeen;
 }

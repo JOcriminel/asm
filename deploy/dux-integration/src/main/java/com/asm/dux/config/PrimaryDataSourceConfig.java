@@ -44,6 +44,9 @@ public class PrimaryDataSourceConfig {
                 .build();
     }
 
+    @org.springframework.beans.factory.annotation.Value("${spring.jpa.database-platform:org.hibernate.dialect.SQLServer2012Dialect}")
+    private String dialect;
+
     @Primary
     @Bean(name = "primaryEntityManager")
     public LocalContainerEntityManagerFactoryBean primaryEntityManager(@Qualifier("dataSource") DataSource dataSource) {
@@ -57,7 +60,7 @@ public class PrimaryDataSourceConfig {
         em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         Map<String, Object> jpaProperties = new HashMap<>();
         jpaProperties.put("hibernate.hbm2ddl.auto", "update");
-        jpaProperties.put("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect");
+        jpaProperties.put("hibernate.dialect", dialect);
         em.setJpaPropertyMap(jpaProperties);
         return em;
     }

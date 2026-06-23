@@ -47,6 +47,9 @@ public class TimetreeDataSourceConfig {
         return liquibase;
     }
 
+    @org.springframework.beans.factory.annotation.Value("${spring.jpa.database-platform:org.hibernate.dialect.SQLServer2012Dialect}")
+    private String dialect;
+
     @Bean(name = "timertreeEntityManager")
     public LocalContainerEntityManagerFactoryBean timertreeEntityManager(@Qualifier("timertreeDataSource") DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
@@ -55,7 +58,7 @@ public class TimetreeDataSourceConfig {
         em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
         Map<String, Object> jpaProperties = new HashMap<>();
         jpaProperties.put("hibernate.hbm2ddl.auto", "none");
-        jpaProperties.put("hibernate.dialect", "org.hibernate.dialect.SQLServer2012Dialect");
+        jpaProperties.put("hibernate.dialect", dialect);
         em.setJpaPropertyMap(jpaProperties);
         return em;
     }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -18,19 +19,40 @@ class _TimetreeChatTabState extends ConsumerState<TimetreeChatTab> {
   final _scrollController = ScrollController();
   final _textController = TextEditingController();
   bool _sending = false;
+  Timer? _typingTimer;
+  bool _isTyping = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _textController.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
+    _typingTimer?.cancel();
     _scrollController.removeListener(_onScroll);
+    _textController.removeListener(_onTextChanged);
     _scrollController.dispose();
     _textController.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    final text = _textController.text.trim();
+    if (text.isNotEmpty && !_isTyping) {
+      _isTyping = true;
+      ref.read(timetreeChatProvider(widget.eventId).notifier).sendTypingIndicator(true);
+    }
+    
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted && _isTyping) {
+        _isTyping = false;
+        ref.read(timetreeChatProvider(widget.eventId).notifier).sendTypingIndicator(false);
+      }
+    });
   }
 
   void _onScroll() {
@@ -123,6 +145,24 @@ class _TimetreeChatTabState extends ConsumerState<TimetreeChatTab> {
                   },
                 ),
         ),
+        if (chatState.activeTypers.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${chatState.activeTypers.join(', ')} est en train d\'écrire...',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
+          ),
         _buildInputArea(),
       ],
     );

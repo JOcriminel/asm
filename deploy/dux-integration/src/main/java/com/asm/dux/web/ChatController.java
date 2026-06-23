@@ -8,9 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,6 +30,12 @@ public class ChatController {
     private final EventChatStatusRepository eventChatStatusRepository;
     private final TimetreeSecurityService securityService;
     private final NotificationService notificationService;
+    
+    private final MemberRepository memberRepository;
+    private final GroupRepository groupRepository;
+    private final SimpMessageSendingOperations messagingTemplate;
+    private final DuplicateMessageDetector duplicateMessageDetector;
+    private final WebSocketMetricsService metricsService;
 
     // Get paginated chat messages for an event
     @GetMapping("/{id}/messages")
@@ -113,22 +123,7 @@ public class ChatController {
         updateReadMarker(event, current, saved.getId());
 
         // Notify other group members who have access to this event
-        Group group = event.getGroup();
-        if (group != null && group.getMembers() != null) {
-            for (Member m : group.getMembers()) {
-                if (!m.getId().equals(current.getId())) {
-                    notificationService.triggerNotification(
-                            m,
-                            "Nouveau message dans " + event.getTitle(),
-                            current.getFullName() + ": " + text,
-                            "NEW_MESSAGE",
-                            "MESSAGE",
-                            saved.getId(),
-                            "NEW"
-                    );
-                }
-            }
-        }
+        notifyGroupMembers(event, current, text, saved.getId());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(mapToMessageMap(saved));
     }
@@ -154,15 +149,7 @@ public class ChatController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès refusé");
         }
 
-        // Find the latest message in this room
-        Pageable limitOne = PageRequest.of(0, 1, Sort.by("id").descending());
-        org.springframework.data.domain.Page<EventMessage> latestPage = eventMessageRepository.findAllByEventId(id, limitOne);
-        
-        if (!latestPage.isEmpty()) {
-            Long latestId = latestPage.getContent().get(0).getId();
-            updateReadMarker(event, current, latestId);
-        }
-
+        performMarkRead(event, current);
         return ResponseEntity.ok().build();
     }
 
@@ -176,12 +163,143 @@ public class ChatController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Utilisateur non authentifié");
         }
 
-        List<Long> allowedCalendarIds = securityService.getAllowedCalendarIds(current);
-        if (allowedCalendarIds.isEmpty()) {
-            return ResponseEntity.ok(Collections.emptyMap());
+        Map<String, Long> unreadCounts = calculateUnreadCounts(current);
+        return ResponseEntity.ok(unreadCounts);
+    }
+
+    // WebSocket STOMP: Real-time message delivery
+    @MessageMapping("event.{id}.send")
+    @Transactional
+    public void handleStompMessage(@DestinationVariable Long id, Map<String, Object> body, Principal principal) {
+        long startTime = System.currentTimeMillis();
+        metricsService.incrementMessages();
+
+        if (principal == null) {
+            log.error("STOMP message received from unauthenticated principal");
+            return;
         }
 
-        // Fetch active events in allowed calendars
+        String username = principal.getName();
+        Member sender = memberRepository.findByUsername(username).orElse(null);
+        if (sender == null) {
+            log.error("Member not found for principal username={}", username);
+            return;
+        }
+
+        Optional<Event> eventOpt = eventRepository.findById(id);
+        if (!eventOpt.isPresent()) {
+            log.error("Event not found with id={}", id);
+            return;
+        }
+        Event event = eventOpt.get();
+
+        // 1. Double-check duplicate message prevention
+        String clientMessageId = (String) body.get("clientMessageId");
+        if (duplicateMessageDetector.isDuplicate(clientMessageId)) {
+            log.warn("Duplicate message detected for clientMessageId={}. Skipping persistence.", clientMessageId);
+            sendStompAck(sender, clientMessageId, null);
+            return;
+        }
+
+        String text = (String) body.get("message");
+        if (text == null || text.trim().isEmpty()) {
+            return;
+        }
+
+        String typeStr = (String) body.getOrDefault("messageType", "TEXT");
+        EventMessage.MessageType messageType = EventMessage.MessageType.valueOf(typeStr.toUpperCase());
+        String metadata = (String) body.get("metadata");
+
+        EventMessage msg = EventMessage.builder()
+                .event(event)
+                .member(sender)
+                .message(text)
+                .messageType(messageType)
+                .metadata(metadata)
+                .sentAt(LocalDateTime.now())
+                .build();
+
+        EventMessage saved = eventMessageRepository.save(msg);
+        duplicateMessageDetector.registerMessage(clientMessageId);
+
+        // Update read marker for sender
+        updateReadMarker(event, sender, saved.getId());
+
+        // Broadcast message to all event subscribers
+        Map<String, Object> messagePayload = mapToMessageMap(saved);
+        if (clientMessageId != null) {
+            messagePayload.put("clientMessageId", clientMessageId);
+        }
+        
+        String destination = "/topic/event." + id + ".chat";
+        messagingTemplate.convertAndSend(destination, messagePayload);
+
+        // Notify other group members
+        notifyGroupMembers(event, sender, text, saved.getId());
+
+        // Send direct acknowledgement payload back to sender
+        sendStompAck(sender, clientMessageId, saved.getId());
+
+        // Latency logging
+        metricsService.recordDeliveryLatency(System.currentTimeMillis() - startTime);
+    }
+
+    // WebSocket STOMP: Real-time typing indicators
+    @MessageMapping("event.{id}.typing")
+    public void handleStompTyping(@DestinationVariable Long id, Map<String, Object> body, Principal principal) {
+        metricsService.incrementTyping();
+
+        if (principal == null) return;
+        String username = principal.getName();
+
+        Boolean isTyping = (Boolean) body.get("isTyping");
+        if (isTyping == null) isTyping = false;
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("username", username);
+        payload.put("isTyping", isTyping);
+
+        String destination = "/topic/event." + id + ".typing";
+        messagingTemplate.convertAndSend(destination, payload);
+    }
+
+    // WebSocket STOMP: Real-time read receipt updates
+    @MessageMapping("event.{id}.read")
+    @Transactional
+    public void handleStompRead(@DestinationVariable Long id, Principal principal) {
+        if (principal == null) return;
+        String username = principal.getName();
+        Member current = memberRepository.findByUsername(username).orElse(null);
+        if (current == null) return;
+
+        Optional<Event> eventOpt = eventRepository.findById(id);
+        if (!eventOpt.isPresent()) return;
+        Event event = eventOpt.get();
+
+        performMarkRead(event, current);
+    }
+
+    private void performMarkRead(Event event, Member current) {
+        Pageable limitOne = PageRequest.of(0, 1, Sort.by("id").descending());
+        org.springframework.data.domain.Page<EventMessage> latestPage = eventMessageRepository.findAllByEventId(event.getId(), limitOne);
+        
+        if (!latestPage.isEmpty()) {
+            Long latestId = latestPage.getContent().get(0).getId();
+            updateReadMarker(event, current, latestId);
+        }
+
+        // Notify unread counter sync topic for the user
+        Map<String, Long> unreadCounts = calculateUnreadCounts(current);
+        String destination = "/topic/user." + current.getId() + ".unread";
+        messagingTemplate.convertAndSend(destination, unreadCounts);
+    }
+
+    private Map<String, Long> calculateUnreadCounts(Member current) {
+        List<Long> allowedCalendarIds = securityService.getAllowedCalendarIds(current);
+        if (allowedCalendarIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         LocalDateTime start = LocalDateTime.now().minusYears(1);
         LocalDateTime end = LocalDateTime.now().plusYears(1);
         List<Event> events = eventRepository.findActiveEventsInCalendars(allowedCalendarIds, start, end);
@@ -204,8 +322,37 @@ public class ChatController {
                 unreadCounts.put(e.getId().toString(), count);
             }
         }
+        return unreadCounts;
+    }
 
-        return ResponseEntity.ok(unreadCounts);
+    private void sendStompAck(Member sender, String clientMessageId, Long serverMessageId) {
+        if (clientMessageId == null) return;
+        Map<String, Object> ackPayload = new HashMap<>();
+        ackPayload.put("clientMessageId", clientMessageId);
+        ackPayload.put("serverMessageId", serverMessageId != null ? serverMessageId.toString() : null);
+        ackPayload.put("timestamp", LocalDateTime.now().toString());
+
+        messagingTemplate.convertAndSendToUser(sender.getUsername(), "/queue/ack", ackPayload);
+    }
+
+    private void notifyGroupMembers(Event event, Member current, String text, Long msgId) {
+        Group group = event.getGroup();
+        if (group != null) {
+            List<Member> members = groupRepository.findMembersByGroupId(group.getId());
+            for (Member m : members) {
+                if (!m.getId().equals(current.getId())) {
+                    notificationService.triggerNotification(
+                            m,
+                            "Nouveau message dans " + event.getTitle(),
+                            current.getFullName() + ": " + text,
+                            "NEW_MESSAGE",
+                            "MESSAGE",
+                            msgId,
+                            "NEW"
+                    );
+                }
+            }
+        }
     }
 
     private void updateReadMarker(Event event, Member member, Long messageId) {

@@ -15,4 +15,5 @@
     <include file="db/changelog/timetree/tt_events.xml"/>
     <include file="db/changelog/timetree/s9_chat_attachments.xml"/>
     <include file="db/changelog/timetree/hardening_sprint.xml"/>
+    <include file="db/changelog/timetree/sprint_10_presence.xml"/>
 </databaseChangeLog>

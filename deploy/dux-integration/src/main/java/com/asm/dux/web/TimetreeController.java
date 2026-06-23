@@ -28,6 +28,7 @@ public class TimetreeController {
     private final EventRepository eventRepository;
     private final com.asm.dux.timetree.service.AuditService auditService;
     private final com.asm.dux.timetree.service.TimetreeSecurityService securityService;
+    private final com.asm.dux.timetree.service.WebSocketMetricsService webSocketMetricsService;
 
     // Helper to write audit logs
     private void audit(String action, String entityType, Long entityId, String details) {
@@ -192,6 +193,12 @@ public class TimetreeController {
         dashboard.put("calendarUtilization", calendarUtilization);
 
         return ResponseEntity.ok(dashboard);
+    }
+
+    @GetMapping("/metrics/websocket")
+    public ResponseEntity<?> getWebSocketMetrics() {
+        log.info("GET /api/timetree/metrics/websocket");
+        return ResponseEntity.ok(webSocketMetricsService.getMetricsReport());
     }
 
     // ─── CATEGORIES CRUD ─────────────────────────────────────────────────────

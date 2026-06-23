@@ -166,6 +166,9 @@ class _FakeChatNotifier extends StateNotifier<TimetreeChatState> implements Time
 
   @override
   Future<void> markRead() async {}
+
+  @override
+  void sendTypingIndicator(bool isTyping) {}
 }
 
 class _FakeAttachmentsNotifier extends StateNotifier<TimetreeAttachmentsState> implements TimetreeAttachmentsNotifier {
