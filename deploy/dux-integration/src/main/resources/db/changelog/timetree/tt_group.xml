@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="tt-group-001" author="architect">
+        <createTable tableName="TT_GROUP" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DESCRIPTION" type="VARCHAR(500)"/>
+            <column name="ACTIVE" type="BIT" defaultValueBoolean="true"/>
+            <column name="CREATED_AT" type="DATETIME2"/>
+            <column name="UPDATED_AT" type="DATETIME2"/>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

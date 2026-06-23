@@ -36,14 +36,13 @@ services:
       - "9090:9090"
     volumes:
       - ./deploy/dux-integration/data:/app/data
-      #    environment:
-      # Network communication: connecting to SQL Server container name "sqlsrv"
-      #      SPRING_DATASOURCE_URL: jdbc:sqlserver://sqlsrv:1433;databaseName=ASM_PREPROD;encrypt=true;trustServerCertificate=true
-      #      SPRING_DATASOURCE_USERNAME: sa
-      #      SPRING_DATASOURCE_PASSWORD: P5v9yast34Iy9qU
-
-      # Network communication: validating token against Keycloak container name "keycloak"
-      #SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/asm-realm/protocol/openid-connect/certs
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:sqlserver://sqlsrv:1433;databaseName=ASM_PREPROD;encrypt=false;trustServerCertificate=true
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=P5v9yast34Iy9qU
+      - TIMETREE_DB_HOST=sqlsrv
+      - TIMETREE_DB_USER=sa
+      - TIMETREE_DB_PASS=P5v9yast34Iy9qU
     depends_on:
       - sqlsrv
       - keycloak

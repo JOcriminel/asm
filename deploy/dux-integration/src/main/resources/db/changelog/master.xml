@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <include file="db/changelog/timetree/tt_category.xml"/>
+    <include file="db/changelog/timetree/tt_page.xml"/>
+    <include file="db/changelog/timetree/tt_group.xml"/>
+    <include file="db/changelog/timetree/tt_group_role.xml"/>
+    <include file="db/changelog/timetree/tt_category_group.xml"/>
+    <include file="db/changelog/timetree/tt_page_group.xml"/>
+    <include file="db/changelog/timetree/tt_audit_log.xml"/>
+    <include file="db/changelog/timetree/tt_member_calendar.xml"/>
+    <include file="db/changelog/timetree/cf_generic_custom_fields.xml"/>
+    <include file="db/changelog/timetree/tt_events.xml"/>
+    <include file="db/changelog/timetree/s9_chat_attachments.xml"/>
+    <include file="db/changelog/timetree/hardening_sprint.xml"/>
+</databaseChangeLog>

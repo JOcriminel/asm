@@ -1,0 +1,131 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dux_front/core/network/dio_client.dart';
+import 'package:dux_front/core/network/api_exceptions.dart';
+import 'package:dux_front/core/utils/logger.dart';
+import 'package:dux_front/features/timetree/data/timetree_api.dart';
+import 'package:dux_front/features/timetree/data/dto/timetree_member_dto.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
+
+/// Repository for managing TimeTree Members.
+class TimetreeMembersRepository {
+  final TimetreeApi _api;
+  TimetreeMembersRepository(this._api);
+
+  /// Fetches the list of all members.
+  Future<List<TimetreeMember>> getMembers() async {
+    try {
+      final response = await _api.getMembers();
+      final data = response.data;
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map(TimetreeMemberDto.fromJson)
+            .map(TimetreeMember.fromDto)
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'getMembers failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Creates a new member.
+  Future<TimetreeMember> createMember({
+    required String username,
+    required String fullName,
+    required String email,
+    required String role,
+  }) async {
+    try {
+      final response = await _api.createMember({
+        'username': username,
+        'fullName': fullName,
+        'email': email,
+        'role': role,
+      });
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final dto = TimetreeMemberDto.fromJson(data);
+        return TimetreeMember.fromDto(dto);
+      }
+      throw Exception('Format de réponse invalide');
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'createMember failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Updates an existing member.
+  Future<TimetreeMember> updateMember({
+    required String id,
+    required String username,
+    required String fullName,
+    required String email,
+    required String role,
+  }) async {
+    try {
+      final response = await _api.updateMember(id, {
+        'username': username,
+        'fullName': fullName,
+        'email': email,
+        'role': role,
+      });
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final dto = TimetreeMemberDto.fromJson(data);
+        return TimetreeMember.fromDto(dto);
+      }
+      throw Exception('Format de réponse invalide');
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'updateMember failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Deletes a member by ID.
+  Future<void> deleteMember(String id) async {
+    try {
+      await _api.deleteMember(id);
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'deleteMember failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Adds a member to a group.
+  Future<void> addMemberToGroup(String groupId, String memberId) async {
+    try {
+      await _api.addMemberToGroup(groupId, memberId);
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'addMemberToGroup failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Removes a member from a group.
+  Future<void> removeMemberFromGroup(String groupId, String memberId) async {
+    try {
+      await _api.removeMemberFromGroup(groupId, memberId);
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'removeMemberFromGroup failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Assigns a chef to a group.
+  Future<void> assignChefToGroup(String groupId, String? chefId) async {
+    try {
+      await _api.assignChefToGroup(groupId, chefId);
+    } catch (e) {
+      AppLogger.e('TimetreeMembersRepository', 'assignChefToGroup failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+}
+
+/// Provider for [TimetreeMembersRepository].
+final timetreeMembersRepositoryProvider = Provider<TimetreeMembersRepository>((ref) {
+  final dio = ref.watch(dioProvider);
+  return TimetreeMembersRepository(TimetreeApi(dio));
+});

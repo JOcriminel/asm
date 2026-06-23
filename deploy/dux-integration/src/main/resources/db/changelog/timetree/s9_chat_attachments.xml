@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="tt-events-002" author="antigravity">
+        <!-- Update Event Message Columns -->
+        <addColumn tableName="TT_EVENT_MESSAGE" schemaName="dbo">
+            <column name="MESSAGE_TYPE" type="VARCHAR(50)" defaultValue="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="METADATA" type="VARCHAR(500)"/>
+        </addColumn>
+
+        <!-- Create Event Chat Status Table -->
+        <createTable tableName="TT_EVENT_CHAT_STATUS" schemaName="dbo">
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_ECS_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_ECS_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="LAST_READ_MESSAGE_ID" type="BIGINT"/>
+            <column name="LAST_READ_AT" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_EVENT_CHAT_STATUS" schemaName="dbo" columnNames="EVENT_ID, MEMBER_ID" constraintName="PK_TT_EVENT_CHAT_STATUS"/>
+
+        <!-- Create Reusable Notification Log Table -->
+        <createTable tableName="TT_NOTIFICATION" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="RECIPIENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_N_RECIPIENT" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="TITLE" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CONTENT" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="TYPE" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ENTITY_TYPE" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ENTITY_ID" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACTION_TYPE" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IS_READ" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CREATED_AT" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Update Event Attachment Metadata Columns -->
+        <addColumn tableName="TT_EVENT_ATTACHMENT" schemaName="dbo">
+            <column name="ORIGINAL_FILENAME" type="VARCHAR(255)"/>
+            <column name="STORED_FILENAME" type="VARCHAR(255)"/>
+            <column name="FILE_SIZE" type="BIGINT"/>
+            <column name="UPLOADED_BY" type="VARCHAR(100)"/>
+            <column name="UPLOADED_AT" type="DATETIME2"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

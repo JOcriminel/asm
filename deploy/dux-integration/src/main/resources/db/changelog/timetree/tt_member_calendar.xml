@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="tt-member-calendar-001" author="antigravity">
+        <!-- Create Member table -->
+        <createTable tableName="TT_MEMBER" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="USERNAME" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="FULL_NAME" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="EMAIL" type="VARCHAR(150)"/>
+            <column name="ROLE" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Create Calendar table -->
+        <createTable tableName="TT_CALENDAR" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DESCRIPTION" type="VARCHAR(500)"/>
+            <column name="COLOR" type="VARCHAR(50)"/>
+        </createTable>
+
+        <!-- Add CHEF_ID to TT_GROUP -->
+        <addColumn tableName="TT_GROUP" schemaName="dbo">
+            <column name="CHEF_ID" type="BIGINT">
+                <constraints foreignKeyName="FK_TT_GROUP_CHEF" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+        </addColumn>
+
+        <!-- Many to many mapping groups to members -->
+        <createTable tableName="TT_GROUP_MEMBER" schemaName="dbo">
+            <column name="GROUP_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_GM_GROUP" referencedTableName="TT_GROUP" referencedColumnNames="ID"/>
+            </column>
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_GM_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_GROUP_MEMBER" schemaName="dbo" columnNames="GROUP_ID, MEMBER_ID" constraintName="PK_TT_GROUP_MEMBER"/>
+
+        <!-- Many to many mapping calendars to groups -->
+        <createTable tableName="TT_CALENDAR_GROUP" schemaName="dbo">
+            <column name="CALENDAR_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_CG_CALENDAR" referencedTableName="TT_CALENDAR" referencedColumnNames="ID"/>
+            </column>
+            <column name="GROUP_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_CG_GROUP" referencedTableName="TT_GROUP" referencedColumnNames="ID"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_CALENDAR_GROUP" schemaName="dbo" columnNames="CALENDAR_ID, GROUP_ID" constraintName="PK_TT_CALENDAR_GROUP"/>
+    </changeSet>
+</databaseChangeLog>

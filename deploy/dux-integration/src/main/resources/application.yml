@@ -7,6 +7,16 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ADMIN_URL:https://duxweb.pre-produx.asmtechtn.com/auth/}realms/${KEYCLOAK_ADMIN_REALM:DuxWeb}
+  datasource:
+    timetree:
+      url: jdbc:sqlserver://${TIMETREE_DB_HOST:sqlsrv}:1433;databaseName=ASM_TIMETREE;encrypt=false;trustServerCertificate=true;
+      username: ${TIMETREE_DB_USER:sa}
+      password: ${TIMETREE_DB_PASS:P5v9yast34Iy9qU}
+      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  liquibase:
+    timetree:
+      change-log: classpath:/db/changelog/timetree/master.xml
+      default-schema: dbo
 
 dux:
   token-url: ${KEYCLOAK_ADMIN_URL:https://duxweb.pre-produx.asmtechtn.com/auth/}realms/${KEYCLOAK_ADMIN_REALM:DuxWeb}/protocol/openid-connect/token

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="tt-category-001" author="architect">
+        <createTable tableName="TT_CATEGORY" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CODE" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="ICON" type="VARCHAR(100)"/>
+            <column name="COLOR" type="VARCHAR(50)"/>
+            <column name="DISPLAY_ORDER" type="INT"/>
+            <column name="ACTIVE" type="BIT" defaultValueBoolean="true"/>
+            <column name="CREATED_AT" type="DATETIME2"/>
+            <column name="CREATED_BY" type="VARCHAR(100)"/>
+            <column name="UPDATED_AT" type="DATETIME2"/>
+            <column name="UPDATED_BY" type="VARCHAR(100)"/>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

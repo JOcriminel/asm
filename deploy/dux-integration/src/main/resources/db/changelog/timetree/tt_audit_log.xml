@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="tt-audit-log-001" author="architect">
+        <createTable tableName="TT_AUDIT_LOG" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="USERNAME" type="VARCHAR(100)"/>
+            <column name="ACTION" type="VARCHAR(100)"/>
+            <column name="ENTITY_TYPE" type="VARCHAR(100)"/>
+            <column name="ENTITY_ID" type="BIGINT"/>
+            <column name="RESULT" type="VARCHAR(50)"/>
+            <column name="IP_ADDRESS" type="VARCHAR(100)"/>
+            <column name="ACTION_DATE" type="DATETIME2"/>
+            <column name="DETAILS" type="VARCHAR(MAX)"/>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

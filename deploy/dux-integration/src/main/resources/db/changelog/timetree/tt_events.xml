@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="tt-events-001" author="antigravity">
+        <!-- Event Table -->
+        <createTable tableName="TT_EVENT" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="TITLE" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DESCRIPTION" type="VARCHAR(500)"/>
+            <column name="START_DATE" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+            <column name="END_DATE" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ALL_DAY" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="COLOR" type="VARCHAR(50)"/>
+            <column name="CALENDAR_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_EVENT_CALENDAR" referencedTableName="TT_CALENDAR" referencedColumnNames="ID"/>
+            </column>
+            <column name="GROUP_ID" type="BIGINT">
+                <constraints foreignKeyName="FK_TT_EVENT_GROUP" referencedTableName="TT_GROUP" referencedColumnNames="ID"/>
+            </column>
+            <column name="RECURRENCE_RULE" type="VARCHAR(50)" defaultValue="NONE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="RECURRENCE_END_DATE" type="DATETIME2"/>
+            <column name="CREATED_AT" type="DATETIME2"/>
+            <column name="UPDATED_AT" type="DATETIME2"/>
+            <column name="CREATED_BY" type="VARCHAR(100)"/>
+        </createTable>
+
+        <!-- Event Participant Many-to-Many Table -->
+        <createTable tableName="TT_EVENT_PARTICIPANT" schemaName="dbo">
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_EP_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_EP_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_EVENT_PARTICIPANT" schemaName="dbo" columnNames="EVENT_ID, MEMBER_ID" constraintName="PK_TT_EVENT_PARTICIPANT"/>
+
+        <!-- Event Message (Reserved for Sprint 9) -->
+        <createTable tableName="TT_EVENT_MESSAGE" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_EM_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_EM_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="MESSAGE" type="VARCHAR(1000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SENT_AT" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Event Attachment (Reserved for Sprint 9) -->
+        <createTable tableName="TT_EVENT_ATTACHMENT" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_EA_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="FILE_NAME" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="FILE_PATH" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="FILE_TYPE" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPLOADED_AT" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+            <column name="UPLOADED_BY" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

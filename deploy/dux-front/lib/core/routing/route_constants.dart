@@ -1,6 +1,7 @@
 class RoutePaths {
   static const String splash = '/';
   static const String login = '/login';
+  static const String workspaceSelector = '/workspace-selector';
   static const String commands = '/commands';
   static const String dashboard = '/dashboard';
   static const String kpiDashboard = '/kpi-dashboard';
@@ -35,6 +36,7 @@ class RoutePaths {
 class RouteNames {
   static const String splash = 'splash';
   static const String login = 'login';
+  static const String workspaceSelector = 'workspaceSelector';
   static const String dashboard = 'dashboard';
   static const String kpiDashboard = 'kpi-dashboard';
   static const String clients = 'clients';

@@ -6,6 +6,7 @@ import 'route_constants.dart';
 import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/auth/presentation/screens/workspace_selector_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/dashboard/presentation/screens/kpi_dashboard_screen.dart';
 import '../../features/dashboard/presentation/screens/activity_feed_screen.dart';
@@ -13,6 +14,17 @@ import '../../features/home/presentation/screens/home_shell.dart';
 import '../../features/commands/presentation/screens/commands_list_screen.dart';
 import '../../features/command_details/presentation/screens/command_details_screen.dart';
 import '../../features/station/presentation/screens/station_details_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/accueil_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/categories_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/pages_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/groups_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/dashboard_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/roles_permissions_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/timetree_calendar_view_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/custom_fields_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/timetree_audit_logs_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/timetree_search_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/clients/presentation/screens/client_list_screen.dart';
 import '../../features/clients/presentation/screens/client_details_screen.dart';
@@ -48,7 +60,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       debugPrint('Router Global Redirect: matchedLocation = ${state.matchedLocation}, uri = ${state.uri}');
       final loginLoc = RoutePaths.login;
       final splashLoc = RoutePaths.splash;
-      final dashboardLoc = RoutePaths.dashboard;
 
       final isLoggedIn = authState.isAuthenticated;
       final isChecking = authState.isChecking;
@@ -68,7 +79,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // If logged in
       if (isGoingToLogin || isGoingToSplash) {
-        return dashboardLoc;
+        return RoutePaths.workspaceSelector;
       }
 
       return null;
@@ -83,6 +94,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.login,
         name: RouteNames.login,
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.workspaceSelector,
+        name: RouteNames.workspaceSelector,
+        builder: (context, state) => const WorkspaceSelectorScreen(),
       ),
       
       // Detail and full-screen routes configured on the root navigator (sibling to Shells)
@@ -388,6 +404,66 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+    // TimeTree routes
+    GoRoute(
+      path: '/timetree',
+      redirect: (context, state) => '/timetree/accueil',
+    ),
+    GoRoute(
+      path: '/timetree/accueil',
+      name: 'timetreeAccueil',
+      builder: (context, state) => TimetreeAccueilScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/categories',
+      name: 'timetreeCategories',
+      builder: (context, state) => TimetreeCategoriesScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/pages',
+      name: 'timetreePages',
+      builder: (context, state) => TimetreePagesScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/groups',
+      name: 'timetreeGroups',
+      builder: (context, state) => const TimetreeGroupsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/roles-permissions',
+      name: 'timetreeRolesPermissions',
+      builder: (context, state) => const TimetreeRolesPermissionsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/dashboard',
+      name: 'timetreeDashboard',
+      builder: (context, state) => const TimetreeDashboardScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/membership-calendars',
+      name: 'timetreeMembershipCalendars',
+      builder: (context, state) => const TimetreeMembershipCalendarsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/calendar-view',
+      name: 'timetreeCalendarView',
+      builder: (context, state) => const TimetreeCalendarViewScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/custom-fields',
+      name: 'timetreeCustomFields',
+      builder: (context, state) => const TimetreeCustomFieldsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/admin/audit-logs',
+      name: 'timetreeAuditLogs',
+      builder: (context, state) => const TimetreeAuditLogsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/search',
+      name: 'timetreeSearch',
+      builder: (context, state) => const TimetreeSearchScreen(),
+    ),
     ],
   );
 });

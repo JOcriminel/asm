@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="cf-generic-custom-fields-001" author="antigravity">
+        <!-- Field Definition Table -->
+        <createTable tableName="CF_DEFINITION" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LABEL" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="FIELD_TYPE" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REQUIRED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DEFAULT_VALUE" type="VARCHAR(500)"/>
+            <column name="OPTIONS" type="VARCHAR(1000)"/>
+            <column name="SCOPE_TYPE" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SCOPE_ID" type="VARCHAR(100)"/>
+            <column name="SORT_ORDER" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACTIVE" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="MIN_VALUE" type="DOUBLE"/>
+            <column name="MAX_VALUE" type="DOUBLE"/>
+            <column name="MIN_LENGTH" type="INT"/>
+            <column name="MAX_LENGTH" type="INT"/>
+            <column name="REGEX_PATTERN" type="VARCHAR(500)"/>
+            <column name="HIDDEN" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="READ_ONLY" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VISIBILITY_RULE" type="VARCHAR(1000)"/>
+        </createTable>
+
+        <!-- Field Values Table -->
+        <createTable tableName="CF_VALUE" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="FIELD_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_CF_VALUE_DEFINITION" referencedTableName="CF_DEFINITION" referencedColumnNames="ID"/>
+            </column>
+            <column name="ENTITY_TYPE" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ENTITY_ID" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VALUE" type="VARCHAR(2000)"/>
+        </createTable>
+        <addUniqueConstraint tableName="CF_VALUE" schemaName="dbo" columnNames="ENTITY_TYPE, ENTITY_ID, FIELD_ID" constraintName="UQ_CF_VALUE_ENTITY_FIELD"/>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="hardening-001" author="antigravity">
+        <!-- Add Soft Delete column to existing tables -->
+        <addColumn tableName="TT_EVENT" schemaName="dbo">
+            <column name="DELETED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="TT_CALENDAR" schemaName="dbo">
+            <column name="DELETED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="TT_EVENT_ATTACHMENT" schemaName="dbo">
+            <column name="DELETED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="CF_DEFINITION" schemaName="dbo">
+            <column name="DELETED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="TT_GROUP" schemaName="dbo">
+            <column name="DELETED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Add Lock, Private, Status, Priority columns to TT_EVENT -->
+        <addColumn tableName="TT_EVENT" schemaName="dbo">
+            <column name="LOCKED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IS_PRIVATE" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="STATUS" type="VARCHAR(50)" defaultValue="PLANNED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PRIORITY" type="VARCHAR(50)" defaultValue="NORMAL">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Create Tags Table and Event-Tag Mapping -->
+        <createTable tableName="TT_TAG" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NAME" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="COLOR" type="VARCHAR(50)"/>
+        </createTable>
+
+        <createTable tableName="TT_EVENT_TAG" schemaName="dbo">
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_ET_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="TAG_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_ET_TAG" referencedTableName="TT_TAG" referencedColumnNames="ID"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_EVENT_TAG" schemaName="dbo" columnNames="EVENT_ID, TAG_ID" constraintName="PK_TT_EVENT_TAG"/>
+
+        <!-- Create Event Dependency Table -->
+        <createTable tableName="TT_EVENT_DEPENDENCY" schemaName="dbo">
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_ED_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="DEPENDS_ON_EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_ED_DEP_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_EVENT_DEPENDENCY" schemaName="dbo" columnNames="EVENT_ID, DEPENDS_ON_EVENT_ID" constraintName="PK_TT_EVENT_DEPENDENCY"/>
+
+        <!-- Create Event Reminder Table -->
+        <createTable tableName="TT_EVENT_REMINDER" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="EVENT_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_ER_EVENT" referencedTableName="TT_EVENT" referencedColumnNames="ID"/>
+            </column>
+            <column name="REMINDER_TIME" type="DATETIME2">
+                <constraints nullable="false"/>
+            </column>
+            <column name="IS_TRIGGERED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>
