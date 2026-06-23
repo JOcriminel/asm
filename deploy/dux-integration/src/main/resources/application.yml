@@ -17,6 +17,25 @@ spring:
     timetree:
       change-log: classpath:/db/changelog/timetree/master.xml
       default-schema: dbo
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 dux:
   token-url: ${KEYCLOAK_ADMIN_URL:https://duxweb.pre-produx.asmtechtn.com/auth/}realms/${KEYCLOAK_ADMIN_REALM:DuxWeb}/protocol/openid-connect/token
@@ -26,3 +45,22 @@ dux:
   details-doc-url: ${DUX_DETAILS_DOC_URL:https://duxweb.pre-produx.asmtechtn.com/api/DetailsDoc2/}
   client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:asm-apis}
   client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:WIIWVngUsQgSTyXB50AXm1YyeVtaog7V}
+
+timetree:
+  websocket:
+    rate-limit:
+      # 1 event per 2 seconds = 0.5/s
+      typing-events-per-second: 0.5
+      typing-bucket-capacity: 2
+      chat-messages-per-second: 5
+      chat-bucket-capacity: 10
+    presence:
+      session-ttl-seconds: 30
+      heartbeat-interval-seconds: 10
+      cleanup-interval-ms: 60000
+    duplicate-detection:
+      ttl-minutes: 5
+    offline-queue:
+      max-retention-hours: 24
+    relay:
+      stomp-port: 61613

@@ -26,9 +26,10 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.springframework.context.annotation.Lazy;
+
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class WebSocketSecurityInterceptor implements ChannelInterceptor {
 
     private final JwtDecoder jwtDecoder;
@@ -38,6 +39,23 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
     private final TimetreeSecurityService securityService;
     private final PresenceService presenceService;
     private final WebSocketMetricsService metricsService;
+
+    public WebSocketSecurityInterceptor(
+            JwtDecoder jwtDecoder,
+            MemberRepository memberRepository,
+            EventRepository eventRepository,
+            GroupRepository groupRepository,
+            TimetreeSecurityService securityService,
+            @Lazy PresenceService presenceService,
+            WebSocketMetricsService metricsService) {
+        this.jwtDecoder = jwtDecoder;
+        this.memberRepository = memberRepository;
+        this.eventRepository = eventRepository;
+        this.groupRepository = groupRepository;
+        this.securityService = securityService;
+        this.presenceService = presenceService;
+        this.metricsService = metricsService;
+    }
 
     private static final Pattern EVENT_TOPIC_PATTERN = Pattern.compile("^/(topic|app)/event\\.(\\d+)\\.(chat|typing|send)$");
     private static final Pattern GROUP_TOPIC_PATTERN = Pattern.compile("^/topic/group\\.(\\d+)\\.presence$");
@@ -120,8 +138,8 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         }
         Member current = memberOpt.get();
 
-        // Refresh last activity for TTL session updates
-        presenceService.updateLastActivity(username);
+        // Refresh presence TTL on every authorized frame
+        presenceService.refreshHeartbeat(username);
 
         // 1. Authorize Event-centric destinations
         Matcher eventMatcher = EVENT_TOPIC_PATTERN.matcher(destination);

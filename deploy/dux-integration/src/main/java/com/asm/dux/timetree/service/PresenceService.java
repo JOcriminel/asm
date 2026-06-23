@@ -1,160 +1,184 @@
 package com.asm.dux.timetree.service;
 
-import com.asm.dux.timetree.domain.Group;
-import com.asm.dux.timetree.domain.Member;
 import com.asm.dux.timetree.repository.GroupRepository;
-import com.asm.dux.timetree.repository.MemberRepository;
-import lombok.Builder;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
+/**
+ * Redis-backed presence service.
+ *
+ * Redis key schema:
+ *   timetree:presence:{username}  →  "ONLINE"   TTL: configurable (default 30 s)
+ *
+ * Heartbeat flow:
+ *   Client sends /app/heartbeat every 10 s → server calls refreshHeartbeat() → Redis TTL reset.
+ *   Cleanup task runs every minute: scans active session registry; if Redis key is gone → OFFLINE.
+ */
 @Slf4j
 @Service
 public class PresenceService {
 
-    private final MemberRepository memberRepository;
-    private final GroupRepository groupRepository;
+    private static final String PRESENCE_PREFIX = "timetree:presence:";
+
+    /** sessionId → username (in-memory for session routing; presence state is in Redis) */
+    private final Map<String, String> sessionToUser = new ConcurrentHashMap<>();
+    /** username → set of sessionIds (multi-tab support) */
+    private final Map<String, Set<String>> userToSessions = new ConcurrentHashMap<>();
+
+    private final StringRedisTemplate redis;
     private final SimpMessageSendingOperations messagingTemplate;
-    private final WebSocketMetricsService metricsService;
+    private final GroupRepository groupRepository;
 
-    // Maps sessionId -> SessionInfo
-    private final Map<String, SessionInfo> sessionRegistry = new ConcurrentHashMap<>();
-    // Maps username -> last activity timestamp (simulates Redis session TTL)
-    private final Map<String, Long> userActivityMap = new ConcurrentHashMap<>();
+    @Value("${timetree.websocket.presence.session-ttl-seconds:30}")
+    private long sessionTtlSeconds;
 
-    private static final long SESSION_TTL_MS = 30000; // 30 seconds TTL
-
-    // Manual constructor with @Lazy to break circular dependency with WebSocket infrastructure
-    public PresenceService(
-            MemberRepository memberRepository,
-            GroupRepository groupRepository,
-            @Lazy SimpMessageSendingOperations messagingTemplate,
-            WebSocketMetricsService metricsService) {
-        this.memberRepository = memberRepository;
-        this.groupRepository = groupRepository;
+    @Autowired
+    public PresenceService(StringRedisTemplate redis,
+                           SimpMessageSendingOperations messagingTemplate,
+                           GroupRepository groupRepository) {
+        this.redis = redis;
         this.messagingTemplate = messagingTemplate;
-        this.metricsService = metricsService;
+        this.groupRepository = groupRepository;
     }
 
-    @Data
-    @Builder
-    public static class SessionInfo {
-        private String sessionId;
-        private String username;
-        private Long memberId;
-        private long lastSeenTimestamp;
-    }
+    // ─── Session lifecycle ───────────────────────────────────────────────────────
 
-    @Data
-    @Builder
-    public static class PresencePayload {
-        private String memberId;
-        private String username;
-        private String status; // "ONLINE", "OFFLINE"
-        private String lastSeen;
-    }
-
-    public void registerUserSession(String sessionId, String username) {
-        Optional<Member> memberOpt = memberRepository.findByUsername(username);
-        if (memberOpt.isPresent()) {
-            Member m = memberOpt.get();
-            SessionInfo info = SessionInfo.builder()
-                    .sessionId(sessionId)
-                    .username(username)
-                    .memberId(m.getId())
-                    .lastSeenTimestamp(System.currentTimeMillis())
-                    .build();
-            sessionRegistry.put(sessionId, info);
-            userActivityMap.put(username, System.currentTimeMillis());
-
-            metricsService.registerSession(sessionId, username);
-            metricsService.setUsers(new HashSet<>(userActivityMap.keySet()));
-
-            broadcastPresence(m, "ONLINE");
-        }
-    }
-
-    public void updateLastActivity(String username) {
-        if (username != null) {
-            userActivityMap.put(username, System.currentTimeMillis());
-            // Update activity in sessions
-            for (SessionInfo info : sessionRegistry.values()) {
-                if (username.equals(info.getUsername())) {
-                    info.setLastSeenTimestamp(System.currentTimeMillis());
-                }
-            }
-        }
-    }
-
-    public void handleExplicitDisconnect(String sessionId) {
-        SessionInfo info = sessionRegistry.remove(sessionId);
-        if (info != null) {
-            String username = info.getUsername();
-            metricsService.removeSession(sessionId, username);
-            
-            // Check if user has other active sessions
-            boolean hasOtherSessions = sessionRegistry.values().stream()
-                    .anyMatch(s -> s.getUsername().equals(username));
-
-            if (!hasOtherSessions) {
-                userActivityMap.remove(username);
-                metricsService.setUsers(new HashSet<>(userActivityMap.keySet()));
-                
-                Optional<Member> memberOpt = memberRepository.findByUsername(username);
-                if (memberOpt.isPresent()) {
-                    Member m = memberOpt.get();
-                    m.setLastSeen(LocalDateTime.now());
-                    memberRepository.save(m);
-                    broadcastPresence(m, "OFFLINE");
-                }
-            }
-        }
+    @EventListener
+    public void handleConnect(SessionConnectEvent event) {
+        Principal principal = event.getUser();
+        if (principal == null) return;
+        String username = principal.getName();
+        String sessionId = extractSessionId(event.getMessage().getHeaders());
+        log.info("WebSocket CONNECT sessionId={} user={}", sessionId, username);
+        registerUserSession(sessionId, username);
     }
 
     @EventListener
-    public void handleSessionDisconnect(SessionDisconnectEvent event) {
-        log.info("WebSocket SessionDisconnectEvent sessionId={}", event.getSessionId());
-        handleExplicitDisconnect(event.getSessionId());
-    }
-
-    // Cron job running every 5 seconds to clean up orphaned/expired sessions (Redis TTL presence cleanup strategy)
-    @Scheduled(fixedDelay = 5000)
-    public void cleanExpiredSessions() {
-        long now = System.currentTimeMillis();
-        for (Map.Entry<String, SessionInfo> entry : sessionRegistry.entrySet()) {
-            SessionInfo info = entry.getValue();
-            if (now - info.getLastSeenTimestamp() > SESSION_TTL_MS) {
-                log.info("Session TTL expired for sessionId={} user={}. Triggering cleanup.", info.getSessionId(), info.getUsername());
-                handleExplicitDisconnect(info.getSessionId());
+    public void handleDisconnect(SessionDisconnectEvent event) {
+        String sessionId = event.getSessionId();
+        String username = sessionToUser.remove(sessionId);
+        log.info("WebSocket SessionDisconnectEvent sessionId={}", sessionId);
+        if (username != null) {
+            Set<String> sessions = userToSessions.getOrDefault(username, Collections.emptySet());
+            sessions.remove(sessionId);
+            if (sessions.isEmpty()) {
+                userToSessions.remove(username);
+                markOffline(username);
             }
         }
     }
 
-    private void broadcastPresence(Member member, String status) {
-        // Resolve groups this member belongs to
-        List<Group> groups = groupRepository.findGroupsByMemberId(member.getId());
-        for (Group group : groups) {
-            PresencePayload payload = PresencePayload.builder()
-                    .memberId(member.getId().toString())
-                    .username(member.getUsername())
-                    .status(status)
-                    .lastSeen(member.getLastSeen() != null ? member.getLastSeen().toString() : LocalDateTime.now().toString())
-                    .build();
+    // ─── Presence operations ─────────────────────────────────────────────────────
 
-            String destination = "/topic/group." + group.getId() + ".presence";
-            log.info("Broadcasting presence update to {}: user={} status={}", destination, member.getUsername(), status);
-            messagingTemplate.convertAndSend(destination, payload);
+    public void registerUserSession(String sessionId, String username) {
+        sessionToUser.put(sessionId, username);
+        userToSessions.computeIfAbsent(username, u -> ConcurrentHashMap.newKeySet()).add(sessionId);
+        setOnline(username);
+    }
+
+    public void refreshHeartbeat(String username) {
+        try {
+            redis.expire(PRESENCE_PREFIX + username, sessionTtlSeconds, TimeUnit.SECONDS);
+            log.debug("Heartbeat refreshed for user={} TTL={}s", username, sessionTtlSeconds);
+        } catch (Exception e) {
+            log.warn("Failed to refresh heartbeat for user={}", username, e);
+        }
+    }
+
+    public boolean isOnline(String username) {
+        try {
+            return Boolean.TRUE.equals(redis.hasKey(PRESENCE_PREFIX + username));
+        } catch (Exception e) {
+            log.warn("Redis hasKey failed for user={}", username, e);
+            return false;
+        }
+    }
+
+    public Set<String> getActiveUsers() {
+        return Collections.unmodifiableSet(userToSessions.keySet());
+    }
+
+    public int getActiveSessionCount() {
+        return sessionToUser.size();
+    }
+
+    // ─── Internal helpers ────────────────────────────────────────────────────────
+
+    private void setOnline(String username) {
+        try {
+            redis.opsForValue().set(PRESENCE_PREFIX + username, "ONLINE", sessionTtlSeconds, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Redis SET failed for user={}", username, e);
+        }
+        broadcastPresence(username, "ONLINE");
+        log.info("Broadcasting presence update: user={} status=ONLINE", username);
+    }
+
+    private void markOffline(String username) {
+        try {
+            redis.delete(PRESENCE_PREFIX + username);
+        } catch (Exception e) {
+            log.warn("Redis DEL failed for user={}", username, e);
+        }
+        broadcastPresence(username, "OFFLINE");
+        log.info("Broadcasting presence update: user={} status=OFFLINE", username);
+    }
+
+    private void broadcastPresence(String username, String status) {
+        // Broadcast to all groups the user belongs to
+        try {
+            List<Long> groupIds = groupRepository.findGroupIdsByMemberUsername(username);
+            Map<String, Object> payload = Map.of("user", username, "status", status,
+                    "timestamp", LocalDateTime.now().toString());
+            for (Long groupId : groupIds) {
+                messagingTemplate.convertAndSend("/topic/group." + groupId + ".presence", payload);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to broadcast presence for user={}", username, e);
+        }
+    }
+
+    private String extractSessionId(org.springframework.messaging.MessageHeaders headers) {
+        Object sessionId = headers.get("simpSessionId");
+        return sessionId != null ? sessionId.toString() : "unknown";
+    }
+
+    // ─── TTL expiry cleanup (every configurable interval) ───────────────────────
+
+    /**
+     * Runs every minute (or per timetree.websocket.presence.cleanup-interval-ms).
+     * Any user in the in-memory registry whose Redis key has expired → mark OFFLINE.
+     */
+    @Scheduled(fixedDelayString = "${timetree.websocket.presence.cleanup-interval-ms:60000}")
+    public void cleanExpiredSessions() {
+        Set<String> activeUsernames = new HashSet<>(userToSessions.keySet());
+        for (String username : activeUsernames) {
+            try {
+                Boolean exists = redis.hasKey(PRESENCE_PREFIX + username);
+                if (!Boolean.TRUE.equals(exists)) {
+                    log.info("Presence TTL expired for user={} — marking OFFLINE", username);
+                    userToSessions.remove(username);
+                    // Remove associated sessions
+                    sessionToUser.entrySet().removeIf(e -> username.equals(e.getValue()));
+                    markOffline(username);
+                }
+            } catch (Exception e) {
+                log.warn("Cleanup check failed for user={}", username, e);
+            }
         }
     }
 }

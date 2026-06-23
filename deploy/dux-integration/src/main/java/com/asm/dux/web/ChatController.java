@@ -36,6 +36,8 @@ public class ChatController {
     private final SimpMessageSendingOperations messagingTemplate;
     private final DuplicateMessageDetector duplicateMessageDetector;
     private final WebSocketMetricsService metricsService;
+    private final PresenceService presenceService;
+    private final OfflineQueueService offlineQueueService;
 
     // Get paginated chat messages for an event
     @GetMapping("/{id}/messages")
@@ -193,11 +195,19 @@ public class ChatController {
         }
         Event event = eventOpt.get();
 
-        // 1. Double-check duplicate message prevention
+        // 1. Duplicate message prevention — return ORIGINAL ACK without reprocessing
         String clientMessageId = (String) body.get("clientMessageId");
-        if (duplicateMessageDetector.isDuplicate(clientMessageId)) {
-            log.warn("Duplicate message detected for clientMessageId={}. Skipping persistence.", clientMessageId);
-            sendStompAck(sender, clientMessageId, null);
+        String existingServerId = duplicateMessageDetector.getExistingServerMessageId(clientMessageId);
+        if (existingServerId != null) {
+            log.warn("Duplicate message detected for clientMessageId={}. Returning original ACK.", clientMessageId);
+            metricsService.incrementMessagesRejected("/topic/event." + id + ".chat", "CHAT", "duplicate");
+            // Return same ACK so client can clear its offline queue
+            Map<String, Object> ackPayload = new HashMap<>();
+            ackPayload.put("clientMessageId", clientMessageId);
+            ackPayload.put("serverMessageId", existingServerId);
+            ackPayload.put("timestamp", LocalDateTime.now().toString());
+            ackPayload.put("duplicate", true);
+            messagingTemplate.convertAndSendToUser(sender.getUsername(), "/queue/ack", ackPayload);
             return;
         }
 
@@ -220,7 +230,8 @@ public class ChatController {
                 .build();
 
         EventMessage saved = eventMessageRepository.save(msg);
-        duplicateMessageDetector.registerMessage(clientMessageId);
+        // Register with actual serverMessageId for exact ACK replay on retry
+        duplicateMessageDetector.registerMessage(clientMessageId, saved.getId().toString());
 
         // Update read marker for sender
         updateReadMarker(event, sender, saved.getId());
@@ -234,20 +245,26 @@ public class ChatController {
         String destination = "/topic/event." + id + ".chat";
         messagingTemplate.convertAndSend(destination, messagePayload);
 
-        // Notify other group members
+        // Queue for offline members (exactly-once delivery on reconnect)
+        queueForOfflineMembers(event, sender, messagePayload);
+
+        // Notify other group members (push notifications)
         notifyGroupMembers(event, sender, text, saved.getId());
 
-        // Send direct acknowledgement payload back to sender
+        // Send direct ACK with clientMessageId + serverMessageId + timestamp
         sendStompAck(sender, clientMessageId, saved.getId());
 
-        // Latency logging
-        metricsService.recordDeliveryLatency(System.currentTimeMillis() - startTime);
+        // Record latency and metrics
+        long latencyMs = System.currentTimeMillis() - startTime;
+        metricsService.recordLatency(latencyMs, destination);
+        metricsService.incrementMessagesSent(destination, typeStr);
+        log.debug("Message delivered: event={} latency={}ms", id, latencyMs);
     }
 
     // WebSocket STOMP: Real-time typing indicators
     @MessageMapping("event.{id}.typing")
     public void handleStompTyping(@DestinationVariable Long id, Map<String, Object> body, Principal principal) {
-        metricsService.incrementTyping();
+        metricsService.incrementMessages();
 
         if (principal == null) return;
         String username = principal.getName();
@@ -260,7 +277,16 @@ public class ChatController {
         payload.put("isTyping", isTyping);
 
         String destination = "/topic/event." + id + ".typing";
+        metricsService.incrementMessagesSent(destination, "TYPING");
         messagingTemplate.convertAndSend(destination, payload);
+    }
+
+    // WebSocket STOMP: Heartbeat — resets presence TTL in Redis
+    @MessageMapping("heartbeat")
+    public void handleHeartbeat(Principal principal) {
+        if (principal == null) return;
+        presenceService.refreshHeartbeat(principal.getName());
+        log.debug("Heartbeat received from user={}", principal.getName());
     }
 
     // WebSocket STOMP: Real-time read receipt updates
@@ -352,6 +378,23 @@ public class ChatController {
                     );
                 }
             }
+        }
+    }
+
+    /** Queue the message payload for all offline group members for replay on reconnect. */
+    private void queueForOfflineMembers(Event event, Member sender, Map<String, Object> payload) {
+        try {
+            Group group = event.getGroup();
+            if (group == null) return;
+            List<String> usernames = groupRepository.findMemberUsernamesByGroupId(group.getId());
+            for (String username : usernames) {
+                if (!username.equals(sender.getUsername()) && !presenceService.isOnline(username)) {
+                    offlineQueueService.enqueue(username, payload);
+                    log.debug("Queued offline message for user={} event={}", username, event.getId());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to queue offline messages for event={}", event.getId(), e);
         }
     }
 

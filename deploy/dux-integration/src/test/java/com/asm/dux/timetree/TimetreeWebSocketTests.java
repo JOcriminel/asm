@@ -17,12 +17,18 @@ import org.springframework.messaging.simp.stomp.*;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
 import org.springframework.web.socket.sockjs.client.Transport;
 import org.springframework.web.socket.sockjs.client.WebSocketTransport;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 import java.lang.reflect.Type;
 import java.time.Instant;
@@ -36,7 +42,18 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@Testcontainers
 public class TimetreeWebSocketTests {
+
+    @Container
+    static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379);
+
+    @DynamicPropertySource
+    static void configureRedis(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", redis::getFirstMappedPort);
+    }
 
     @LocalServerPort
     private int port;
@@ -253,19 +270,24 @@ public class TimetreeWebSocketTests {
 
         // Send a message with a specific clientMessageId
         Map<String, Object> messagePayload = new HashMap<>();
-        messagePayload.put("clientMessageId", "unique-uuid-101");
+        String clientMsgId = "550e8400-e29b-41d4-a716-446655440101";
+        messagePayload.put("clientMessageId", clientMsgId);
         messagePayload.put("message", "Hello Alice Event");
 
-        session.send("/app/event." + eventA.getId() + ".send", messagePayload);
+        StompHeaders sendHeaders = new StompHeaders();
+        sendHeaders.setDestination("/app/event." + eventA.getId() + ".send");
+        sendHeaders.add("clientMessageId", clientMsgId);
+
+        session.send(sendHeaders, messagePayload);
 
         Map ack = ackFuture.get(5, TimeUnit.SECONDS);
         assertThat(ack).isNotNull();
-        assertThat(ack.get("clientMessageId")).isEqualTo("unique-uuid-101");
+        assertThat(ack.get("clientMessageId")).isEqualTo(clientMsgId);
         assertThat(ack.get("serverMessageId")).isNotNull();
 
         // Verify duplicate message is blocked
         int messageCountBefore = eventMessageRepository.findAll().size();
-        session.send("/app/event." + eventA.getId() + ".send", messagePayload);
+        session.send(sendHeaders, messagePayload);
         
         Thread.sleep(1000);
         int messageCountAfter = eventMessageRepository.findAll().size();

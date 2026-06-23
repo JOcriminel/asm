@@ -31,6 +31,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Value("${spring.rabbitmq.password:guest}")
     private String rabbitPassword;
 
+    @Value("${timetree.websocket.relay.stomp-port:61613}")
+    private int stompRelayPort;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.setApplicationDestinationPrefixes("/app");
@@ -40,7 +43,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             // Full Broker Relay pointing to external message broker (RabbitMQ)
             config.enableStompBrokerRelay("/topic", "/queue")
                     .setRelayHost(rabbitHost)
-                    .setRelayPort(61613) // Default STOMP port for RabbitMQ
+                    .setRelayPort(stompRelayPort)
                     .setSystemLogin(rabbitUser)
                     .setSystemPasscode(rabbitPassword)
                     .setClientLogin(rabbitUser)

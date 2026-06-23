@@ -1,139 +1,167 @@
 package com.asm.dux.timetree.service;
 
+import io.micrometer.core.instrument.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
+/**
+ * Micrometer-based WebSocket metrics service.
+ *
+ * Named metrics (all Prometheus-scrape-ready via /actuator/prometheus):
+ *   timetree.ws.sessions.active      Gauge
+ *   timetree.ws.users.connected      Gauge
+ *   timetree.ws.messages.sent        Counter   tags: destination, messageType, result
+ *   timetree.ws.messages.received    Counter   tags: destination, messageType
+ *   timetree.ws.messages.rejected    Counter   tags: destination, messageType, result
+ *   timetree.ws.latency.ms           Timer     tags: destination  (P50/P95/P99 percentiles)
+ *   timetree.ws.reconnects.total     Counter   tags: result
+ *   timetree.ws.offline.queue.size   Gauge     tags: username
+ */
 @Slf4j
 @Service
 public class WebSocketMetricsService {
 
-    private final Set<String> activeSessions = ConcurrentHashMap.newKeySet();
-    private final Set<String> connectedUsers = ConcurrentHashMap.newKeySet();
-    
-    private final AtomicLong messagesCount = new AtomicLong(0);
-    private final AtomicLong typingCount = new AtomicLong(0);
-    private final AtomicLong failedReconnects = new AtomicLong(0);
+    private final MeterRegistry registry;
 
-    // Track latencies (in milliseconds) of recent message deliveries
-    private final Queue<Long> deliveryLatencies = new ConcurrentLinkedQueue<>();
-    private static final int MAX_LATENCY_SAMPLES = 1000;
+    private final AtomicLong activeSessions = new AtomicLong(0);
+    private final AtomicLong connectedUsers = new AtomicLong(0);
+    private final Set<String> connectedUserSet = ConcurrentHashMap.newKeySet();
 
-    // For rates calculation (sliding 1-second window)
-    private final Queue<Long> messageTimestamps = new ConcurrentLinkedQueue<>();
-    private final Queue<Long> typingTimestamps = new ConcurrentLinkedQueue<>();
+    // Per-username offline queue sizes
+    private final java.util.concurrent.ConcurrentHashMap<String, AtomicLong> offlineQueueSizes =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    public WebSocketMetricsService(MeterRegistry registry) {
+        this.registry = registry;
+
+        Gauge.builder("timetree.ws.sessions.active", activeSessions, AtomicLong::get)
+                .description("Active WebSocket sessions")
+                .register(registry);
+
+        Gauge.builder("timetree.ws.users.connected", connectedUsers, AtomicLong::get)
+                .description("Connected unique users")
+                .register(registry);
+    }
+
+    // ─── Session lifecycle ───────────────────────────────────────────────────────
 
     public void registerSession(String sessionId, String username) {
-        activeSessions.add(sessionId);
-        if (username != null) {
-            connectedUsers.add(username);
+        activeSessions.incrementAndGet();
+        if (username != null && connectedUserSet.add(username)) {
+            connectedUsers.incrementAndGet();
         }
     }
 
     public void removeSession(String sessionId, String username) {
-        activeSessions.remove(sessionId);
-        if (username != null) {
-            // Check if user has other active sessions
-            // Since we don't have a full registry mapping here, we can keep track of user count or sessions per user
+        long sessions = activeSessions.decrementAndGet();
+        if (sessions < 0) activeSessions.set(0);
+        if (username != null && connectedUserSet.remove(username)) {
+            long users = connectedUsers.decrementAndGet();
+            if (users < 0) connectedUsers.set(0);
         }
     }
 
-    public void setUsers(Set<String> users) {
-        connectedUsers.clear();
-        connectedUsers.addAll(users);
+    // ─── Message counters ────────────────────────────────────────────────────────
+
+    public void incrementMessagesSent(String destination, String messageType) {
+        counter("timetree.ws.messages.sent",
+                "destination", clean(destination),
+                "messageType", clean(messageType),
+                "result", "success").increment();
     }
 
-    public void incrementMessages() {
-        messagesCount.incrementAndGet();
-        messageTimestamps.add(System.currentTimeMillis());
-        cleanOldTimestamps(messageTimestamps);
+    public void incrementMessagesReceived(String destination, String messageType) {
+        counter("timetree.ws.messages.received",
+                "destination", clean(destination),
+                "messageType", clean(messageType)).increment();
     }
 
-    public void incrementTyping() {
-        typingCount.incrementAndGet();
-        typingTimestamps.add(System.currentTimeMillis());
-        cleanOldTimestamps(typingTimestamps);
+    public void incrementMessagesRejected(String destination, String messageType, String reason) {
+        counter("timetree.ws.messages.rejected",
+                "destination", clean(destination),
+                "messageType", clean(messageType),
+                "result", clean(reason)).increment();
+    }
+
+    // ─── Latency ────────────────────────────────────────────────────────────────
+
+    public void recordLatency(long latencyMs, String destination) {
+        Timer.builder("timetree.ws.latency.ms")
+                .tag("destination", clean(destination))
+                .description("WebSocket message delivery latency")
+                .publishPercentiles(0.50, 0.95, 0.99)
+                .register(registry)
+                .record(latencyMs, TimeUnit.MILLISECONDS);
+    }
+
+    // ─── Reconnects ──────────────────────────────────────────────────────────────
+
+    public void incrementReconnects(String result) {
+        counter("timetree.ws.reconnects.total",
+                "result", clean(result)).increment();
     }
 
     public void incrementFailedReconnects() {
-        failedReconnects.incrementAndGet();
+        incrementReconnects("failed");
+    }
+
+    // ─── Offline queue gauge ─────────────────────────────────────────────────────
+
+    public void updateOfflineQueueSize(String username, long size) {
+        AtomicLong gauge = offlineQueueSizes.computeIfAbsent(username, u -> {
+            AtomicLong g = new AtomicLong(0);
+            Gauge.builder("timetree.ws.offline.queue.size", g, AtomicLong::get)
+                    .tag("username", u)
+                    .description("Offline queue message count")
+                    .register(registry);
+            return g;
+        });
+        gauge.set(size);
+    }
+
+    // ─── Legacy compat (called from WebSocketSecurityInterceptor) ────────────────
+
+    public void incrementMessages() {
+        incrementMessagesSent("unknown", "TEXT");
+    }
+
+    public void incrementTyping() {
+        incrementMessagesSent("unknown", "TYPING");
+    }
+
+    public void incrementFailedReconnects(int n) {
+        for (int i = 0; i < n; i++) incrementFailedReconnects();
     }
 
     public void recordDeliveryLatency(long ms) {
-        deliveryLatencies.add(ms);
-        if (deliveryLatencies.size() > MAX_LATENCY_SAMPLES) {
-            deliveryLatencies.poll();
-        }
+        recordLatency(ms, "unknown");
     }
 
-    private void cleanOldTimestamps(Queue<Long> queue) {
-        long now = System.currentTimeMillis();
-        while (!queue.isEmpty() && now - queue.peek() > 1000) {
-            queue.poll();
-        }
+    // ─── Internal helpers ────────────────────────────────────────────────────────
+
+    private Counter counter(String name, String... tags) {
+        return Counter.builder(name).tags(tags).register(registry);
     }
 
-    public double getMessagesPerSec() {
-        cleanOldTimestamps(messageTimestamps);
-        return messageTimestamps.size();
+    private String clean(String value) {
+        return value != null && !value.isBlank() ? value : "unknown";
     }
 
-    public double getTypingPerSec() {
-        cleanOldTimestamps(typingTimestamps);
-        return typingTimestamps.size();
-    }
-
-    public long getActiveSessions() {
-        return activeSessions.size();
-    }
-
-    public long getConnectedUsers() {
-        return connectedUsers.size();
-    }
-
-    public long getFailedReconnectAttempts() {
-        return failedReconnects.get();
-    }
-
-    public double getAverageDeliveryLatency() {
-        List<Long> latencies = new ArrayList<>(deliveryLatencies);
-        if (latencies.isEmpty()) return 0.0;
-        return latencies.stream().mapToLong(Long::longValue).average().orElse(0.0);
-    }
-
-    public Map<String, Double> getPercentileLatencies() {
-        List<Long> latencies = new ArrayList<>(deliveryLatencies).stream().sorted().collect(Collectors.toList());
-        Map<String, Double> percentiles = new LinkedHashMap<>();
-        if (latencies.isEmpty()) {
-            percentiles.put("P50", 0.0);
-            percentiles.put("P95", 0.0);
-            percentiles.put("P99", 0.0);
-            return percentiles;
-        }
-        percentiles.put("P50", (double) latencies.get((int) (latencies.size() * 0.50)));
-        percentiles.put("P95", (double) latencies.get((int) (latencies.size() * 0.95)));
-        percentiles.put("P99", (double) latencies.get((int) (latencies.size() * 0.99)));
-        return percentiles;
-    }
-
-    public Map<String, Object> getMetricsReport() {
-        Map<String, Object> report = new LinkedHashMap<>();
-        report.put("activeSessions", getActiveSessions());
-        report.put("connectedUsers", getConnectedUsers());
-        report.put("messagesPerSec", getMessagesPerSec());
-        report.put("typingEventsPerSec", getTypingPerSec());
-        report.put("failedReconnectAttempts", getFailedReconnectAttempts());
-        report.put("avgDeliveryLatencyMs", getAverageDeliveryLatency());
-        
-        Map<String, Double> percentiles = getPercentileLatencies();
-        report.put("p50LatencyMs", percentiles.get("P50"));
-        report.put("p95LatencyMs", percentiles.get("P95"));
-        report.put("p99LatencyMs", percentiles.get("P99"));
+    /**
+     * Returns a snapshot map of current metrics for the /metrics/websocket REST endpoint.
+     * Prometheus scraping uses /actuator/prometheus; this endpoint is for quick human-readable checks.
+     */
+    public java.util.Map<String, Object> getMetricsReport() {
+        java.util.Map<String, Object> report = new java.util.LinkedHashMap<>();
+        report.put("timetree.ws.sessions.active", activeSessions.get());
+        report.put("timetree.ws.users.connected", connectedUsers.get());
+        report.put("timetree.ws.users.list", new java.util.ArrayList<>(connectedUserSet));
+        report.put("note", "Full Prometheus metrics available at /actuator/prometheus");
         return report;
     }
 }
