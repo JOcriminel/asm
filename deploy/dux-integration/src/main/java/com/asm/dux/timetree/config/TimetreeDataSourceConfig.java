@@ -31,6 +31,7 @@ public class TimetreeDataSourceConfig {
     }
 
     @Bean(name = "timertreeDataSource")
+    @ConfigurationProperties("spring.datasource.timetree.hikari")
     public DataSource timertreeDataSource() {
         DataSourceProperties properties = timertreeDataSourceProperties();
         return properties.initializeDataSourceBuilder()

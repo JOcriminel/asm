@@ -112,6 +112,18 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             accessor.setUser(authentication);
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
+            // Cache member details and allowed calendar IDs in session attributes for performance
+            java.util.Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
+            if (sessionAttrs != null) {
+                sessionAttrs.put("member", member);
+                try {
+                    List<Long> allowedCalendarIds = securityService.getAllowedCalendarIds(member);
+                    sessionAttrs.put("allowedCalendarIds", allowedCalendarIds);
+                } catch (Exception e) {
+                    log.warn("Failed to pre-fetch allowed calendar IDs for user={}", member.getUsername(), e);
+                }
+            }
+
             // Register in presence engine
             presenceService.registerUserSession(accessor.getSessionId(), member.getUsername());
             log.info("WebSocket CONNECT authenticated user={} sessionId={}", member.getUsername(), accessor.getSessionId());
@@ -132,11 +144,26 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         }
         
         String username = accessor.getUser().getName();
-        Optional<Member> memberOpt = memberRepository.findByUsername(username);
-        if (!memberOpt.isPresent()) {
-            throw new AccessDeniedException("Invalid security principal");
+        
+        // Retrieve cached member and allowed calendar IDs from session attributes to bypass DB queries
+        Member current = null;
+        List<Long> allowedCalendarIds = null;
+        java.util.Map<String, Object> sessionAttrs = accessor.getSessionAttributes();
+        if (sessionAttrs != null) {
+            current = (Member) sessionAttrs.get("member");
+            allowedCalendarIds = (List<Long>) sessionAttrs.get("allowedCalendarIds");
         }
-        Member current = memberOpt.get();
+
+        if (current == null) {
+            Optional<Member> memberOpt = memberRepository.findByUsername(username);
+            if (!memberOpt.isPresent()) {
+                throw new AccessDeniedException("Invalid security principal");
+            }
+            current = memberOpt.get();
+            if (sessionAttrs != null) {
+                sessionAttrs.put("member", current);
+            }
+        }
 
         // Refresh presence TTL on every authorized frame
         presenceService.refreshHeartbeat(username);
@@ -145,14 +172,44 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         Matcher eventMatcher = EVENT_TOPIC_PATTERN.matcher(destination);
         if (eventMatcher.find()) {
             Long eventId = Long.parseLong(eventMatcher.group(2));
+            
+            // Check session attributes authorization cache first to avoid DB queries
+            String authCacheKey = "auth:event:" + eventId;
+            if (sessionAttrs != null && Boolean.TRUE.equals(sessionAttrs.get(authCacheKey))) {
+                return;
+            }
+
             Optional<Event> eventOpt = eventRepository.findById(eventId);
             if (!eventOpt.isPresent()) {
                 throw new AccessDeniedException("Event not found with ID: " + eventId);
             }
             Event event = eventOpt.get();
-            if (!securityService.canReadEvent(current, event)) {
+            
+            boolean isAuthorized = false;
+            if ("ADMIN".equalsIgnoreCase(current.getRole())) {
+                isAuthorized = true;
+            } else if (Boolean.TRUE.equals(event.getIsPrivate())) {
+                final Member finalCurrent = current;
+                isAuthorized = event.getParticipants() != null && event.getParticipants().stream()
+                        .anyMatch(p -> p.getId().equals(finalCurrent.getId()));
+            } else {
+                if (allowedCalendarIds == null) {
+                    allowedCalendarIds = securityService.getAllowedCalendarIds(current);
+                    if (sessionAttrs != null) {
+                        sessionAttrs.put("allowedCalendarIds", allowedCalendarIds);
+                    }
+                }
+                isAuthorized = allowedCalendarIds.contains(event.getCalendar().getId());
+            }
+
+            if (!isAuthorized) {
                 log.warn("Access denied: User={} attempted {} to unauthorized event={}", username, actionType, eventId);
                 throw new AccessDeniedException("Access denied to event room " + eventId);
+            }
+            
+            // Cache successful authorization
+            if (sessionAttrs != null) {
+                sessionAttrs.put(authCacheKey, true);
             }
             return;
         }
@@ -161,15 +218,29 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
         Matcher groupMatcher = GROUP_TOPIC_PATTERN.matcher(destination);
         if (groupMatcher.find()) {
             Long groupId = Long.parseLong(groupMatcher.group(1));
-            boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole());
+            
+            // Check session attributes authorization cache first
+            String authCacheKey = "auth:group:" + groupId;
+            if (sessionAttrs != null && Boolean.TRUE.equals(sessionAttrs.get(authCacheKey))) {
+                return;
+            }
 
-            if (!isAdmin) {
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole());
+            boolean isAuthorized = isAdmin;
+
+            if (!isAuthorized) {
                 List<Group> userGroups = groupRepository.findGroupsByMemberId(current.getId());
-                boolean isAuthorized = userGroups.stream().anyMatch(g -> g.getId().equals(groupId));
-                if (!isAuthorized) {
-                    log.warn("Access denied: User={} attempted {} to unauthorized group={}", username, actionType, groupId);
-                    throw new AccessDeniedException("Access denied to group presence " + groupId);
-                }
+                isAuthorized = userGroups.stream().anyMatch(g -> g.getId().equals(groupId));
+            }
+
+            if (!isAuthorized) {
+                log.warn("Access denied: User={} attempted {} to unauthorized group={}", username, actionType, groupId);
+                throw new AccessDeniedException("Access denied to group presence " + groupId);
+            }
+
+            // Cache successful authorization
+            if (sessionAttrs != null) {
+                sessionAttrs.put(authCacheKey, true);
             }
             return;
         }

@@ -96,20 +96,17 @@ public class TimetreeLoadTests {
     @LocalServerPort
     private int port;
 
-    @MockBean
+    @Autowired
     private MemberRepository memberRepository;
 
-    @MockBean
+    @Autowired
     private CalendarRepository calendarRepository;
 
-    @MockBean
+    @org.springframework.boot.test.mock.mockito.SpyBean
     private GroupRepository groupRepository;
 
-    @MockBean
+    @Autowired
     private EventRepository eventRepository;
-
-    @MockBean
-    private com.asm.dux.timetree.service.TimetreeSecurityService securityService;
 
     private Long eventId;
 
@@ -135,54 +132,33 @@ public class TimetreeLoadTests {
         when(eventChatStatusRepository.save(org.mockito.ArgumentMatchers.any(EventChatStatus.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Create mock Member
-        Member member = Member.builder()
-                .id(1L)
-                .username("loaduser")
-                .fullName("Load User")
-                .role("CHEF")
-                .email("load@test.com")
-                .build();
-        when(memberRepository.findByUsername("loaduser")).thenReturn(Optional.of(member));
-        when(memberRepository.save(org.mockito.ArgumentMatchers.any(Member.class))).thenReturn(member);
+        org.mockito.Mockito.doReturn(java.util.Collections.emptyList())
+                .when(groupRepository).findMembersByGroupId(org.mockito.ArgumentMatchers.anyLong());
+        org.mockito.Mockito.doReturn(java.util.Collections.emptyList())
+                .when(groupRepository).findMemberUsernamesByGroupId(org.mockito.ArgumentMatchers.anyLong());
 
-        // Create mock Calendar
-        com.asm.dux.timetree.domain.Calendar cal = com.asm.dux.timetree.domain.Calendar.builder()
-                .id(1L)
-                .name("Load Calendar")
-                .build();
-        when(calendarRepository.save(org.mockito.ArgumentMatchers.any(com.asm.dux.timetree.domain.Calendar.class))).thenReturn(cal);
+        // Create test data
+        Member member = memberRepository.findByUsername("loaduser").orElseGet(() ->
+                memberRepository.save(Member.builder()
+                        .username("loaduser").fullName("Load User")
+                        .role("CHEF").email("load@test.com").build()));
 
-        // Create mock Group
-        Group group = Group.builder()
-                .id(1L)
-                .name("Load Group")
-                .chef(member)
-                .active(true)
-                .calendars(List.of(cal))
-                .build();
-        when(groupRepository.save(org.mockito.ArgumentMatchers.any(Group.class))).thenReturn(group);
-        when(groupRepository.findMembersByGroupId(org.mockito.ArgumentMatchers.anyLong())).thenReturn(java.util.Collections.emptyList());
-        when(groupRepository.findMemberUsernamesByGroupId(org.mockito.ArgumentMatchers.anyLong())).thenReturn(java.util.Collections.emptyList());
+        com.asm.dux.timetree.domain.Calendar cal = calendarRepository.save(
+                com.asm.dux.timetree.domain.Calendar.builder()
+                        .name("Load Calendar").build());
 
-        // Create mock Event
-        this.eventId = 999L;
-        Event event = Event.builder()
-                .id(999L)
-                .title("Load Test Event")
-                .calendar(cal)
-                .group(group)
+        Group group = groupRepository.save(Group.builder()
+                .name("Load Group").chef(member).active(true)
+                .calendars(List.of(cal)).build());
+
+        Event event = eventRepository.save(Event.builder()
+                .title("Load Test Event").calendar(cal).group(group)
                 .startDate(java.time.LocalDateTime.now())
                 .endDate(java.time.LocalDateTime.now().plusHours(1))
-                .status(EventStatus.PLANNED)
-                .priority(EventPriority.NORMAL)
-                .createdBy(member.getUsername())
-                .build();
-        when(eventRepository.save(org.mockito.ArgumentMatchers.any(Event.class))).thenReturn(event);
-        when(eventRepository.findById(999L)).thenReturn(Optional.of(event));
+                .status(EventStatus.PLANNED).priority(EventPriority.NORMAL)
+                .createdBy(member.getUsername()).build());
 
-        // Mock security service to always allow reading
-        when(securityService.canReadEvent(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        this.eventId = event.getId();
     }
 
     @Test
@@ -194,6 +170,11 @@ public class TimetreeLoadTests {
         AtomicInteger ackCount = new AtomicInteger(0);
         CountDownLatch allAcks = new CountDownLatch(totalMessages);
 
+        // Share single client instance across sessions to prevent thread-storm and context switching
+        List<Transport> transports = List.of(new WebSocketTransport(new StandardWebSocketClient()));
+        WebSocketStompClient client = new WebSocketStompClient(new SockJsClient(transports));
+        client.setMessageConverter(new MappingJackson2MessageConverter());
+
         ExecutorService executor = Executors.newFixedThreadPool(SESSIONS);
         List<Future<?>> futures = new ArrayList<>();
 
@@ -201,10 +182,6 @@ public class TimetreeLoadTests {
             final int sessionIndex = s;
             futures.add(executor.submit(() -> {
                 try {
-                    List<Transport> transports = List.of(new WebSocketTransport(new StandardWebSocketClient()));
-                    WebSocketStompClient client = new WebSocketStompClient(new SockJsClient(transports));
-                    client.setMessageConverter(new MappingJackson2MessageConverter());
-
                     StompHeaders connectHeaders = new StompHeaders();
                     connectHeaders.add("Authorization", "Bearer load-token");
 
@@ -260,7 +237,6 @@ public class TimetreeLoadTests {
 
                     allAcks.await(30, TimeUnit.SECONDS);
                     session.disconnect();
-                    client.stop();
                 } catch (Exception e) {
                     System.err.println("Session " + sessionIndex + " error:");
                     e.printStackTrace();
@@ -273,6 +249,7 @@ public class TimetreeLoadTests {
             f.get(60, TimeUnit.SECONDS);
         }
         executor.shutdown();
+        client.stop(); // Stop the shared client resource
 
         // ── Report ────────────────────────────────────────────────────────────────
         System.out.println("\n═══════════════════════════════════════════");

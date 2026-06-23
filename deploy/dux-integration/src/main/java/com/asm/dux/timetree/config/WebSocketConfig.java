@@ -69,5 +69,17 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(ChannelRegistration registration) {
         // Register our security and rate limit interceptors
         registration.interceptors(securityInterceptor, rateLimitingInterceptor);
+        registration.taskExecutor()
+                .corePoolSize(32)
+                .maxPoolSize(64)
+                .keepAliveSeconds(60);
+    }
+
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.taskExecutor()
+                .corePoolSize(32)
+                .maxPoolSize(64)
+                .keepAliveSeconds(60);
     }
 }
