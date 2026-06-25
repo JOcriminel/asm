@@ -2,6 +2,7 @@ import 'package:dux_front/features/timetree/data/dto/timetree_member_dto.dart';
 
 class TimetreeMessageDto {
   final String id;
+  final String? clientMessageId;
   final String eventId;
   final String message;
   final String messageType; // TEXT, IMAGE, FILE, SYSTEM
@@ -11,6 +12,7 @@ class TimetreeMessageDto {
 
   const TimetreeMessageDto({
     required this.id,
+    this.clientMessageId,
     required this.eventId,
     required this.message,
     required this.messageType,
@@ -22,6 +24,7 @@ class TimetreeMessageDto {
   factory TimetreeMessageDto.fromJson(Map<String, dynamic> json) {
     return TimetreeMessageDto(
       id: (json['id'] ?? '').toString(),
+      clientMessageId: json['clientMessageId'] as String?,
       eventId: (json['eventId'] ?? '').toString(),
       message: json['message'] as String? ?? '',
       messageType: json['messageType'] as String? ?? 'TEXT',
@@ -34,6 +37,7 @@ class TimetreeMessageDto {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'clientMessageId': clientMessageId,
       'eventId': eventId,
       'message': message,
       'messageType': messageType,

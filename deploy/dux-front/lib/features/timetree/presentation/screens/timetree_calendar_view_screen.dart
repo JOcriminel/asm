@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_events_repository.dart';
@@ -7,12 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_event.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_custom_field.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_events_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_chat_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_notifications_provider.dart';
@@ -20,6 +20,19 @@ import 'package:dux_front/features/timetree/data/repositories/timetree_custom_fi
 import 'package:dux_front/features/timetree/presentation/widgets/dynamic_event_form_renderer.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_event_details_dialog.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_notification_center.dart';
+import 'package:dux_front/features/timetree/presentation/widgets/mes_agendas_bottom_sheet.dart';
+import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
+import 'package:go_router/go_router.dart';
+
+String _getCalendarCover(TimetreeCalendar cal) {
+  if (cal.description.contains('|[cover:')) {
+    final parts = cal.description.split('|[cover:');
+    if (parts.length > 1) {
+      return parts[1].replaceAll(']', '').trim();
+    }
+  }
+  return '';
+}
 
 class TimetreeCalendarViewScreen extends ConsumerStatefulWidget {
   const TimetreeCalendarViewScreen({super.key});
@@ -43,202 +56,315 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
     Colors.indigo,
   ];
 
-  Color _getGroupColor(String groupId, List<TimetreeGroup> groups) {
-    final idx = groups.indexWhere((g) => g.id == groupId);
+  Color _getCalendarColor(String calendarId, List<TimetreeCalendar> calendars) {
+    final idx = calendars.indexWhere((c) => c.id == calendarId);
     if (idx != -1) {
-      return _colorPalette[idx % _colorPalette.length];
+      final hex = calendars[idx].color.replaceAll('#', '');
+      try {
+        return Color(int.parse('FF$hex', radix: 16));
+      } catch (_) {
+        return _colorPalette[idx % _colorPalette.length];
+      }
     }
     return Colors.grey;
   }
 
+  void _navigateCalendar(int direction) {
+    final mode = ref.read(calendarViewModeProvider);
+    final date = ref.read(currentCalendarDateProvider);
+    if (mode == 'MONTH') {
+      ref.read(currentCalendarDateProvider.notifier).state = DateTime(date.year, date.month + direction, 1);
+    } else if (mode == 'WEEK') {
+      ref.read(currentCalendarDateProvider.notifier).state = date.add(Duration(days: 7 * direction));
+    } else {
+      ref.read(currentCalendarDateProvider.notifier).state = date.add(Duration(days: direction));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final authState = ref.watch(authControllerProvider);
     final user = authState.user;
     final role = user?.role.toUpperCase() ?? 'MEMBER';
     final username = user?.username ?? '';
 
-    final groupsAsync = ref.watch(timetreeGroupsProvider);
+    final calendarsAsync = ref.watch(timetreeCalendarsProvider);
     final eventsAsync = ref.watch(expandedEventsProvider);
     final viewMode = ref.watch(calendarViewModeProvider);
     final focusedDate = ref.watch(currentCalendarDateProvider);
     final selectedCalendarIds = ref.watch(selectedCalendarIdsProvider);
     ref.watch(timetreeChatUnreadCountsProvider);
 
-    return Scaffold(
-      drawer: const DuxDrawer(),
-      appBar: AppBar(
-        title: const Text('Agenda TimeTree'),
-        actions: [
-          Consumer(
-            builder: (context, ref, child) {
-              final unreadNotifs = ref.watch(timetreeUnreadNotificationsCountProvider);
-              return Badge(
-                isLabelVisible: unreadNotifs > 0,
-                label: Text('$unreadNotifs'),
-                child: IconButton(
-                  icon: const Icon(Icons.notifications_rounded),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => const TimetreeNotificationCenter(),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.download_rounded),
-            tooltip: 'Exporter',
-            onPressed: () => _showExportBottomSheet(context),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () {
-              ref.read(timetreeGroupsProvider.notifier).loadGroups();
-              ref.read(timetreeEventsProvider.notifier).loadEvents();
-              ref.read(timetreeChatUnreadCountsProvider.notifier).loadUnreadCounts();
-            },
-          ),
-        ],
+    final allCalendars = calendarsAsync.value ?? [];
+    Color themeSeedColor = Colors.blue;
+    if (allCalendars.isNotEmpty) {
+      final activeCalendarId = selectedCalendarIds.isNotEmpty ? selectedCalendarIds.first : allCalendars.first.id;
+      final activeCalendar = allCalendars.firstWhere((c) => c.id == activeCalendarId, orElse: () => allCalendars.first);
+      try {
+        final cleanHex = activeCalendar.color.replaceAll('#', '');
+        themeSeedColor = Color(int.parse('FF$cleanHex', radix: 16));
+      } catch (_) {}
+    }
+
+    final dateStr = DateFormat('MMMM yyyy', 'fr_FR').format(focusedDate);
+    final formattedTitle = dateStr.isNotEmpty ? dateStr[0].toUpperCase() + dateStr.substring(1) : '';
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: themeSeedColor,
+          brightness: Theme.of(context).brightness,
+        ),
       ),
-      body: groupsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
+      child: Scaffold(
+        backgroundColor: theme.brightness == Brightness.dark ? Colors.black : null,
+        drawer: const DuxDrawer(),
+        appBar: AppBar(
+          backgroundColor: theme.brightness == Brightness.dark ? Colors.black : null,
+          elevation: 0,
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
+          title: InkWell(
+            onTap: () => _selectMonthYear(context, focusedDate),
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 12),
-                Text('Erreur de chargement: $err'),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () => ref.read(timetreeGroupsProvider.notifier).loadGroups(),
-                  child: const Text('Réessayer'),
+                Text(
+                  formattedTitle.toLowerCase(),
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
+                const Icon(Icons.arrow_drop_down),
               ],
             ),
           ),
-        ),
-        data: (allGroups) {
-          // Filter groups based on RBAC rules:
-          // Admin: full access
-          // Chef: managed groups
-          // Member: assigned groups
-          final List<TimetreeGroup> groups;
-          if (role == 'ADMIN') {
-            groups = allGroups;
-          } else if (role == 'CHEF') {
-            groups = allGroups.where((g) => g.chef?.username == username).toList();
-          } else {
-            groups = allGroups.where((g) => g.members.any((m) => m.username == username)).toList();
-          }
-
-          if (groups.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.calendar_today_outlined, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'Aucun groupe ou calendrier affecté.',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Veuillez contacter un administrateur pour vous affecter à un groupe.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.star_outline_rounded),
+              onPressed: () {
+                // Favorite indicator/action placeholder
+              },
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.tune_rounded),
+              tooltip: 'Choisir la vue',
+              initialValue: viewMode,
+              onSelected: (val) {
+                ref.read(calendarViewModeProvider.notifier).state = val;
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'MONTH',
+                  child: Text('Mois'),
                 ),
-              ),
-            );
-          }
-
-          // Populate default calendar filters on first run
-          final allCalendars = groups.expand((g) => g.calendars).toList();
-          if (selectedCalendarIds.isEmpty && allCalendars.isNotEmpty) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref.read(selectedCalendarIdsProvider.notifier).setAll(
-                    allCalendars.map((c) => c.id).toSet(),
+                const PopupMenuItem(
+                  value: 'WEEK',
+                  child: Text('Semaine'),
+                ),
+                const PopupMenuItem(
+                  value: 'DAY',
+                  child: Text('Jour'),
+                ),
+              ],
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert_rounded),
+              onSelected: (val) {
+                if (val == 'refresh') {
+                  ref.read(timetreeCalendarsProvider.notifier).loadCalendars();
+                  ref.read(timetreeEventsProvider.notifier).loadEvents();
+                  ref.read(timetreeChatUnreadCountsProvider.notifier).loadUnreadCounts();
+                } else if (val == 'export') {
+                  _showExportBottomSheet(context);
+                } else if (val == 'notifications') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) => const TimetreeNotificationCenter(),
+                    ),
                   );
-            });
-          }
-
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth > 800;
-              final calendarGrid = eventsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text('Erreur événements: $err', style: const TextStyle(color: Colors.red)),
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'refresh',
+                  child: ListTile(
+                    leading: Icon(Icons.refresh_rounded),
+                    title: Text('Rafraîchir'),
                   ),
                 ),
-                data: (events) {
-                  switch (viewMode) {
-                    case 'WEEK':
-                      return _buildWeekView(context, events, groups);
-                    case 'DAY':
-                      return _buildDayView(context, events, groups);
-                    case 'MONTH':
-                    default:
-                      return _buildMonthView(context, events, groups);
-                  }
-                },
-              );
-
-              final mainContent = Column(
+                const PopupMenuItem(
+                  value: 'export',
+                  child: ListTile(
+                    leading: Icon(Icons.download_rounded),
+                    title: Text('Exporter'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'notifications',
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final unreadNotifs = ref.watch(timetreeUnreadNotificationsCountProvider);
+                      return ListTile(
+                        leading: Badge(
+                          isLabelVisible: unreadNotifs > 0,
+                          label: Text('$unreadNotifs'),
+                          child: const Icon(Icons.notifications_rounded),
+                        ),
+                        title: const Text('Notifications'),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: calendarsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildCalendarHeader(focusedDate, viewMode, groups),
-                  Expanded(child: calendarGrid),
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 12),
+                  Text('Erreur de chargement: $err'),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () => ref.read(timetreeCalendarsProvider.notifier).loadCalendars(),
+                    child: const Text('Réessayer'),
+                  ),
                 ],
+              ),
+            ),
+          ),
+          data: (allCals) {
+            // Filter calendars based on RBAC rules:
+            // Admin: full access
+            // Chef: managed calendars
+            // Member: assigned calendars
+            final List<TimetreeCalendar> calendars;
+            if (role == 'ADMIN' || role == 'ADMINISTRATEUR') {
+              calendars = allCals;
+            } else {
+              calendars = allCals.where((c) => c.members.any((m) => m.username == username)).toList();
+            }
+
+            if (calendars.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_today_outlined, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'Aucun agenda affecté.',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Veuillez contacter un administrateur pour vous affecter à un agenda.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
               );
+            }
 
-              final sidebar = _buildSidebar(groups, allCalendars);
+            // Populate default calendar filters on first run
+            if (selectedCalendarIds.isEmpty && calendars.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                ref.read(selectedCalendarIdsProvider.notifier).setAll(
+                      calendars.map((c) => c.id).toSet(),
+                    );
+              });
+            }
 
-              if (isWide) {
-                return Row(
-                  children: [
-                    SizedBox(width: 300, child: sidebar),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: mainContent),
-                  ],
-                );
-              } else {
-                return Column(
-                  children: [
-                    ExpansionTile(
-                      leading: const Icon(Icons.filter_list_rounded),
-                      title: const Text('Filtres & Agendas'),
-                      children: [
-                        SizedBox(height: 250, child: sidebar),
-                      ],
+            final calendarGrid = eventsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text('Erreur événements: $err', style: const TextStyle(color: Colors.red)),
+                ),
+              ),
+              data: (events) {
+                switch (viewMode) {
+                  case 'WEEK':
+                    return _buildWeekView(context, events, calendars);
+                  case 'DAY':
+                    return _buildDayView(context, events, calendars);
+                  case 'MONTH':
+                  default:
+                    return _buildMonthView(context, events, calendars);
+                }
+              },
+            );
+
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onVerticalDragEnd: (details) {
+                if (details.primaryVelocity != null && details.primaryVelocity! < -300) {
+                  showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => const MesAgendasBottomSheet(),
+                  );
+                }
+              },
+              onHorizontalDragEnd: (details) {
+                if (details.primaryVelocity != null) {
+                  if (details.primaryVelocity! < -300) {
+                    // Swipe left -> Next Month
+                    _navigateCalendar(1);
+                  } else if (details.primaryVelocity! > 300) {
+                    // Swipe right -> Previous Month
+                    _navigateCalendar(-1);
+                  }
+                }
+              },
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      _buildHorizontalAgendasSelector(calendars),
+                      Expanded(child: calendarGrid),
+                    ],
+                  ),
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: FloatingActionButton(
+                      backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFEBEBEB),
+                      foregroundColor: theme.brightness == Brightness.dark ? Colors.white : Colors.black87,
+                      shape: const CircleBorder(),
+                      onPressed: () => _showEventDialog(null, calendars),
+                      child: const Icon(Icons.add, size: 28),
                     ),
-                    Expanded(child: mainContent),
-                  ],
-                );
-              }
-            },
-          );
-        },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
       ),
     );
   }
 
   // Header Switcher
-  Widget _buildCalendarHeader(DateTime date, String mode, List<TimetreeGroup> groups) {
+  Widget _buildCalendarHeader(DateTime date, String mode, List<TimetreeCalendar> calendars) {
     final theme = Theme.of(context);
     String title = '';
     if (mode == 'MONTH') {
@@ -267,21 +393,11 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left_rounded),
-                onPressed: () {
-                  final delta = mode == 'MONTH'
-                      ? const Duration(days: 30)
-                      : (mode == 'WEEK' ? const Duration(days: 7) : const Duration(days: 1));
-                  ref.read(currentCalendarDateProvider.notifier).state = date.subtract(delta);
-                },
+                onPressed: () => _navigateCalendar(-1),
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right_rounded),
-                onPressed: () {
-                  final delta = mode == 'MONTH'
-                      ? const Duration(days: 30)
-                      : (mode == 'WEEK' ? const Duration(days: 7) : const Duration(days: 1));
-                  ref.read(currentCalendarDateProvider.notifier).state = date.add(delta);
-                },
+                onPressed: () => _navigateCalendar(1),
               ),
               const SizedBox(width: 8),
               Text(
@@ -296,7 +412,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
               IconButton(
                 icon: const Icon(Icons.add_box_rounded, color: Colors.blueAccent),
                 tooltip: 'Ajouter un événement',
-                onPressed: () => _showEventDialog(null, groups),
+                onPressed: () => _showEventDialog(null, calendars),
               ),
               const SizedBox(width: 8),
               SegmentedButton<String>(
@@ -317,270 +433,571 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
     );
   }
 
-  // Sidebar Filters panel
-  Widget _buildSidebar(List<TimetreeGroup> groups, List<TimetreeCalendar> availableCalendars) {
-    final theme = Theme.of(context);
-    final selectedCalendarIds = ref.watch(selectedCalendarIdsProvider);
 
-    return Container(
-      color: theme.colorScheme.surfaceContainerLow,
-      padding: const EdgeInsets.all(16),
-      child: Material(
-        color: Colors.transparent,
-        child: ListView(
-          children: [
-            Text(
-              'SÉLECTEUR DE CALENDRIERS',
-              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.grey),
-            ),
-            const Divider(),
-            const SizedBox(height: 8),
-            ...groups.map((group) {
-              final groupColor = _getGroupColor(group.id, groups);
-              final groupCalendars = group.calendars;
-  
-              return ExpansionTile(
-                initiallyExpanded: true,
-                leading: Container(
-                  width: 14,
-                  height: 14,
-                  decoration: BoxDecoration(color: groupColor, shape: BoxShape.circle),
-                ),
-                title: Text(
-                  group.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                subtitle: Text('${groupCalendars.length} calendrier(s)', style: const TextStyle(fontSize: 11)),
-                children: groupCalendars.map((cal) {
-                  final isChecked = selectedCalendarIds.contains(cal.id);
-                  return CheckboxListTile(
-                    title: Text(cal.name, style: const TextStyle(fontSize: 13)),
-                    subtitle: cal.description.isNotEmpty ? Text(cal.description, style: const TextStyle(fontSize: 10)) : null,
-                    value: isChecked,
-                    activeColor: groupColor,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    onChanged: (val) {
-                      ref.read(selectedCalendarIdsProvider.notifier).toggleCalendar(cal.id, val ?? false);
-                    },
-                  );
-                }).toList(),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
 
-  // Month Grid View
-  Widget _buildMonthView(BuildContext context, List<TimetreeEvent> events, List<TimetreeGroup> groups) {
+  // Month Grid View with Multi-Day Spanning Bars
+  Widget _buildMonthView(BuildContext context, List<TimetreeEvent> events, List<TimetreeCalendar> calendars) {
     final theme = Theme.of(context);
     final focusedDate = ref.watch(currentCalendarDateProvider);
-    final int daysInMonth = DateTime(focusedDate.year, focusedDate.month + 1, 0).day;
     final int firstWeekday = DateTime(focusedDate.year, focusedDate.month, 1).weekday; // 1 = Monday, 7 = Sunday
 
-    final daysOfWeek = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    final daysOfWeek = ['LUN.', 'MAR.', 'MER.', 'JEU.', 'VEN.', 'SAM.', 'DIM.'];
+
+    // Generate dates for all 42 cells (6 weeks)
+    final List<DateTime> cellDates = List.generate(42, (index) {
+      final cellDayNumber = index - firstWeekday + 2;
+      return DateTime(focusedDate.year, focusedDate.month, cellDayNumber);
+    });
+
+    // Map of day index (0..41) -> list of events in slots
+    final List<List<TimetreeEvent?>> cellSlots = List.generate(42, (_) => []);
+    // Map of day index (0..41) -> total event count active on that day
+    final List<int> cellEventCounts = List.generate(42, (_) => 0);
+
+    // Compute slots week-by-week (6 weeks)
+    for (int w = 0; w < 6; w++) {
+      final int weekStartIdx = w * 7;
+      final int weekEndIdx = weekStartIdx + 6;
+      final List<DateTime> weekDays = cellDates.sublist(weekStartIdx, weekEndIdx + 1);
+
+      // Get all events active in this week
+      final List<TimetreeEvent> weekEvents = [];
+      for (final e in events) {
+        final start = e.startDate;
+        final end = e.endDate;
+        final weekStart = DateTime(weekDays.first.year, weekDays.first.month, weekDays.first.day, 0, 0, 0);
+        final weekEnd = DateTime(weekDays.last.year, weekDays.last.month, weekDays.last.day, 23, 59, 59);
+        if (start.isBefore(weekEnd) && end.isAfter(weekStart)) {
+          weekEvents.add(e);
+        }
+      }
+
+      // Sort week events:
+      // 1. Duration within this week (descending)
+      // 2. Start date (ascending)
+      weekEvents.sort((a, b) {
+        final aStart = a.startDate.isBefore(weekDays.first) ? weekDays.first : a.startDate;
+        final aEnd = a.endDate.isAfter(weekDays.last) ? weekDays.last : a.endDate;
+        final bStart = b.startDate.isBefore(weekDays.first) ? weekDays.first : b.startDate;
+        final bEnd = b.endDate.isAfter(weekDays.last) ? weekDays.last : b.endDate;
+        final aDur = aEnd.difference(aStart).inDays;
+        final bDur = bEnd.difference(bStart).inDays;
+        if (aDur != bDur) {
+          return bDur.compareTo(aDur); // Descending duration
+        }
+        return a.startDate.compareTo(b.startDate); // Ascending start date
+      });
+
+      // Allocate slots
+      final List<List<TimetreeEvent?>> daySlots = List.generate(7, (_) => []);
+      for (final event in weekEvents) {
+        final List<bool> activeDays = List.generate(7, (d) {
+          final day = weekDays[d];
+          final cellStart = DateTime(day.year, day.month, day.day, 0, 0, 0);
+          final cellEnd = DateTime(day.year, day.month, day.day, 23, 59, 59);
+          return event.startDate.isBefore(cellEnd) && event.endDate.isAfter(cellStart);
+        });
+
+        int slotIdx = 0;
+        while (true) {
+          bool slotFree = true;
+          for (int d = 0; d < 7; d++) {
+            if (activeDays[d]) {
+              if (slotIdx < daySlots[d].length && daySlots[d][slotIdx] != null) {
+                slotFree = false;
+                break;
+              }
+            }
+          }
+          if (slotFree) break;
+          slotIdx++;
+        }
+
+        // Fill slots
+        for (int d = 0; d < 7; d++) {
+          if (activeDays[d]) {
+            while (daySlots[d].length <= slotIdx) {
+              daySlots[d].add(null);
+            }
+            daySlots[d][slotIdx] = event;
+          }
+        }
+      }
+
+      // Copy daySlots to cellSlots
+      for (int d = 0; d < 7; d++) {
+        final cellIdx = weekStartIdx + d;
+        cellSlots[cellIdx] = daySlots[d];
+        
+        // Also count total events for this day
+        int count = 0;
+        final day = weekDays[d];
+        final cellStart = DateTime(day.year, day.month, day.day, 0, 0, 0);
+        final cellEnd = DateTime(day.year, day.month, day.day, 23, 59, 59);
+        for (final e in events) {
+          if (e.startDate.isBefore(cellEnd) && e.endDate.isAfter(cellStart)) {
+            count++;
+          }
+        }
+        cellEventCounts[cellIdx] = count;
+      }
+    }
 
     return Column(
       children: [
         // Days of week header
-        GridView.count(
-          shrinkWrap: true,
-          crossAxisCount: 7,
-          physics: const NeverScrollableScrollPhysics(),
-          children: daysOfWeek.map((d) {
-            return Center(
-              child: Text(
-                d,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
+        Container(
+          color: theme.brightness == Brightness.dark ? Colors.black : theme.colorScheme.surfaceContainer,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: daysOfWeek.map((d) {
+              final isSunday = d == 'DIM.';
+              return Expanded(
+                child: Center(
+                  child: Text(
+                    d,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isSunday 
+                          ? Colors.red 
+                          : (theme.brightness == Brightness.dark ? Colors.grey[400] : Colors.grey[700]),
+                      fontSize: 10,
+                    ),
+                  ),
                 ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
         // Month days grid (6 weeks = 42 cells)
         Expanded(
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 1.0,
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.brightness == Brightness.dark ? Colors.black : null,
+              border: Border(
+                top: BorderSide(
+                  color: theme.brightness == Brightness.dark ? Colors.grey[900]! : Colors.grey[200]!,
+                  width: 0.5,
+                ),
+                left: BorderSide(
+                  color: theme.brightness == Brightness.dark ? Colors.grey[900]! : Colors.grey[200]!,
+                  width: 0.5,
+                ),
+              ),
             ),
-            itemCount: 42,
-            itemBuilder: (context, index) {
-              final cellDayNumber = index - firstWeekday + 2;
-              final isCurrentMonth = cellDayNumber > 0 && cellDayNumber <= daysInMonth;
+            child: GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: 0.6,
+              ),
+              itemCount: 42,
+              itemBuilder: (context, index) {
+                final cellDate = cellDates[index];
+                final cellDayNumber = cellDate.day;
+                final isCurrentMonth = cellDate.month == focusedDate.month;
 
-              if (!isCurrentMonth) {
-                return Container(
-                  margin: const EdgeInsets.all(1),
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-                );
-              }
+                final dayEvents = events.where((e) {
+                  final start = e.startDate;
+                  final end = e.endDate;
+                  final cellStart = DateTime(cellDate.year, cellDate.month, cellDate.day, 0, 0, 0);
+                  final cellEnd = DateTime(cellDate.year, cellDate.month, cellDate.day, 23, 59, 59);
+                  return start.isBefore(cellEnd) && end.isAfter(cellStart);
+                }).toList();
 
-              final cellDate = DateTime(focusedDate.year, focusedDate.month, cellDayNumber);
-              final dayEvents = events.where((e) {
-                final start = e.startDate;
-                final end = e.endDate;
-                final cellStart = DateTime(cellDate.year, cellDate.month, cellDate.day, 0, 0, 0);
-                final cellEnd = DateTime(cellDate.year, cellDate.month, cellDate.day, 23, 59, 59);
-                return start.isBefore(cellEnd) && end.isAfter(cellStart);
-              }).toList();
+                // Highlight current date
+                final now = DateTime.now();
+                final isToday = cellDate.year == now.year && cellDate.month == now.month && cellDate.day == now.day;
 
-              // Highlight current date
-              final now = DateTime.now();
-              final isToday = cellDate.year == now.year && cellDate.month == now.month && cellDate.day == now.day;
+                final dayColor = isToday
+                    ? theme.colorScheme.primary
+                    : (cellDate.weekday == 7
+                        ? Colors.red
+                        : (isCurrentMonth
+                            ? (theme.brightness == Brightness.dark ? Colors.white70 : Colors.black87)
+                            : (theme.brightness == Brightness.dark ? Colors.grey[700] : Colors.grey[400])));
 
-              return DragTarget<TimetreeEvent>(
-                onWillAcceptWithDetails: (details) => true,
-                onAcceptWithDetails: (details) {
-                  final event = details.data;
-                  final duration = event.endDate.difference(event.startDate);
-                  final newStart = DateTime(
-                    cellDate.year,
-                    cellDate.month,
-                    cellDate.day,
-                    event.startDate.hour,
-                    event.startDate.minute,
-                  );
-                  final newEnd = newStart.add(duration);
-                  ref.read(timetreeEventsProvider.notifier).rescheduleEvent(event.id, newStart, newEnd).then((_) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Événement "${event.title}" déplacé au ${DateFormat('dd/MM').format(cellDate)}')),
-                    );
-                  }).catchError((e) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Erreur de déplacement: $e'), backgroundColor: Colors.red),
-                    );
-                  });
-                },
-                builder: (context, candidateData, rejectedData) {
-                  final isHovered = candidateData.isNotEmpty;
+                final cellBgColor = isToday
+                    ? (theme.brightness == Brightness.dark ? Colors.blue.withOpacity(0.1) : theme.colorScheme.primary.withValues(alpha: 0.15))
+                    : (theme.brightness == Brightness.dark ? Colors.black : theme.colorScheme.surfaceContainer);
 
-                  return Container(
-                    margin: const EdgeInsets.all(1),
+                final borderSideColor = theme.brightness == Brightness.dark ? Colors.grey[900]! : Colors.grey[200]!;
+
+                return InkWell(
+                  onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
+                  child: Container(
+                    margin: EdgeInsets.zero,
                     decoration: BoxDecoration(
-                      color: isHovered
-                          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-                          : (isToday
-                              ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                              : theme.colorScheme.surfaceContainer),
-                      borderRadius: BorderRadius.circular(4),
-                      border: isToday
-                          ? Border.all(color: theme.colorScheme.primary, width: 1.5)
-                          : (isHovered ? Border.all(color: theme.colorScheme.primaryContainer, width: 1) : null),
+                      color: cellBgColor,
+                      border: Border(
+                        bottom: BorderSide(color: borderSideColor, width: 0.5),
+                        right: BorderSide(color: borderSideColor, width: 0.5),
+                      ),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.all(4.0),
-                          child: Text(
-                            '$cellDayNumber',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                              color: isToday ? theme.colorScheme.primary : null,
+                        Align(
+                          alignment: Alignment.topCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4.0, bottom: 2.0),
+                            child: Text(
+                              '$cellDayNumber',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 10,
+                                color: dayColor,
+                              ),
                             ),
                           ),
                         ),
                         Expanded(
                           child: ListView.builder(
                             physics: const NeverScrollableScrollPhysics(),
-                            itemCount: dayEvents.length > 2 ? 3 : dayEvents.length,
+                            itemCount: cellSlots[index].length > 4 ? 5 : cellSlots[index].length,
                             itemBuilder: (context, idx) {
-                              if (idx == 2 && dayEvents.length > 2) {
+                              if (idx == 4 && cellEventCounts[index] > 5) {
                                 return Center(
                                   child: Padding(
                                     padding: const EdgeInsets.only(top: 2),
                                     child: Text(
-                                      '+${dayEvents.length - 2} de plus',
-                                      style: theme.textTheme.labelSmall?.copyWith(fontSize: 9, color: Colors.blueAccent),
+                                      '+${cellEventCounts[index] - 4} de plus',
+                                      style: theme.textTheme.labelSmall?.copyWith(fontSize: 8, color: Colors.blueAccent),
                                     ),
                                   ),
                                 );
                               }
 
-                              final event = dayEvents[idx];
+                              final event = cellSlots[index][idx];
+                              if (event == null) {
+                                return const SizedBox(height: 14);
+                              }
+
                               final color = event.color != null && event.color!.isNotEmpty
                                   ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
-                                  : _getGroupColor(event.groupId ?? '', groups);
+                                  : _getCalendarColor(event.calendarId, calendars);
 
                               final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
                               final unreadCount = unreadCounts[event.id.toString()] ?? 0;
 
-                              final chip = Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.8),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        event.title,
-                                        style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.bold),
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                    if (unreadCount > 0)
-                                      Container(
-                                        margin: const EdgeInsets.only(left: 2),
-                                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                        decoration: const BoxDecoration(
-                                          color: Colors.red,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: Text(
-                                          '$unreadCount',
-                                          style: const TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                  ],
-                                ),
+                              // Determine if this is the start cell for this event in this week
+                              final int weekStartIdx = (index ~/ 7) * 7;
+                              final bool isStartCell = (index == weekStartIdx) || 
+                                  (index > weekStartIdx && (cellSlots[index - 1].length <= idx || cellSlots[index - 1][idx]?.id != event.id));
+
+                              // Determine if this is the end cell for this event in this week
+                              final int weekEndIdx = weekStartIdx + 6;
+                              final bool isEndCell = (index == weekEndIdx) || 
+                                  (index < 41 && (cellSlots[index + 1].length <= idx || cellSlots[index + 1][idx]?.id != event.id));
+
+                              final double marginLeft = isStartCell ? 2.0 : 0.0;
+                              final double marginRight = isEndCell ? 2.0 : 0.0;
+
+                              final borderRadius = BorderRadius.only(
+                                topLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
+                                bottomLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
+                                topRight: isEndCell ? const Radius.circular(4) : Radius.zero,
+                                bottomRight: isEndCell ? const Radius.circular(4) : Radius.zero,
                               );
 
-                              return Draggable<TimetreeEvent>(
-                                data: event,
-                                feedback: Material(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    color: color,
-                                    child: Text(
-                                      event.title,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
+                              final bool isSpanning = event.endDate.difference(event.startDate).inHours > 24;
+                              final bool isSpanningOrAllDay = event.allDay || isSpanning;
+
+                              final chipBgColor = isSpanningOrAllDay ? color : Colors.transparent;
+                              final chipTextColor = isSpanningOrAllDay ? Colors.white : color;
+
+                              final chip = Container(
+                                margin: EdgeInsets.only(
+                                  left: marginLeft,
+                                  right: marginRight,
+                                  top: 1,
+                                  bottom: 1,
                                 ),
-                                childWhenDragging: Opacity(opacity: 0.3, child: chip),
-                                child: InkWell(
-                                  onTap: () => _showEventDetailsDialog(event, groups),
-                                  child: chip,
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: chipBgColor,
+                                  borderRadius: borderRadius,
                                 ),
+                                height: 14,
+                                child: isStartCell
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              event.title,
+                                              style: TextStyle(
+                                                fontSize: 9, 
+                                                color: chipTextColor, 
+                                                fontWeight: isSpanningOrAllDay ? FontWeight.bold : FontWeight.normal,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                          if (unreadCount > 0)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 2),
+                                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Text(
+                                                '$unreadCount',
+                                                style: const TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                        ],
+                                      )
+                                    : const SizedBox.shrink(),
+                              );
+
+                              return InkWell(
+                                onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
+                                child: chip,
                               );
                             },
                           ),
                         ),
                       ],
                     ),
-                  );
-                },
-              );
-            },
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],
     );
   }
 
+  void _showDayEventsBottomSheet(BuildContext context, DateTime date, List<TimetreeEvent> dayEvents, List<TimetreeCalendar> calendars) {
+    final theme = Theme.of(context);
+    final dateStr = DateFormat('EEEE d MMMM yyyy', 'fr_FR').format(date);
+    final capitalizedDateStr = dateStr[0].toUpperCase() + dateStr.substring(1);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          capitalizedDateStr,
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.blueAccent, size: 28),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _showEventDialog(null, calendars, initialDate: date);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                if (dayEvents.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'Aucun événement pour cette date.',
+                        style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: dayEvents.length,
+                      itemBuilder: (context, index) {
+                        final event = dayEvents[index];
+                        final color = event.color != null && event.color!.isNotEmpty
+                            ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
+                            : _getCalendarColor(event.calendarId, calendars);
+
+                        final startStr = event.allDay ? 'Toute la journée' : DateFormat('HH:mm').format(event.startDate);
+
+                        return ListTile(
+                          leading: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          title: Text(
+                            event.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(startStr),
+                          onTap: () {
+                            Navigator.pop(context); // Close bottom sheet
+                            _showEventDetailsDialog(event, calendars);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectMonthYear(BuildContext context, DateTime currentDate) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: currentDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDatePickerMode: DatePickerMode.year,
+    );
+    if (picked != null && picked != currentDate) {
+      ref.read(currentCalendarDateProvider.notifier).state = DateTime(picked.year, picked.month, 1);
+    }
+  }
+
+  Widget _buildHorizontalAgendasSelector(List<TimetreeCalendar> calendars) {
+    final theme = Theme.of(context);
+    final selectedCalendarIds = ref.watch(selectedCalendarIdsProvider);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: isDark ? Colors.black : theme.colorScheme.surface,
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: calendars.map((cal) {
+                  final isSelected = selectedCalendarIds.contains(cal.id);
+                  Color calendarColor = Colors.grey;
+                  try {
+                    final cleanHex = cal.color.replaceAll('#', '');
+                    calendarColor = Color(int.parse('FF$cleanHex', radix: 16));
+                  } catch (_) {}
+
+                  final coverBase64 = _getCalendarCover(cal);
+                  final lowerName = cal.name.toLowerCase();
+
+                  // Fallback decorative icon
+                  IconData iconData = Icons.calendar_today_rounded;
+                  if (lowerName.contains('test')) {
+                    iconData = Icons.favorite_rounded;
+                  } else if (lowerName.contains('hyhyyy')) {
+                    iconData = Icons.lock_rounded;
+                  }
+
+                  final chipBgColor = isSelected
+                      ? (isDark ? const Color(0xFF4A4A4A) : const Color(0xFF333333))
+                      : (isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEBEBEB));
+                  final textColor = isSelected
+                      ? Colors.white
+                      : (isDark ? Colors.grey[300] : const Color(0xFF333333));
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        ref.read(selectedCalendarIdsProvider.notifier).toggleCalendar(cal.id, !isSelected);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: chipBgColor,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: calendarColor,
+                                borderRadius: BorderRadius.circular(6),
+                                image: coverBase64.isNotEmpty
+                                    ? DecorationImage(
+                                        image: MemoryImage(base64Decode(coverBase64)),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: isSelected
+                                  ? Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black45,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.check_rounded,
+                                          size: 14,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : (coverBase64.isEmpty
+                                      ? Center(
+                                          child: Icon(
+                                            iconData,
+                                            size: 14,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : null),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              cal.name,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+
+        ],
+      ),
+    );
+  }
+
   // Week Grid View
-  Widget _buildWeekView(BuildContext context, List<TimetreeEvent> events, List<TimetreeGroup> groups) {
+  Widget _buildWeekView(BuildContext context, List<TimetreeEvent> events, List<TimetreeCalendar> calendars) {
     final theme = Theme.of(context);
     final focusedDate = ref.watch(currentCalendarDateProvider);
     final weekday = focusedDate.weekday;
@@ -669,138 +1086,97 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                               return e.startDate.isBefore(cellDateEnd) && e.endDate.isAfter(cellDateStart);
                             }).toList();
 
-                            return DragTarget<TimetreeEvent>(
-                              onWillAcceptWithDetails: (details) => true,
-                              onAcceptWithDetails: (details) {
-                                final event = details.data;
-                                final duration = event.endDate.difference(event.startDate);
-                                final newStart = DateTime(
-                                  dayDate.year,
-                                  dayDate.month,
-                                  dayDate.day,
-                                  hour,
-                                  event.startDate.minute,
-                                );
-                                final newEnd = newStart.add(duration);
-                                ref.read(timetreeEventsProvider.notifier).rescheduleEvent(event.id, newStart, newEnd).then((_) {
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Réplanifié à ${hour.toString().padLeft(2, '0')}:00')),
-                                  );
-                                });
-                              },
-                              builder: (context, candidateData, rejectedData) {
-                                final isHovered = candidateData.isNotEmpty;
-                                return Container(
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: theme.dividerColor.withValues(alpha: 0.2),
-                                      width: 0.5,
-                                    ),
-                                    color: isHovered
-                                        ? theme.colorScheme.primaryContainer.withValues(alpha: 0.2)
-                                        : null,
-                                  ),
-                                  child: cellEvents.isEmpty
-                                      ? const SizedBox.shrink()
-                                      : ListView(
-                                          padding: EdgeInsets.zero,
-                                          physics: const NeverScrollableScrollPhysics(),
-                                          children: cellEvents.map((event) {
-                                            final color = event.color != null && event.color!.isNotEmpty
-                                                ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
-                                                : _getGroupColor(event.groupId ?? '', groups);
+                            return Container(
+                              height: 60,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: theme.dividerColor.withValues(alpha: 0.2),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: cellEvents.isEmpty
+                                  ? const SizedBox.shrink()
+                                  : ListView(
+                                      padding: EdgeInsets.zero,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      children: cellEvents.map((event) {
+                                        final color = event.color != null && event.color!.isNotEmpty
+                                            ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
+                                            : _getCalendarColor(event.calendarId, calendars);
 
-                                            final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
-                                            final unreadCount = unreadCounts[event.id.toString()] ?? 0;
+                                        final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
+                                        final unreadCount = unreadCounts[event.id.toString()] ?? 0;
 
-                                            final chip = Container(
-                                              margin: const EdgeInsets.all(2),
-                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: color,
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                        final chip = Container(
+                                          margin: const EdgeInsets.all(2),
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: color,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
                                                 children: [
-                                                  Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: Text(
-                                                          event.title,
-                                                          style: const TextStyle(
-                                                            color: Colors.white,
-                                                            fontSize: 8,
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                          overflow: TextOverflow.ellipsis,
-                                                        ),
+                                                  Expanded(
+                                                    child: Text(
+                                                      event.title,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 8,
+                                                        fontWeight: FontWeight.bold,
                                                       ),
-                                                      if (unreadCount > 0)
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                                          decoration: const BoxDecoration(
-                                                            color: Colors.red,
-                                                            shape: BoxShape.circle,
-                                                          ),
-                                                          child: Text(
-                                                            '$unreadCount',
-                                                            style: const TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.bold),
-                                                          ),
-                                                        ),
-                                                    ],
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
                                                   ),
-                                                  if (event.participants.isNotEmpty)
-                                                    Row(
-                                                      children: event.participants.take(3).map((p) {
-                                                        final initials = p.fullName.isNotEmpty
-                                                            ? p.fullName.substring(0, 1).toUpperCase()
-                                                            : '?';
-                                                        return Container(
-                                                          margin: const EdgeInsets.only(right: 2, top: 1),
-                                                          width: 10,
-                                                          height: 10,
-                                                          decoration: const BoxDecoration(
-                                                            color: Colors.white24,
-                                                            shape: BoxShape.circle,
-                                                          ),
-                                                          child: Center(
-                                                            child: Text(
-                                                              initials,
-                                                              style: const TextStyle(fontSize: 6, color: Colors.white),
-                                                            ),
-                                                          ),
-                                                        );
-                                                      }).toList(),
+                                                  if (unreadCount > 0)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                                      decoration: const BoxDecoration(
+                                                        color: Colors.red,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      child: Text(
+                                                        '$unreadCount',
+                                                        style: const TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.bold),
+                                                      ),
                                                     ),
                                                 ],
                                               ),
-                                            );
-
-                                            return Draggable<TimetreeEvent>(
-                                              data: event,
-                                              feedback: Material(
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(8),
-                                                  color: color,
-                                                  child: Text(
-                                                    event.title,
-                                                    style: const TextStyle(color: Colors.white),
-                                                  ),
+                                              if (event.participants.isNotEmpty)
+                                                Row(
+                                                  children: event.participants.take(3).map((p) {
+                                                    final initials = p.fullName.isNotEmpty
+                                                        ? p.fullName.substring(0, 1).toUpperCase()
+                                                        : '?';
+                                                    return Container(
+                                                      margin: const EdgeInsets.only(right: 2, top: 1),
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: const BoxDecoration(
+                                                        color: Colors.white24,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                      child: Center(
+                                                        child: Text(
+                                                          initials,
+                                                          style: const TextStyle(fontSize: 6, color: Colors.white),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }).toList(),
                                                 ),
-                                              ),
-                                              childWhenDragging: Opacity(opacity: 0.3, child: chip),
-                                              child: InkWell(
-                                                onTap: () => _showEventDetailsDialog(event, groups),
-                                                child: chip,
-                                              ),
-                                            );
-                                          }).toList(),
-                                        ),
-                                	);
-                              },
+                                            ],
+                                          ),
+                                        );
+
+                                        return InkWell(
+                                          onTap: () => _showEventDetailsDialog(event, calendars),
+                                          child: chip,
+                                        );
+                                      }).toList(),
+                                    ),
                             );
                           }).toList(),
                         ),
@@ -817,7 +1193,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
   }
 
   // Day View Timeline
-  Widget _buildDayView(BuildContext context, List<TimetreeEvent> events, List<TimetreeGroup> groups) {
+  Widget _buildDayView(BuildContext context, List<TimetreeEvent> events, List<TimetreeCalendar> calendars) {
     final theme = Theme.of(context);
     final focusedDate = ref.watch(currentCalendarDateProvider);
     final hours = List.generate(12, (index) => 8 + index); // 08:00 to 19:00
@@ -866,149 +1242,107 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                         return e.startDate.isBefore(cellEnd) && e.endDate.isAfter(cellStart);
                       }).toList();
 
-                      return DragTarget<TimetreeEvent>(
-                        onWillAcceptWithDetails: (details) => true,
-                        onAcceptWithDetails: (details) {
-                          final event = details.data;
-                          final duration = event.endDate.difference(event.startDate);
-                          final newStart = DateTime(
-                            focusedDate.year,
-                            focusedDate.month,
-                            focusedDate.day,
-                            hour,
-                            event.startDate.minute,
-                          );
-                          final newEnd = newStart.add(duration);
-                          ref.read(timetreeEventsProvider.notifier).rescheduleEvent(event.id, newStart, newEnd).then((_) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Réplanifié à ${hour.toString().padLeft(2, '0')}:00')),
-                            );
-                          });
-                        },
-                        builder: (context, candidateData, rejectedData) {
-                          final isHovered = candidateData.isNotEmpty;
-                          return Container(
-                            height: 70,
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: theme.dividerColor.withValues(alpha: 0.1),
-                                  width: 0.5,
-                                ),
-                              ),
-                              color: isHovered
-                                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.2)
-                                  : null,
+                      return Container(
+                        height: 70,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: theme.dividerColor.withValues(alpha: 0.1),
+                              width: 0.5,
                             ),
-                            child: hourEvents.isEmpty
-                                ? const SizedBox.shrink()
-                                : Row(
-                                    children: hourEvents.map((event) {
-                                      final color = event.color != null && event.color!.isNotEmpty
-                                          ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
-                                          : _getGroupColor(event.groupId ?? '', groups);
+                          ),
+                        ),
+                        child: hourEvents.isEmpty
+                            ? const SizedBox.shrink()
+                            : Row(
+                                children: hourEvents.map((event) {
+                                  final color = event.color != null && event.color!.isNotEmpty
+                                      ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
+                                      : _getCalendarColor(event.calendarId, calendars);
 
-                                      final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
-                                      final unreadCount = unreadCounts[event.id.toString()] ?? 0;
+                                  final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
+                                  final unreadCount = unreadCounts[event.id.toString()] ?? 0;
 
-                                      final card = Container(
-                                        margin: const EdgeInsets.all(4),
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: color.withValues(alpha: 0.9),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    event.title,
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 12,
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                  if (event.description != null && event.description!.isNotEmpty)
-                                                    Text(
-                                                      event.description!,
-                                                      style: const TextStyle(color: Colors.white70, fontSize: 10),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (unreadCount > 0)
-                                              Container(
-                                                margin: const EdgeInsets.only(right: 8),
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.red,
-                                                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                                                ),
-                                                child: Text(
-                                                  '$unreadCount',
-                                                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                                                ),
-                                              ),
-                                            if (event.participants.isNotEmpty)
-                                              Row(
-                                                children: event.participants.take(3).map((p) {
-                                                  final initials = p.fullName.isNotEmpty
-                                                      ? p.fullName.substring(0, 1).toUpperCase()
-                                                      : '?';
-                                                  return Container(
-                                                    margin: const EdgeInsets.only(left: 4),
-                                                    width: 20,
-                                                    height: 20,
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white.withValues(alpha: 0.2),
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                    child: Center(
-                                                      child: Text(
-                                                        initials,
-                                                        style: const TextStyle(fontSize: 10, color: Colors.white),
-                                                      ),
-                                                    ),
-                                                  );
-                                                }).toList(),
-                                              ),
-                                          ],
-                                        ),
-                                      );
-
-                                      return Expanded(
-                                        child: Draggable<TimetreeEvent>(
-                                          data: event,
-                                          feedback: Material(
-                                            child: Container(
-                                              width: 200,
-                                              padding: const EdgeInsets.all(8),
-                                              color: color,
-                                              child: Text(
+                                  final card = Container(
+                                    margin: const EdgeInsets.all(4),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(
                                                 event.title,
-                                                style: const TextStyle(color: Colors.white),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                            ),
-                                          ),
-                                          childWhenDragging: Opacity(opacity: 0.3, child: card),
-                                          child: InkWell(
-                                            onTap: () => _showEventDetailsDialog(event, groups),
-                                            child: card,
+                                              if (event.description != null && event.description!.isNotEmpty)
+                                                Text(
+                                                  event.description!,
+                                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                            ],
                                           ),
                                         ),
-                                      );
-                                    }).toList(),
-                                  ),
-                          );
-                        },
+                                        if (unreadCount > 0)
+                                          Container(
+                                            margin: const EdgeInsets.only(right: 8),
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              borderRadius: BorderRadius.all(Radius.circular(10)),
+                                            ),
+                                            child: Text(
+                                              '$unreadCount',
+                                              style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        if (event.participants.isNotEmpty)
+                                          Row(
+                                            children: event.participants.take(3).map((p) {
+                                              final initials = p.fullName.isNotEmpty
+                                                  ? p.fullName.substring(0, 1).toUpperCase()
+                                                  : '?';
+                                              return Container(
+                                                margin: const EdgeInsets.only(left: 4),
+                                                width: 20,
+                                                height: 20,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white.withValues(alpha: 0.2),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    initials,
+                                                    style: const TextStyle(fontSize: 10, color: Colors.white),
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+
+                                  return Expanded(
+                                    child: InkWell(
+                                      onTap: () => _showEventDetailsDialog(event, calendars),
+                                      child: card,
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
                       );
                     }).toList(),
                   ),
@@ -1021,19 +1355,18 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
     );
   }
 
-  void _showEventDetailsDialog(TimetreeEvent event, List<TimetreeGroup> groups) {
+  void _showEventDetailsDialog(TimetreeEvent event, List<TimetreeCalendar> calendars) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return TimetreeEventDetailsDialog(
           event: event,
-          groups: groups,
           onRefresh: () {
             ref.read(timetreeEventsProvider.notifier).loadEvents();
           },
           onEditClicked: () {
-            _showEventDialog(event, groups);
+            _showEventDialog(event, calendars);
           },
         );
       },
@@ -1041,14 +1374,15 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
   }
 
   // Create / Edit Event dialog integrating Custom Fields
-  void _showEventDialog(TimetreeEvent? event, List<TimetreeGroup> groups) {
+  void _showEventDialog(TimetreeEvent? event, List<TimetreeCalendar> calendars, {DateTime? initialDate}) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return _EventFormDialog(
           event: event,
-          groups: groups,
+          calendars: calendars,
+          initialDate: initialDate,
           onSuccess: () {
             ref.read(timetreeEventsProvider.notifier).loadEvents();
           },
@@ -1163,13 +1497,15 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
 
 class _EventFormDialog extends ConsumerStatefulWidget {
   final TimetreeEvent? event;
-  final List<TimetreeGroup> groups;
+  final List<TimetreeCalendar> calendars;
   final VoidCallback onSuccess;
+  final DateTime? initialDate;
 
   const _EventFormDialog({
     this.event,
-    required this.groups,
+    required this.calendars,
     required this.onSuccess,
+    this.initialDate,
   });
 
   @override
@@ -1189,7 +1525,6 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
   DateTime? _recurrenceEndDate;
   Color _selectedColor = Colors.blue;
 
-  String? _selectedGroupId;
   String? _selectedCalendarId;
   List<TimetreeMember> _selectedParticipants = [];
 
@@ -1209,6 +1544,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
   // Dynamic Custom Fields State
   List<TimetreeCustomField> _customFields = [];
   Map<String, String> _customFieldValues = {};
+  Map<String, bool> _customFieldEmojiValues = {};
   bool _loadingFields = false;
 
   @override
@@ -1224,8 +1560,10 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
     _title = ev?.title ?? '';
     _description = ev?.description;
-    _startDate = ev?.startDate ?? DateTime.now();
-    _endDate = ev?.endDate ?? DateTime.now().add(const Duration(hours: 1));
+    _startDate = ev?.startDate ?? widget.initialDate ?? DateTime.now();
+    _endDate = ev?.endDate ?? (widget.initialDate != null 
+        ? widget.initialDate!.add(const Duration(hours: 1)) 
+        : DateTime.now().add(const Duration(hours: 1)));
     _allDay = ev?.allDay ?? false;
     _recurrenceRule = ev?.recurrenceRule ?? 'NONE';
     _recurrenceEndDate = ev?.recurrenceEndDate;
@@ -1238,7 +1576,6 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     _selectedDependencies = ev?.dependencies != null ? List<Map<String, dynamic>>.from(ev!.dependencies) : [];
 
     if (ev != null) {
-      _selectedGroupId = ev.groupId;
       _selectedCalendarId = ev.calendarId;
       _selectedParticipants = List<TimetreeMember>.from(ev.participants);
       if (ev.color != null && ev.color!.isNotEmpty) {
@@ -1261,13 +1598,10 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
       _loadCustomFieldValuesAndFields();
     } else {
-      // Default to first group and its first calendar if available
-      if (widget.groups.isNotEmpty) {
-        _selectedGroupId = widget.groups.first.id;
-        if (widget.groups.first.calendars.isNotEmpty) {
-          _selectedCalendarId = widget.groups.first.calendars.first.id;
-          _loadCustomFields();
-        }
+      // Default to first calendar if available
+      if (widget.calendars.isNotEmpty) {
+        _selectedCalendarId = widget.calendars.first.id;
+        _loadCustomFields();
       }
     }
   }
@@ -1281,7 +1615,6 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
     try {
       final fields = await ref.read(timetreeCustomFieldsRepositoryProvider).getEventFields(
-            groupId: _selectedGroupId,
             calendarId: _selectedCalendarId,
           );
       setState(() {
@@ -1307,7 +1640,6 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     try {
       // 1. Fetch Field definitions
       final fields = await ref.read(timetreeCustomFieldsRepositoryProvider).getEventFields(
-            groupId: ev.groupId,
             calendarId: ev.calendarId,
             eventId: ev.id,
           );
@@ -1319,15 +1651,18 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
           );
 
       final Map<String, String> valuesMap = {};
+      final Map<String, bool> emojiMap = {};
       for (final val in values) {
         if (val.value != null) {
           valuesMap[val.field.id] = val.value!;
         }
+        emojiMap[val.field.id] = val.showEmojiInTitle;
       }
 
       setState(() {
         _customFields = fields;
         _customFieldValues = valuesMap;
+        _customFieldEmojiValues = emojiMap;
         _loadingFields = false;
       });
     } catch (_) {
@@ -1337,32 +1672,13 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     }
   }
 
-  void _onGroupChanged(String? groupId) {
-    setState(() {
-      _selectedGroupId = groupId;
-      _selectedCalendarId = null;
-      _selectedParticipants = [];
-      _customFields = [];
-      _customFieldValues = {};
-    });
-
-    // Automatically pick first calendar of group
-    if (groupId != null) {
-      final group = widget.groups.firstWhere((g) => g.id == groupId);
-      if (group.calendars.isNotEmpty) {
-        setState(() {
-          _selectedCalendarId = group.calendars.first.id;
-        });
-        _loadCustomFields();
-      }
-    }
-  }
-
   void _onCalendarChanged(String? calendarId) {
     setState(() {
       _selectedCalendarId = calendarId;
+      _selectedParticipants = [];
       _customFields = [];
       _customFieldValues = {};
+      _customFieldEmojiValues = {};
     });
     _loadCustomFields();
   }
@@ -1436,7 +1752,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       allDay: _allDay,
       color: _selectedColor.value.toString(),
       calendarId: _selectedCalendarId!,
-      groupId: _selectedGroupId,
+      groupId: null,
       recurrenceRule: _recurrenceRule,
       recurrenceEndDate: _recurrenceEndDate,
       participants: _selectedParticipants,
@@ -1450,6 +1766,14 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     );
 
     try {
+      final Map<String, dynamic> payload = {};
+      for (final entry in _customFieldValues.entries) {
+        payload[entry.key] = {
+          'value': entry.value,
+          'showEmojiInTitle': _customFieldEmojiValues[entry.key] ?? false,
+        };
+      }
+
       if (widget.event == null) {
         // Create event
         await ref.read(timetreeEventsProvider.notifier).createEvent(ev);
@@ -1461,22 +1785,22 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
           orElse: () => ev,
         );
 
-        if (created.id.isNotEmpty && _customFieldValues.isNotEmpty) {
+        if (created.id.isNotEmpty && payload.isNotEmpty) {
           await ref.read(timetreeCustomFieldsRepositoryProvider).saveCustomFieldValues(
                 'EVENT',
                 created.id,
-                _customFieldValues,
+                payload,
               );
         }
       } else {
         // Update event
         await ref.read(timetreeEventsProvider.notifier).updateEvent(widget.event!.id, ev);
         
-        if (_customFieldValues.isNotEmpty) {
+        if (payload.isNotEmpty) {
           await ref.read(timetreeCustomFieldsRepositoryProvider).saveCustomFieldValues(
                 'EVENT',
                 widget.event!.id,
-                _customFieldValues,
+                payload,
               );
         }
       }
@@ -1499,65 +1823,64 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedGroup = widget.groups.firstWhere(
-      (g) => g.id == _selectedGroupId,
-      orElse: () => widget.groups.first,
+    final authState = ref.watch(authControllerProvider);
+    final user = authState.user;
+    final role = user?.role.toUpperCase() ?? 'MEMBER';
+
+    final selectedCalendar = widget.calendars.firstWhere(
+      (c) => c.id == _selectedCalendarId,
+      orElse: () => widget.calendars.isNotEmpty ? widget.calendars.first : const TimetreeCalendar(id: '', name: '', description: '', color: '#2196F3', members: []),
     );
-    final calendars = selectedGroup.calendars;
-    final groupMembers = selectedGroup.members;
+    final calendarMembers = selectedCalendar.members;
 
-    return AlertDialog(
-      title: Text(widget.event == null ? 'Nouvel Événement' : 'Modifier l\'Événement'),
-      content: SizedBox(
-        width: 600,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  initialValue: _title,
-                  decoration: const InputDecoration(labelText: 'Titre', border: OutlineInputBorder()),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Titre requis' : null,
-                  onSaved: (val) => _title = val ?? '',
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: _description,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
-                  onSaved: (val) => _description = val,
-                ),
-                const SizedBox(height: 12),
+    Color dialogThemeColor = Colors.blue;
+    try {
+      final cleanHex = selectedCalendar.color.replaceAll('#', '');
+      dialogThemeColor = Color(int.parse('FF$cleanHex', radix: 16));
+    } catch (_) {}
 
-                // Group & Calendar selects
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedGroupId,
-                        decoration: const InputDecoration(labelText: 'Groupe', border: OutlineInputBorder()),
-                        items: widget.groups.map((g) {
-                          return DropdownMenuItem(value: g.id, child: Text(g.name));
-                        }).toList(),
-                        onChanged: _onGroupChanged,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedCalendarId,
-                        decoration: const InputDecoration(labelText: 'Agenda', border: OutlineInputBorder()),
-                        items: calendars.map((c) {
-                          return DropdownMenuItem(value: c.id, child: Text(c.name));
-                        }).toList(),
-                        onChanged: _onCalendarChanged,
-                        validator: (val) => val == null ? 'Agenda requis' : null,
-                      ),
-                    ),
-                  ],
-                ),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: dialogThemeColor,
+          brightness: Theme.of(context).brightness,
+        ),
+      ),
+      child: AlertDialog(
+        title: Text(widget.event == null ? 'Nouvel Événement' : 'Modifier l\'Événement'),
+        content: SizedBox(
+          width: 600,
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    initialValue: _title,
+                    decoration: const InputDecoration(labelText: 'Titre', border: OutlineInputBorder()),
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Titre requis' : null,
+                    onSaved: (val) => _title = val ?? '',
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: _description,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                    onSaved: (val) => _description = val,
+                  ),
+                  const SizedBox(height: 12),
+  
+                  // Calendar select (Only Calendar, no Group)
+                  DropdownButtonFormField<String>(
+                    value: _selectedCalendarId,
+                    decoration: const InputDecoration(labelText: 'Agenda', border: OutlineInputBorder()),
+                    items: widget.calendars.map((c) {
+                      return DropdownMenuItem(value: c.id, child: Text(c.name));
+                    }).toList(),
+                    onChanged: widget.event != null ? null : _onCalendarChanged,
+                    validator: (val) => val == null ? 'Agenda requis' : null,
+                  ),
                 const SizedBox(height: 12),
 
                 // Date Time Pickers
@@ -1728,8 +2051,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    if (ref.watch(authControllerProvider).user?.role.toUpperCase() == 'ADMIN' || 
-                        ref.watch(authControllerProvider).user?.role.toUpperCase() == 'CHEF') ...[
+                    if (role == 'ADMIN' || role == 'ADMINISTRATEUR' || role == 'CHEF') ...[
                       const SizedBox(width: 12),
                       Expanded(
                         child: SwitchListTile(
@@ -1956,19 +2278,19 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                // Group Participants selector
+                // Calendar Participants selector
                 const Text('Participants', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                if (groupMembers.isEmpty)
-                  const Text('Aucun membre dans ce groupe pour le moment.', style: TextStyle(fontSize: 12, color: Colors.grey))
+                if (calendarMembers.isEmpty)
+                  const Text('Aucun membre dans cet agenda pour le moment.', style: TextStyle(fontSize: 12, color: Colors.grey))
                 else
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: groupMembers.map((member) {
+                    children: calendarMembers.map((member) {
                       final isSelected = _selectedParticipants.any((p) => p.id == member.id);
                       final initials = member.fullName.isNotEmpty
-                          ? member.fullName.substring(0, 2).toUpperCase()
+                          ? member.fullName.substring(0, 1).toUpperCase()
                           : '?';
 
                       return FilterChip(
@@ -2004,9 +2326,11 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                   DynamicEventFormRenderer(
                     fields: _customFields,
                     values: _customFieldValues,
+                    showEmojiInTitleValues: _customFieldEmojiValues,
                     formKey: _customFieldsFormKey,
-                    onValuesChanged: (vals) {
+                    onValuesChanged: (vals, emojis) {
                       _customFieldValues = vals;
+                      _customFieldEmojiValues = emojis;
                     },
                   ),
               ],
@@ -2058,6 +2382,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
           child: const Text('Enregistrer'),
         ),
       ],
+    ),
     );
   }
 }

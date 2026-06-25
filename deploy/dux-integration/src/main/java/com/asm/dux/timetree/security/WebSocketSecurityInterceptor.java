@@ -35,7 +35,6 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
     private final JwtDecoder jwtDecoder;
     private final MemberRepository memberRepository;
     private final EventRepository eventRepository;
-    private final GroupRepository groupRepository;
     private final TimetreeSecurityService securityService;
     private final PresenceService presenceService;
     private final WebSocketMetricsService metricsService;
@@ -44,21 +43,18 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             JwtDecoder jwtDecoder,
             MemberRepository memberRepository,
             EventRepository eventRepository,
-            GroupRepository groupRepository,
             TimetreeSecurityService securityService,
             @Lazy PresenceService presenceService,
             WebSocketMetricsService metricsService) {
         this.jwtDecoder = jwtDecoder;
         this.memberRepository = memberRepository;
         this.eventRepository = eventRepository;
-        this.groupRepository = groupRepository;
         this.securityService = securityService;
         this.presenceService = presenceService;
         this.metricsService = metricsService;
     }
 
     private static final Pattern EVENT_TOPIC_PATTERN = Pattern.compile("^/(topic|app)/event\\.(\\d+)\\.(chat|typing|send)$");
-    private static final Pattern GROUP_TOPIC_PATTERN = Pattern.compile("^/topic/group\\.(\\d+)\\.presence$");
     private static final Pattern USER_TOPIC_PATTERN = Pattern.compile("^/topic/user\\.(\\d+)\\.unread$");
 
     @Override
@@ -106,8 +102,10 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             }
 
             Member member = memberOpt.get();
+            String roleUpper = member.getRole().toUpperCase();
+            String mappedRole = ("ADMINISTRATEUR".equals(roleUpper) || "ADMIN".equals(roleUpper)) ? "ADMIN" : roleUpper;
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(member.getUsername(), null, List.of(() -> "ROLE_" + member.getRole().toUpperCase()));
+                    new UsernamePasswordAuthenticationToken(member.getUsername(), null, List.of(() -> "ROLE_" + mappedRole));
             
             accessor.setUser(authentication);
             SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -186,7 +184,7 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             Event event = eventOpt.get();
             
             boolean isAuthorized = false;
-            if ("ADMIN".equalsIgnoreCase(current.getRole())) {
+            if ("ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole())) {
                 isAuthorized = true;
             } else if (Boolean.TRUE.equals(event.getIsPrivate())) {
                 final Member finalCurrent = current;
@@ -214,43 +212,14 @@ public class WebSocketSecurityInterceptor implements ChannelInterceptor {
             return;
         }
 
-        // 2. Authorize Group-centric destinations
-        Matcher groupMatcher = GROUP_TOPIC_PATTERN.matcher(destination);
-        if (groupMatcher.find()) {
-            Long groupId = Long.parseLong(groupMatcher.group(1));
-            
-            // Check session attributes authorization cache first
-            String authCacheKey = "auth:group:" + groupId;
-            if (sessionAttrs != null && Boolean.TRUE.equals(sessionAttrs.get(authCacheKey))) {
-                return;
-            }
 
-            boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole());
-            boolean isAuthorized = isAdmin;
-
-            if (!isAuthorized) {
-                List<Group> userGroups = groupRepository.findGroupsByMemberId(current.getId());
-                isAuthorized = userGroups.stream().anyMatch(g -> g.getId().equals(groupId));
-            }
-
-            if (!isAuthorized) {
-                log.warn("Access denied: User={} attempted {} to unauthorized group={}", username, actionType, groupId);
-                throw new AccessDeniedException("Access denied to group presence " + groupId);
-            }
-
-            // Cache successful authorization
-            if (sessionAttrs != null) {
-                sessionAttrs.put(authCacheKey, true);
-            }
-            return;
-        }
 
         // 3. Authorize User-specific destinations (Unread Sync)
         Matcher userMatcher = USER_TOPIC_PATTERN.matcher(destination);
         if (userMatcher.find()) {
             Long memberId = Long.parseLong(userMatcher.group(1));
             // Never trust client-provided values: Resolve identity exclusively from the authenticated principal
-            if (!memberId.equals(current.getId()) && !"ADMIN".equalsIgnoreCase(current.getRole())) {
+            if (!memberId.equals(current.getId()) && !("ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()))) {
                 log.warn("Access denied: User={} attempted {} to mismatching user={}", username, actionType, memberId);
                 throw new AccessDeniedException("Cannot subscribe or publish to another user's stream");
             }

@@ -10,13 +10,10 @@ import 'package:dux_front/features/timetree/data/dto/timetree_member_dto.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_calendar_dto.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_members_repository.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_calendars_repository.dart';
-import 'package:dux_front/features/timetree/data/repositories/timetree_groups_repository.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_menu_provider.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_menu_item.dart';
 import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
@@ -127,6 +124,7 @@ void main() async {
         name: 'My Calendar',
         description: 'Testing cal',
         color: '#FF0000',
+        members: [],
       );
       final cal = TimetreeCalendar.fromDto(dto);
       expect(cal.id, '2');
@@ -176,8 +174,8 @@ void main() async {
           timetreeCalendarsProvider.overrideWith(
             (ref) => _FakeCalendarsNotifier(
               AsyncValue.data([
-                const TimetreeCalendar(id: '1', name: 'Plats Chauds', description: 'Cuisine', color: '#FFF'),
-                const TimetreeCalendar(id: '2', name: 'Salades', description: 'Frais', color: '#000'),
+                const TimetreeCalendar(id: '1', name: 'Plats Chauds', description: 'Cuisine', color: '#FFF', members: []),
+                const TimetreeCalendar(id: '2', name: 'Salades', description: 'Frais', color: '#000', members: []),
               ]),
             ),
           )
@@ -199,9 +197,6 @@ void main() async {
       );
       final calendarsOverride = timetreeCalendarsProvider.overrideWith(
         (ref) => _FakeCalendarsNotifier(const AsyncValue.loading()),
-      );
-      final groupsOverride = timetreeGroupsProvider.overrideWith(
-        (ref) => _FakeGroupsNotifier(const AsyncValue.loading()),
       );
       final menuOverride = timetreeMenuProvider.overrideWith(
         (ref) => <TimetreeMenuItem>[],
@@ -227,7 +222,7 @@ void main() async {
       await tester.pumpWidget(
         buildTestHarness(
           const TimetreeMembershipCalendarsScreen(),
-          [membersOverride, calendarsOverride, groupsOverride, menuOverride, authOverride],
+          [membersOverride, calendarsOverride, menuOverride, authOverride],
         ),
       );
 
@@ -240,9 +235,6 @@ void main() async {
       );
       final calendarsOverride = timetreeCalendarsProvider.overrideWith(
         (ref) => _FakeCalendarsNotifier(const AsyncValue.data([])),
-      );
-      final groupsOverride = timetreeGroupsProvider.overrideWith(
-        (ref) => _FakeGroupsNotifier(const AsyncValue.data([])),
       );
       final menuOverride = timetreeMenuProvider.overrideWith(
         (ref) => <TimetreeMenuItem>[],
@@ -268,7 +260,7 @@ void main() async {
       await tester.pumpWidget(
         buildTestHarness(
           const TimetreeMembershipCalendarsScreen(),
-          [membersOverride, calendarsOverride, groupsOverride, menuOverride, authOverride],
+          [membersOverride, calendarsOverride, menuOverride, authOverride],
         ),
       );
 
@@ -307,14 +299,14 @@ void main() async {
         ),
       );
 
-      final groupsOverride = timetreeGroupsProvider.overrideWith(
-        (ref) => _FakeGroupsNotifier(
+      final calendarsOverride = timetreeCalendarsProvider.overrideWith(
+        (ref) => _FakeCalendarsNotifier(
           AsyncValue.data([
-            const TimetreeGroup(
-              id: 'g-1',
-              name: 'Group A',
-              description: 'Desc A',
-              active: true,
+            const TimetreeCalendar(
+              id: 'cal-1',
+              name: 'Calendar A',
+              description: 'Description',
+              color: '#4CAF50',
               members: [
                 TimetreeMember(
                   id: 'm1',
@@ -323,9 +315,6 @@ void main() async {
                   email: 'member1@test.com',
                   role: 'MEMBER',
                 ),
-              ],
-              calendars: [
-                TimetreeCalendar(id: 'cal-1', name: 'Calendar A', description: 'Description', color: '#4CAF50'),
               ],
             ),
           ]),
@@ -340,7 +329,7 @@ void main() async {
           const TimetreeCalendarViewScreen(),
           [
             authOverride,
-            groupsOverride,
+            calendarsOverride,
             menuOverride,
             storageServiceProvider.overrideWithValue(FakeStorageService()),
             expandedEventsProvider.overrideWith((ref) => const AsyncValue.data([])),
@@ -353,8 +342,7 @@ void main() async {
       // Check month header contains June 2026
       expect(find.text('Juin 2026'), findsOneWidget);
 
-      // Check sidebar displays group checkbox filter
-      expect(find.text('Group A'), findsAtLeast(1));
+      // Check sidebar displays calendar filter
       expect(find.textContaining('Calendar A'), findsAtLeast(1));
     });
   });
@@ -390,19 +378,7 @@ class _FakeCalendarsRepo extends TimetreeCalendarsRepository {
   _FakeCalendarsRepo() : super(TimetreeApi(Dio()));
 }
 
-class _FakeGroupsNotifier extends TimetreeGroupsNotifier {
-  _FakeGroupsNotifier(AsyncValue<List<TimetreeGroup>> initialValue)
-      : super(_FakeGroupsRepo()) {
-    state = initialValue;
-  }
 
-  @override
-  Future<void> loadGroups() async {}
-}
-
-class _FakeGroupsRepo extends TimetreeGroupsRepository {
-  _FakeGroupsRepo() : super(TimetreeApi(Dio()));
-}
 
 class _FakeLoginUseCase implements LoginUseCase {
   @override

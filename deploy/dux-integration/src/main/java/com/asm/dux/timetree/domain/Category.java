@@ -56,12 +56,4 @@ public class Category {
     @OneToMany(mappedBy = "category", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<Page> pages;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "TT_CATEGORY_GROUP",
-        schema = "dbo",
-        joinColumns = @JoinColumn(name = "CATEGORY_ID"),
-        inverseJoinColumns = @JoinColumn(name = "GROUP_ID")
-    )
-    private List<Group> groups;
 }

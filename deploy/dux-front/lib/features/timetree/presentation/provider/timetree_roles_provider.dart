@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_roles_repository.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_role.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_permission.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
+
 
 /// StateNotifier for managing available Roles.
 class TimetreeRolesNotifier extends StateNotifier<AsyncValue<List<TimetreeRole>>> {
@@ -24,23 +24,19 @@ class TimetreeRolesNotifier extends StateNotifier<AsyncValue<List<TimetreeRole>>
     }
   }
 
-  /// Assigns a role to a group and refreshes groups list.
+  /// Assigns a role to a group (deprecated — kept for API compatibility).
   Future<void> assignRoleToGroup(String groupId, String roleCode) async {
     try {
       await _repository.assignRoleToGroup(groupId, roleCode);
-      // Refresh groups to show assigned roles
-      await _ref.read(timetreeGroupsProvider.notifier).loadGroups();
     } catch (e) {
       rethrow;
     }
   }
 
-  /// Removes a role from a group and refreshes groups list.
+  /// Removes a role from a group (deprecated — kept for API compatibility).
   Future<void> removeRoleFromGroup(String groupId, String roleCode) async {
     try {
       await _repository.removeRoleFromGroup(groupId, roleCode);
-      // Refresh groups to reflect removal
-      await _ref.read(timetreeGroupsProvider.notifier).loadGroups();
     } catch (e) {
       rethrow;
     }

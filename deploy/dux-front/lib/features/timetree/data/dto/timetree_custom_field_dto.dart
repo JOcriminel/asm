@@ -19,6 +19,8 @@ class TimetreeCustomFieldDto {
   final bool hidden;
   final bool readOnly;
   final String? visibilityRule;
+  final String? emoji;
+  final int? emojiOrder;
 
   const TimetreeCustomFieldDto({
     required this.id,
@@ -40,6 +42,8 @@ class TimetreeCustomFieldDto {
     required this.hidden,
     required this.readOnly,
     this.visibilityRule,
+    this.emoji,
+    this.emojiOrder,
   });
 
   factory TimetreeCustomFieldDto.fromJson(Map<String, dynamic> json) {
@@ -63,6 +67,8 @@ class TimetreeCustomFieldDto {
       hidden: json['hidden'] as bool? ?? false,
       readOnly: json['readOnly'] as bool? ?? false,
       visibilityRule: json['visibilityRule'] as String?,
+      emoji: json['emoji'] as String?,
+      emojiOrder: json['emojiOrder'] as int?,
     );
   }
 
@@ -87,6 +93,9 @@ class TimetreeCustomFieldDto {
       'hidden': hidden,
       'readOnly': readOnly,
       'visibilityRule': visibilityRule,
+      'emoji': emoji,
+      'emojiOrder': emojiOrder,
     };
   }
 }
+

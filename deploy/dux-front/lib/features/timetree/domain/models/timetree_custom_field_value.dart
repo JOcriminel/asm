@@ -8,6 +8,7 @@ class TimetreeCustomFieldValue {
   final String entityType;
   final String entityId;
   final String? value;
+  final bool showEmojiInTitle;
 
   const TimetreeCustomFieldValue({
     required this.id,
@@ -15,6 +16,7 @@ class TimetreeCustomFieldValue {
     required this.entityType,
     required this.entityId,
     this.value,
+    this.showEmojiInTitle = false,
   });
 
   factory TimetreeCustomFieldValue.fromDto(TimetreeCustomFieldValueDto dto) {
@@ -24,6 +26,7 @@ class TimetreeCustomFieldValue {
       entityType: dto.entityType,
       entityId: dto.entityId,
       value: dto.value,
+      showEmojiInTitle: dto.showEmojiInTitle,
     );
   }
 
@@ -34,6 +37,7 @@ class TimetreeCustomFieldValue {
       entityType: entityType,
       entityId: entityId,
       value: value,
+      showEmojiInTitle: showEmojiInTitle,
     );
   }
 
@@ -43,6 +47,7 @@ class TimetreeCustomFieldValue {
     String? entityType,
     String? entityId,
     String? value,
+    bool? showEmojiInTitle,
   }) {
     return TimetreeCustomFieldValue(
       id: id ?? this.id,
@@ -50,6 +55,8 @@ class TimetreeCustomFieldValue {
       entityType: entityType ?? this.entityType,
       entityId: entityId ?? this.entityId,
       value: value ?? this.value,
+      showEmojiInTitle: showEmojiInTitle ?? this.showEmojiInTitle,
     );
   }
 }
+

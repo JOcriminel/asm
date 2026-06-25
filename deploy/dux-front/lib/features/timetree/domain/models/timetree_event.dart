@@ -28,6 +28,8 @@ class TimetreeEvent {
   
   // Custom field values attached to this event instance
   final Map<String, String>? customFields;
+  final String? nomEvent;
+  final bool titleModifiedDirectly;
 
   const TimetreeEvent({
     required this.id,
@@ -52,6 +54,8 @@ class TimetreeEvent {
     this.dependencies = const [],
     this.reminders = const [],
     this.customFields,
+    this.nomEvent,
+    this.titleModifiedDirectly = false,
   });
 
   factory TimetreeEvent.fromDto(TimetreeEventDto dto) {
@@ -77,6 +81,8 @@ class TimetreeEvent {
       tags: dto.tags,
       dependencies: dto.dependencies,
       reminders: dto.reminders.map((r) => DateTime.parse(r).toLocal()).toList(),
+      nomEvent: dto.nomEvent,
+      titleModifiedDirectly: dto.titleModifiedDirectly,
     );
   }
 
@@ -103,6 +109,8 @@ class TimetreeEvent {
       tags: tags,
       dependencies: dependencies,
       reminders: reminders.map((r) => r.toUtc().toIso8601String()).toList(),
+      nomEvent: nomEvent,
+      titleModifiedDirectly: titleModifiedDirectly,
     );
   }
 
@@ -129,6 +137,8 @@ class TimetreeEvent {
     List<Map<String, dynamic>>? dependencies,
     List<DateTime>? reminders,
     Map<String, String>? customFields,
+    String? nomEvent,
+    bool? titleModifiedDirectly,
   }) {
     return TimetreeEvent(
       id: id ?? this.id,
@@ -153,8 +163,11 @@ class TimetreeEvent {
       dependencies: dependencies ?? this.dependencies,
       reminders: reminders ?? this.reminders,
       customFields: customFields ?? this.customFields,
+      nomEvent: nomEvent ?? this.nomEvent,
+      titleModifiedDirectly: titleModifiedDirectly ?? this.titleModifiedDirectly,
     );
   }
+
 
   /// Expands recurring event instances within a given date range.
   List<TimetreeEvent> expandRecurrence(DateTime rangeStart, DateTime rangeEnd) {

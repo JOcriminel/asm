@@ -21,7 +21,6 @@ public class TimetreeController {
 
     private final CategoryRepository categoryRepository;
     private final PageRepository pageRepository;
-    private final GroupRepository groupRepository;
     private final TimetreeAuditLogRepository auditLogRepository;
     private final MemberRepository memberRepository;
     private final CalendarRepository calendarRepository;
@@ -29,6 +28,8 @@ public class TimetreeController {
     private final com.asm.dux.timetree.service.AuditService auditService;
     private final com.asm.dux.timetree.service.TimetreeSecurityService securityService;
     private final com.asm.dux.timetree.service.WebSocketMetricsService webSocketMetricsService;
+    private final com.asm.dux.infrastructure.dux.DuxHttpClient duxHttpClient;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     // Helper to write audit logs
     private void audit(String action, String entityType, Long entityId, String details) {
@@ -46,6 +47,7 @@ public class TimetreeController {
 
     // ─── MENU ────────────────────────────────────────────────────────────────
     @GetMapping("/menu")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<List<Map<String, Object>>> getMenu() {
         log.info("GET /api/timetree/menu");
         List<Category> categories = categoryRepository.findAllByActiveTrueOrderByDisplayOrderAsc();
@@ -80,16 +82,17 @@ public class TimetreeController {
 
     // ─── DASHBOARD ───────────────────────────────────────────────────────────
     @GetMapping("/dashboard")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<Map<String, Object>> getDashboard() {
         log.info("GET /api/timetree/dashboard");
         long catCount = categoryRepository.count();
         long pageCount = pageRepository.count();
-        long groupCount = groupRepository.count();
+        long memberCount = memberRepository.count();
 
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("categoriesCount", (int) catCount);
         summary.put("pagesCount", (int) pageCount);
-        summary.put("groupsCount", (int) groupCount);
+        summary.put("membersCount", (int) memberCount);
 
         List<TimetreeAuditLog> logs = auditLogRepository.findRecentLogs(PageRequest.of(0, 10));
         List<Map<String, Object>> activities = logs.stream().map(l -> {
@@ -132,16 +135,16 @@ public class TimetreeController {
                     return map;
                 }).collect(Collectors.toList());
 
-        // Most Active Groups
-        Map<String, Long> groupEventCounts = allEvents.stream()
-                .filter(e -> e.getGroup() != null)
-                .collect(Collectors.groupingBy(e -> e.getGroup().getName(), Collectors.counting()));
-        List<Map<String, Object>> mostActiveGroups = groupEventCounts.entrySet().stream()
+        // Most Active Calendars (by event count)
+        Map<String, Long> calendarEventCounts = allEvents.stream()
+                .filter(e -> e.getCalendar() != null)
+                .collect(Collectors.groupingBy(e -> e.getCalendar().getName(), Collectors.counting()));
+        List<Map<String, Object>> mostActiveCalendars = calendarEventCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
                 .map(entry -> {
                     Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("groupName", entry.getKey());
+                    m.put("calendarName", entry.getKey());
                     m.put("eventCount", entry.getValue());
                     return m;
                 }).collect(Collectors.toList());
@@ -188,7 +191,7 @@ public class TimetreeController {
         dashboard.put("eventsByStatus", eventsByStatus);
         dashboard.put("eventsByPriority", eventsByPriority);
         dashboard.put("upcomingEvents", upcomingEvents);
-        dashboard.put("mostActiveGroups", mostActiveGroups);
+        dashboard.put("mostActiveCalendars", mostActiveCalendars);
         dashboard.put("mostActiveMembers", mostActiveMembers);
         dashboard.put("calendarUtilization", calendarUtilization);
 
@@ -202,32 +205,52 @@ public class TimetreeController {
     }
 
     // ─── CATEGORIES CRUD ─────────────────────────────────────────────────────
+    private Map<String, Object> categoryToMap(Category c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", c.getId() != null ? c.getId().toString() : null);
+        m.put("name", c.getName());
+        m.put("code", c.getCode());
+        m.put("icon", c.getIcon());
+        m.put("color", c.getColor());
+        m.put("displayOrder", c.getDisplayOrder() != null ? c.getDisplayOrder() : 0);
+        m.put("active", c.getActive() != null ? c.getActive() : false);
+        m.put("createdAt", c.getCreatedAt());
+        m.put("updatedAt", c.getUpdatedAt());
+        return m;
+    }
+
     @GetMapping("/categories")
-    public ResponseEntity<List<Category>> getCategories() {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
+    public ResponseEntity<List<Map<String, Object>>> getCategories() {
         log.info("GET /api/timetree/categories");
-        return ResponseEntity.ok(categoryRepository.findAllByOrderByDisplayOrderAsc());
+        List<Map<String, Object>> result = categoryRepository.findAllByOrderByDisplayOrderAsc()
+                .stream().map(this::categoryToMap).collect(Collectors.toList());
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/categories/{id}")
-    public ResponseEntity<Category> getCategory(@PathVariable Long id) {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
+    public ResponseEntity<Map<String, Object>> getCategory(@PathVariable Long id) {
         log.info("GET /api/timetree/categories/{}", id);
         return categoryRepository.findById(id)
-                .map(ResponseEntity::ok)
+                .map(c -> ResponseEntity.ok(categoryToMap(c)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/categories")
-    public ResponseEntity<Category> createCategory(@RequestBody Category category) {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<Map<String, Object>> createCategory(@RequestBody Category category) {
         log.info("POST /api/timetree/categories - {}", category.getName());
         category.setCreatedAt(LocalDateTime.now());
         category.setCreatedBy("admin");
         Category saved = categoryRepository.save(category);
         audit("CREATE", "Category", saved.getId(), "Created category: " + saved.getName());
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(categoryToMap(saved));
     }
 
     @PutMapping("/categories/{id}")
-    public ResponseEntity<Category> updateCategory(@PathVariable Long id, @RequestBody Category request) {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<Map<String, Object>> updateCategory(@PathVariable Long id, @RequestBody Category request) {
         log.info("PUT /api/timetree/categories/{}", id);
         return categoryRepository.findById(id).map(existing -> {
             existing.setName(request.getName());
@@ -240,11 +263,12 @@ public class TimetreeController {
             existing.setUpdatedBy("admin");
             Category saved = categoryRepository.save(existing);
             audit("UPDATE", "Category", saved.getId(), "Updated category: " + saved.getName());
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(categoryToMap(saved));
         }).orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/categories/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
         log.info("DELETE /api/timetree/categories/{}", id);
         return categoryRepository.findById(id).map(existing -> {
@@ -255,37 +279,40 @@ public class TimetreeController {
     }
 
     @PatchMapping("/categories/{id}/activate")
-    public ResponseEntity<Category> activateCategory(@PathVariable Long id) {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<Map<String, Object>> activateCategory(@PathVariable Long id) {
         log.info("PATCH /api/timetree/categories/{}/activate", id);
         return categoryRepository.findById(id).map(existing -> {
             existing.setActive(true);
             existing.setUpdatedAt(LocalDateTime.now());
             Category saved = categoryRepository.save(existing);
             audit("ACTIVATE", "Category", saved.getId(), "Activated category: " + saved.getName());
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(categoryToMap(saved));
         }).orElse(ResponseEntity.notFound().build());
     }
 
     @PatchMapping("/categories/{id}/deactivate")
-    public ResponseEntity<Category> deactivateCategory(@PathVariable Long id) {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<Map<String, Object>> deactivateCategory(@PathVariable Long id) {
         log.info("PATCH /api/timetree/categories/{}/deactivate", id);
         return categoryRepository.findById(id).map(existing -> {
             existing.setActive(false);
             existing.setUpdatedAt(LocalDateTime.now());
             Category saved = categoryRepository.save(existing);
             audit("DEACTIVATE", "Category", saved.getId(), "Deactivated category: " + saved.getName());
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(categoryToMap(saved));
         }).orElse(ResponseEntity.notFound().build());
     }
 
     // ─── PAGES CRUD ──────────────────────────────────────────────────────────
     @GetMapping("/pages")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<List<Map<String, Object>>> getPages() {
         log.info("GET /api/timetree/pages");
         List<Page> pages = pageRepository.findAllByOrderByDisplayOrderAsc();
         List<Map<String, Object>> response = pages.stream().map(p -> {
             Map<String, Object> pMap = new LinkedHashMap<>();
-            pMap.put("id", p.getId());
+            pMap.put("id", p.getId() != null ? p.getId().toString() : null);
             pMap.put("name", p.getName());
             pMap.put("route", p.getRoute());
             pMap.put("icon", p.getIcon());
@@ -294,7 +321,7 @@ public class TimetreeController {
             pMap.put("active", p.getActive());
             pMap.put("createdAt", p.getCreatedAt());
             pMap.put("updatedAt", p.getUpdatedAt());
-            pMap.put("categoryId", p.getCategory() != null ? p.getCategory().getId() : null);
+            pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
             pMap.put("categoryName", p.getCategory() != null ? p.getCategory().getName() : null);
             return pMap;
         }).collect(Collectors.toList());
@@ -302,14 +329,28 @@ public class TimetreeController {
     }
 
     @GetMapping("/pages/{id}")
-    public ResponseEntity<Page> getPage(@PathVariable Long id) {
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
+    public ResponseEntity<Map<String, Object>> getPage(@PathVariable Long id) {
         log.info("GET /api/timetree/pages/{}", id);
-        return pageRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        return pageRepository.findById(id).map(p -> {
+            Map<String, Object> pMap = new LinkedHashMap<>();
+            pMap.put("id", p.getId() != null ? p.getId().toString() : null);
+            pMap.put("name", p.getName());
+            pMap.put("route", p.getRoute());
+            pMap.put("icon", p.getIcon());
+            pMap.put("componentName", p.getComponentName());
+            pMap.put("displayOrder", p.getDisplayOrder());
+            pMap.put("active", p.getActive());
+            pMap.put("createdAt", p.getCreatedAt());
+            pMap.put("updatedAt", p.getUpdatedAt());
+            pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
+            pMap.put("categoryName", p.getCategory() != null ? p.getCategory().getName() : null);
+            return ResponseEntity.ok(pMap);
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/pages")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> createPage(@RequestBody Map<String, Object> requestBody) {
         log.info("POST /api/timetree/pages");
         try {
@@ -343,6 +384,7 @@ public class TimetreeController {
     }
 
     @PutMapping("/pages/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> updatePage(@PathVariable Long id, @RequestBody Map<String, Object> requestBody) {
         log.info("PUT /api/timetree/pages/{}", id);
         return pageRepository.findById(id).map(existing -> {
@@ -365,6 +407,7 @@ public class TimetreeController {
     }
 
     @DeleteMapping("/pages/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<Void> deletePage(@PathVariable Long id) {
         log.info("DELETE /api/timetree/pages/{}", id);
         return pageRepository.findById(id).map(existing -> {
@@ -374,58 +417,39 @@ public class TimetreeController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    // ─── GROUPS CRUD ─────────────────────────────────────────────────────────
-    @GetMapping("/groups")
-    public ResponseEntity<List<Group>> getGroups() {
-        log.info("GET /api/timetree/groups");
-        return ResponseEntity.ok(groupRepository.findAllByOrderByCreatedAtDesc());
-    }
-
-    @GetMapping("/groups/{id}")
-    public ResponseEntity<Group> getGroup(@PathVariable Long id) {
-        log.info("GET /api/timetree/groups/{}", id);
-        return groupRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    @PostMapping("/groups")
-    public ResponseEntity<Group> createGroup(@RequestBody Group group) {
-        log.info("POST /api/timetree/groups - {}", group.getName());
-        group.setCreatedAt(LocalDateTime.now());
-        Group saved = groupRepository.save(group);
-        audit("CREATE", "Group", saved.getId(), "Created group: " + saved.getName());
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
-    }
-
-    @PutMapping("/groups/{id}")
-    public ResponseEntity<Group> updateGroup(@PathVariable Long id, @RequestBody Group request) {
-        log.info("PUT /api/timetree/groups/{}", id);
-        return groupRepository.findById(id).map(existing -> {
-            existing.setName(request.getName());
-            existing.setDescription(request.getDescription());
-            existing.setActive(request.getActive());
-            existing.setUpdatedAt(LocalDateTime.now());
-            Group saved = groupRepository.save(existing);
-            audit("UPDATE", "Group", saved.getId(), "Updated group: " + saved.getName());
-            return ResponseEntity.ok(saved);
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
-    @DeleteMapping("/groups/{id}")
-    public ResponseEntity<Void> deleteGroup(@PathVariable Long id) {
-        log.info("DELETE /api/timetree/groups/{}", id);
-        return groupRepository.findById(id).map(existing -> {
-            groupRepository.delete(existing);
-            audit("DELETE", "Group", id, "Deleted group: " + existing.getName());
-            return ResponseEntity.noContent().<Void>build();
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
     // ─── ROLES ───────────────────────────────────────────────────────────────
     @GetMapping("/roles")
     public ResponseEntity<List<Map<String, String>>> getRoles() {
         log.info("GET /api/timetree/roles");
+        try {
+            String url = "https://duxweb.pre-produx.asmtechtn.com/api/Typeuser/findall";
+            String json = duxHttpClient.get(url);
+            if (json != null && !json.trim().isEmpty()) {
+                List<Map<String, Object>> externalRoles = objectMapper.readValue(json, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+                List<Map<String, String>> parsedRoles = new ArrayList<>();
+                for (Map<String, Object> map : externalRoles) {
+                    String libelle = map.get("libelle") != null ? map.get("libelle").toString().trim() : 
+                                    map.get("libellé") != null ? map.get("libellé").toString().trim() :
+                                    map.get("designation") != null ? map.get("designation").toString().trim() :
+                                    map.get("code") != null ? map.get("code").toString().trim() : "";
+                    String id = map.get("idTypeuser") != null ? map.get("idTypeuser").toString().trim() :
+                                map.get("id") != null ? map.get("id").toString().trim() : libelle;
+                    
+                    String code = !libelle.isEmpty() ? libelle : id;
+                    String label = !libelle.isEmpty() ? libelle : id;
+                    if (!code.isEmpty()) {
+                        parsedRoles.add(Map.of("code", code, "name", label));
+                    }
+                }
+                if (!parsedRoles.isEmpty()) {
+                    return ResponseEntity.ok(parsedRoles);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch roles from Typeuser/findall", e);
+        }
+
+        // Fallback defaults in case of network or parsing failure
         List<Map<String, String>> roles = new ArrayList<>();
         roles.add(Map.of("code", "admin", "name", "Admin"));
         roles.add(Map.of("code", "dashboard-viewer", "name", "Dashboard Viewer"));
@@ -436,41 +460,9 @@ public class TimetreeController {
         return ResponseEntity.ok(roles);
     }
 
-    @PostMapping("/groups/{groupId}/roles")
-    public ResponseEntity<?> assignRoleToGroup(@PathVariable Long groupId, @RequestBody Map<String, String> request) {
-        log.info("POST /api/timetree/groups/{}/roles", groupId);
-        String roleCode = request.get("roleCode");
-        if (roleCode == null) {
-            return ResponseEntity.badRequest().body("roleCode is required");
-        }
-        return groupRepository.findById(groupId).map(group -> {
-            if (group.getRoles() == null) {
-                group.setRoles(new HashSet<>());
-            }
-            group.getRoles().add(roleCode);
-            group.setUpdatedAt(LocalDateTime.now());
-            Group saved = groupRepository.save(group);
-            audit("ASSIGN_ROLE", "Group", groupId, "Assigned role '" + roleCode + "' to group: " + group.getName());
-            return ResponseEntity.ok(saved);
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
-    @DeleteMapping("/groups/{groupId}/roles/{roleCode}")
-    public ResponseEntity<?> removeRoleFromGroup(@PathVariable Long groupId, @PathVariable String roleCode) {
-        log.info("DELETE /api/timetree/groups/{}/roles/{}", groupId, roleCode);
-        return groupRepository.findById(groupId).map(group -> {
-            if (group.getRoles() != null && group.getRoles().remove(roleCode)) {
-                group.setUpdatedAt(LocalDateTime.now());
-                groupRepository.save(group);
-                audit("REMOVE_ROLE", "Group", groupId, "Removed role '" + roleCode + "' from group: " + group.getName());
-                return ResponseEntity.ok().build();
-            }
-            return ResponseEntity.badRequest().body("Role not assigned to this group");
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
     // ─── PERMISSIONS ─────────────────────────────────────────────────────────
     @GetMapping("/permissions")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<Map<String, Object>> getPermissions() {
         log.info("GET /api/timetree/permissions");
         List<Category> categories = categoryRepository.findAll();
@@ -478,10 +470,6 @@ public class TimetreeController {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("categoryId", cat.getId().toString());
             map.put("categoryName", cat.getName());
-            List<String> groupIds = cat.getGroups() != null 
-                ? cat.getGroups().stream().map(g -> g.getId().toString()).collect(Collectors.toList())
-                : Collections.emptyList();
-            map.put("groupIds", groupIds);
             return map;
         }).collect(Collectors.toList());
 
@@ -490,10 +478,6 @@ public class TimetreeController {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("pageId", p.getId().toString());
             map.put("pageName", p.getName());
-            List<String> groupIds = p.getGroups() != null 
-                ? p.getGroups().stream().map(g -> g.getId().toString()).collect(Collectors.toList())
-                : Collections.emptyList();
-            map.put("groupIds", groupIds);
             return map;
         }).collect(Collectors.toList());
 
@@ -504,65 +488,66 @@ public class TimetreeController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/categories/{categoryId}/groups")
-    public ResponseEntity<?> assignCategoryToGroups(@PathVariable Long categoryId, @RequestBody Map<String, List<String>> request) {
-        log.info("POST /api/timetree/categories/{}/groups", categoryId);
-        List<String> groupIdsStr = request.get("groupIds");
-        if (groupIdsStr == null) {
-            return ResponseEntity.badRequest().body("groupIds is required");
-        }
-        return categoryRepository.findById(categoryId).map(category -> {
-            List<Long> ids = groupIdsStr.stream().map(Long::valueOf).collect(Collectors.toList());
-            List<Group> groups = groupRepository.findAllById(ids);
-            category.setGroups(groups);
-            category.setUpdatedAt(LocalDateTime.now());
-            Category saved = categoryRepository.save(category);
-            audit("ASSIGN_GROUPS", "Category", categoryId, "Assigned " + groups.size() + " groups to category: " + category.getName());
-            return ResponseEntity.ok(saved);
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
-    @PostMapping("/pages/{pageId}/groups")
-    public ResponseEntity<?> assignPageToGroups(@PathVariable Long pageId, @RequestBody Map<String, List<String>> request) {
-        log.info("POST /api/timetree/pages/{}/groups", pageId);
-        List<String> groupIdsStr = request.get("groupIds");
-        if (groupIdsStr == null) {
-            return ResponseEntity.badRequest().body("groupIds is required");
-        }
-        return pageRepository.findById(pageId).map(page -> {
-            List<Long> ids = groupIdsStr.stream().map(Long::valueOf).collect(Collectors.toList());
-            List<Group> groups = groupRepository.findAllById(ids);
-            page.setGroups(groups);
-            page.setUpdatedAt(LocalDateTime.now());
-            Page saved = pageRepository.save(page);
-            audit("ASSIGN_GROUPS", "Page", pageId, "Assigned " + groups.size() + " groups to page: " + page.getName());
-            return ResponseEntity.ok(saved);
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
     // ─── MEMBERS CRUD ────────────────────────────────────────────────────────
     @GetMapping("/members")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<List<Member>> getMembers() {
         log.info("GET /api/timetree/members");
         return ResponseEntity.ok(memberRepository.findAll());
     }
 
     @PostMapping("/members")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<Member> createMember(@RequestBody Member member) {
         log.info("POST /api/timetree/members - {}", member.getUsername());
+        if (member.getCalendars() != null) {
+            List<Long> calendarIds = member.getCalendars().stream()
+                    .map(com.asm.dux.timetree.domain.Calendar::getId)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toList());
+            List<com.asm.dux.timetree.domain.Calendar> calendars = calendarRepository.findAllById(calendarIds);
+            member.setCalendars(calendars);
+        }
         Member saved = memberRepository.save(member);
         audit("CREATE", "Member", saved.getId(), "Created member: " + saved.getFullName());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/members/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<Member> updateMember(@PathVariable Long id, @RequestBody Member request) {
         log.info("PUT /api/timetree/members/{}", id);
         return memberRepository.findById(id).map(existing -> {
             existing.setUsername(request.getUsername());
             existing.setFullName(request.getFullName());
             existing.setEmail(request.getEmail());
-            existing.setRole(request.getRole());
+            if (request.getRole() != null) {
+                existing.setRole(request.getRole());
+                if ("MEMBER".equalsIgnoreCase(request.getRole())) {
+                    existing.setCanCreateAgendas(false);
+                    existing.setCanAddMembers(false);
+                } else if ("CHEF".equalsIgnoreCase(request.getRole()) || "ADMIN".equalsIgnoreCase(request.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(request.getRole())) {
+                    existing.setCanCreateAgendas(true);
+                    existing.setCanAddMembers(true);
+                }
+            }
+            if (request.getCanCreateAgendas() != null) {
+                existing.setCanCreateAgendas(request.getCanCreateAgendas());
+            }
+            if (request.getCanAddMembers() != null) {
+                existing.setCanAddMembers(request.getCanAddMembers());
+            }
+            if (request.getProfilePicture() != null) {
+                existing.setProfilePicture(request.getProfilePicture());
+            }
+            if (request.getCalendars() != null) {
+                List<Long> calendarIds = request.getCalendars().stream()
+                        .map(com.asm.dux.timetree.domain.Calendar::getId)
+                        .filter(java.util.Objects::nonNull)
+                        .collect(Collectors.toList());
+                List<com.asm.dux.timetree.domain.Calendar> calendars = calendarRepository.findAllById(calendarIds);
+                existing.setCalendars(calendars);
+            }
             Member saved = memberRepository.save(existing);
             audit("UPDATE", "Member", saved.getId(), "Updated member: " + saved.getFullName());
             return ResponseEntity.ok(saved);
@@ -570,6 +555,7 @@ public class TimetreeController {
     }
 
     @DeleteMapping("/members/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<Void> deleteMember(@PathVariable Long id) {
         log.info("DELETE /api/timetree/members/{}", id);
         return memberRepository.findById(id).map(existing -> {
@@ -581,20 +567,40 @@ public class TimetreeController {
 
     // ─── CALENDARS CRUD ──────────────────────────────────────────────────────
     @GetMapping("/calendars")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<List<com.asm.dux.timetree.domain.Calendar>> getCalendars() {
         log.info("GET /api/timetree/calendars");
+        Member current = securityService.getCurrentMember();
+        if (current != null && !("ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()))) {
+            List<Long> allowedIds = securityService.getAllowedCalendarIds(current);
+            List<com.asm.dux.timetree.domain.Calendar> calendars = calendarRepository.findAll().stream()
+                    .filter(c -> allowedIds.contains(c.getId()))
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(calendars);
+        }
         return ResponseEntity.ok(calendarRepository.findAll());
     }
 
     @PostMapping("/calendars")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<com.asm.dux.timetree.domain.Calendar> createCalendar(@RequestBody com.asm.dux.timetree.domain.Calendar calendar) {
         log.info("POST /api/timetree/calendars - {}", calendar.getName());
+        Member current = securityService.getCurrentMember();
+        if (current != null) {
+            if (calendar.getMembers() == null) {
+                calendar.setMembers(new java.util.ArrayList<>());
+            }
+            if (!calendar.getMembers().contains(current)) {
+                calendar.getMembers().add(current);
+            }
+        }
         com.asm.dux.timetree.domain.Calendar saved = calendarRepository.save(calendar);
         audit("CREATE", "Calendar", saved.getId(), "Created calendar: " + saved.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @PutMapping("/calendars/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<com.asm.dux.timetree.domain.Calendar> updateCalendar(@PathVariable Long id, @RequestBody com.asm.dux.timetree.domain.Calendar request) {
         log.info("PUT /api/timetree/calendars/{}", id);
         return calendarRepository.findById(id).map(existing -> {
@@ -608,6 +614,7 @@ public class TimetreeController {
     }
 
     @DeleteMapping("/calendars/{id}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<Void> deleteCalendar(@PathVariable Long id) {
         log.info("DELETE /api/timetree/calendars/{}", id);
         return calendarRepository.findById(id).map(existing -> {
@@ -617,82 +624,103 @@ public class TimetreeController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    // ─── GROUP MEMBERSHIP & ASSIGNMENTS ──────────────────────────────────────
-    @PostMapping("/groups/{groupId}/members")
-    public ResponseEntity<?> addMemberToGroup(@PathVariable Long groupId, @RequestBody Map<String, String> request) {
-        log.info("POST /api/timetree/groups/{}/members", groupId);
+    // ─── CALENDAR MEMBER ASSIGNMENTS ─────────────────────────────────────────
+    @PostMapping("/calendars/{calendarId}/members")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<?> addMemberToCalendar(@PathVariable Long calendarId, @RequestBody Map<String, String> request) {
+        log.info("POST /api/timetree/calendars/{}/members", calendarId);
         String memberIdStr = request.get("memberId");
         if (memberIdStr == null) {
             return ResponseEntity.badRequest().body("memberId is required");
         }
         Long memberId = Long.valueOf(memberIdStr);
-        return groupRepository.findById(groupId).flatMap(group -> 
+        return calendarRepository.findById(calendarId).flatMap(calendar ->
             memberRepository.findById(memberId).map(member -> {
-                if (group.getMembers() == null) {
-                    group.setMembers(new ArrayList<>());
+                if (calendar.getMembers() == null) {
+                    calendar.setMembers(new ArrayList<>());
                 }
-                if (!group.getMembers().contains(member)) {
-                    group.getMembers().add(member);
-                    groupRepository.save(group);
-                    audit("ADD_MEMBER", "Group", groupId, "Added member " + member.getFullName() + " to group: " + group.getName());
+                if (!calendar.getMembers().contains(member)) {
+                    if (member.getCalendars() == null) {
+                        member.setCalendars(new ArrayList<>());
+                    }
+                    if (!member.getCalendars().contains(calendar)) {
+                        member.getCalendars().add(calendar);
+                    }
+                    memberRepository.save(member);
+                    calendar.getMembers().add(member);
+                    calendarRepository.save(calendar);
+                    audit("ADD_MEMBER", "Calendar", calendarId, "Added member " + member.getFullName() + " to calendar: " + calendar.getName());
                 }
-                return ResponseEntity.ok(group);
+                return ResponseEntity.ok(Map.of("status", "ok"));
             })
         ).orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/groups/{groupId}/members/{memberId}")
-    public ResponseEntity<?> removeMemberFromGroup(@PathVariable Long groupId, @PathVariable Long memberId) {
-        log.info("DELETE /api/timetree/groups/{}/members/{}", groupId, memberId);
-        return groupRepository.findById(groupId).flatMap(group -> 
+    @DeleteMapping("/calendars/{calendarId}/members/{memberId}")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<?> removeMemberFromCalendar(@PathVariable Long calendarId, @PathVariable Long memberId) {
+        log.info("DELETE /api/timetree/calendars/{}/members/{}", calendarId, memberId);
+        return calendarRepository.findById(calendarId).flatMap(calendar ->
             memberRepository.findById(memberId).map(member -> {
-                if (group.getMembers() != null && group.getMembers().remove(member)) {
-                    groupRepository.save(group);
-                    audit("REMOVE_MEMBER", "Group", groupId, "Removed member " + member.getFullName() + " from group: " + group.getName());
+                boolean removed = false;
+                if (member.getCalendars() != null) {
+                    removed = member.getCalendars().remove(calendar);
+                    if (removed) {
+                        memberRepository.save(member);
+                    }
+                }
+                if (calendar.getMembers() != null) {
+                    calendar.getMembers().remove(member);
+                }
+                calendarRepository.save(calendar);
+                if (removed) {
+                    audit("REMOVE_MEMBER", "Calendar", calendarId, "Removed member " + member.getFullName() + " from calendar: " + calendar.getName());
                     return ResponseEntity.ok().build();
                 }
-                return ResponseEntity.badRequest().body("Member not in this group");
+                return ResponseEntity.badRequest().body("Member not assigned to this calendar");
             })
         ).orElse(ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/groups/{groupId}/chef")
-    public ResponseEntity<?> assignChefToGroup(@PathVariable Long groupId, @RequestBody Map<String, String> request) {
-        log.info("PUT /api/timetree/groups/{}/chef", groupId);
-        String chefIdStr = request.get("chefId");
-        Long chefId = (chefIdStr != null && !chefIdStr.isEmpty()) ? Long.valueOf(chefIdStr) : null;
-        
-        return groupRepository.findById(groupId).map(group -> {
-            if (chefId == null) {
-                group.setChef(null);
-                groupRepository.save(group);
-                audit("ASSIGN_CHEF", "Group", groupId, "Removed Chef from group: " + group.getName());
-                return ResponseEntity.ok(group);
-            } else {
-                return memberRepository.findById(chefId).map(chef -> {
-                    group.setChef(chef);
-                    groupRepository.save(group);
-                    audit("ASSIGN_CHEF", "Group", groupId, "Assigned Chef " + chef.getFullName() + " to group: " + group.getName());
-                    return ResponseEntity.ok(group);
-                }).orElse(ResponseEntity.badRequest().build());
-            }
-        }).orElse(ResponseEntity.notFound().build());
-    }
-
-    @PostMapping("/groups/{groupId}/calendars")
-    public ResponseEntity<?> assignCalendarsToGroup(@PathVariable Long groupId, @RequestBody Map<String, List<String>> request) {
-        log.info("POST /api/timetree/groups/{}/calendars", groupId);
-        List<String> calendarIdsStr = request.get("calendarIds");
-        if (calendarIdsStr == null) {
-            return ResponseEntity.badRequest().body("calendarIds is required");
+    @PutMapping("/calendars/{calendarId}/members")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<?> setCalendarMembers(@PathVariable Long calendarId, @RequestBody Map<String, List<String>> request) {
+        log.info("PUT /api/timetree/calendars/{}/members", calendarId);
+        List<String> memberIdsStr = request.get("memberIds");
+        if (memberIdsStr == null) {
+            return ResponseEntity.badRequest().body("memberIds is required");
         }
-        return groupRepository.findById(groupId).map(group -> {
-            List<Long> ids = calendarIdsStr.stream().map(Long::valueOf).collect(Collectors.toList());
-            List<com.asm.dux.timetree.domain.Calendar> calendars = calendarRepository.findAllById(ids);
-            group.setCalendars(calendars);
-            groupRepository.save(group);
-            audit("ASSIGN_CALENDARS", "Group", groupId, "Assigned " + calendars.size() + " calendars to group: " + group.getName());
-            return ResponseEntity.ok(group);
+        return calendarRepository.findById(calendarId).map(calendar -> {
+            List<Long> ids = memberIdsStr.stream().map(Long::valueOf).collect(Collectors.toList());
+            List<Member> targetMembers = memberRepository.findAllById(ids);
+            List<Member> currentMembers = calendar.getMembers();
+            if (currentMembers == null) currentMembers = new ArrayList<>();
+
+            for (Member m : currentMembers) {
+                if (!targetMembers.contains(m)) {
+                    if (m.getCalendars() != null) {
+                        m.getCalendars().remove(calendar);
+                        memberRepository.save(m);
+                    }
+                }
+            }
+
+            for (Member m : targetMembers) {
+                if (!currentMembers.contains(m)) {
+                    if (m.getCalendars() == null) {
+                        m.setCalendars(new ArrayList<>());
+                    }
+                    if (!m.getCalendars().contains(calendar)) {
+                        m.getCalendars().add(calendar);
+                        memberRepository.save(m);
+                    }
+                }
+            }
+
+            calendar.setMembers(targetMembers);
+            calendarRepository.save(calendar);
+            audit("SET_MEMBERS", "Calendar", calendarId, "Set " + targetMembers.size() + " members on calendar: " + calendar.getName());
+            return ResponseEntity.ok(Map.of("status", "ok", "count", targetMembers.size()));
         }).orElse(ResponseEntity.notFound().build());
     }
 }

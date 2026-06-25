@@ -46,12 +46,4 @@ public class Page {
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "TT_PAGE_GROUP",
-        schema = "dbo",
-        joinColumns = @JoinColumn(name = "PAGE_ID"),
-        inverseJoinColumns = @JoinColumn(name = "GROUP_ID")
-    )
-    private List<Group> groups;
 }

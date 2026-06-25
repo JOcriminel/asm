@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="sprint-13-nvarchar-emojis-001" author="antigravity">
+        <modifyDataType tableName="CF_DEFINITION" schemaName="dbo" columnName="EMOJI" newDataType="NVARCHAR(50)"/>
+        <modifyDataType tableName="TT_EVENT" schemaName="dbo" columnName="TITLE" newDataType="NVARCHAR(150)"/>
+        <modifyDataType tableName="TT_EVENT" schemaName="dbo" columnName="NOM_EVENT" newDataType="NVARCHAR(150)"/>
+        <modifyDataType tableName="CF_VALUE" schemaName="dbo" columnName="VALUE" newDataType="NVARCHAR(2000)"/>
+    </changeSet>
+</databaseChangeLog>

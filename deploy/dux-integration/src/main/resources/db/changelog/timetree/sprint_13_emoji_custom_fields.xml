@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="sprint-13-custom-fields-emoji-001" author="antigravity">
+        <!-- Add columns to CF_DEFINITION -->
+        <addColumn tableName="CF_DEFINITION" schemaName="dbo">
+            <column name="EMOJI" type="VARCHAR(50)"/>
+            <column name="EMOJI_ORDER" type="INT"/>
+        </addColumn>
+        
+        <!-- Add column to CF_VALUE -->
+        <addColumn tableName="CF_VALUE" schemaName="dbo">
+            <column name="SHOW_EMOJI_IN_TITLE" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        
+        <!-- Add columns to TT_EVENT -->
+        <addColumn tableName="TT_EVENT" schemaName="dbo">
+            <column name="NOM_EVENT" type="VARCHAR(150)"/>
+            <column name="TITLE_MODIFIED_DIRECTLY" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

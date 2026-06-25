@@ -17,9 +17,13 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
       final list = await _repository.getCalendars();
       // Sort alphabetically by name
       list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      state = AsyncValue.data(list);
+      if (mounted) {
+        state = AsyncValue.data(list);
+      }
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      if (mounted) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 
@@ -38,9 +42,13 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
       );
       final updatedList = List<TimetreeCalendar>.from(currentList)..add(newCalendar);
       updatedList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      state = AsyncValue.data(updatedList);
+      if (mounted) {
+        state = AsyncValue.data(updatedList);
+      }
     } catch (e) {
-      state = AsyncValue.data(currentList);
+      if (mounted) {
+        state = AsyncValue.data(currentList);
+      }
       rethrow;
     }
   }
@@ -64,9 +72,13 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
         return item.id == id ? updatedCalendar : item;
       }).toList();
       updatedList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      state = AsyncValue.data(updatedList);
+      if (mounted) {
+        state = AsyncValue.data(updatedList);
+      }
     } catch (e) {
-      state = AsyncValue.data(currentList);
+      if (mounted) {
+        state = AsyncValue.data(currentList);
+      }
       rethrow;
     }
   }
@@ -77,9 +89,13 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
     try {
       await _repository.deleteCalendar(id);
       final updatedList = currentList.where((item) => item.id != id).toList();
-      state = AsyncValue.data(updatedList);
+      if (mounted) {
+        state = AsyncValue.data(updatedList);
+      }
     } catch (e) {
-      state = AsyncValue.data(currentList);
+      if (mounted) {
+        state = AsyncValue.data(currentList);
+      }
       rethrow;
     }
   }

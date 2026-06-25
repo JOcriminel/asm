@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="tt-remove-groups-001" author="antigravity">
+        <!-- 1. Drop foreign key constraint on TT_EVENT before modifying the table -->
+        <dropForeignKeyConstraint baseTableName="TT_EVENT" baseTableSchemaName="dbo" constraintName="FK_TT_EVENT_GROUP"/>
+        
+        <!-- 2. Drop GROUP_ID column from TT_EVENT -->
+        <dropColumn tableName="TT_EVENT" schemaName="dbo" columnName="GROUP_ID"/>
+
+        <!-- 3. Drop dependent many-to-many and role tables -->
+        <dropTable tableName="TT_GROUP_MEMBER" schemaName="dbo"/>
+        <dropTable tableName="TT_CALENDAR_GROUP" schemaName="dbo"/>
+        <dropTable tableName="TT_GROUP_ROLE" schemaName="dbo"/>
+        <dropTable tableName="TT_CATEGORY_GROUP" schemaName="dbo"/>
+        <dropTable tableName="TT_PAGE_GROUP" schemaName="dbo"/>
+
+        <!-- 4. Drop the primary TT_GROUP table -->
+        <dropTable tableName="TT_GROUP" schemaName="dbo"/>
+
+        <!-- 5. Create new direct TT_MEMBER_CALENDAR table -->
+        <createTable tableName="TT_MEMBER_CALENDAR" schemaName="dbo">
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_MC_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="CALENDAR_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_MC_CALENDAR" referencedTableName="TT_CALENDAR" referencedColumnNames="ID"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="TT_MEMBER_CALENDAR" schemaName="dbo" columnNames="MEMBER_ID, CALENDAR_ID" constraintName="PK_TT_MEMBER_CALENDAR"/>
+
+        <!-- 6. Delete dynamic Groupes page from TT_PAGE -->
+        <delete tableName="TT_PAGE" schemaName="dbo">
+            <where>ROUTE = '/timetree/groups'</where>
+        </delete>
+    </changeSet>
+</databaseChangeLog>

@@ -6,7 +6,7 @@ import 'package:dux_front/features/timetree/domain/models/timetree_notification.
 import 'package:dux_front/features/timetree/data/repositories/timetree_events_repository.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_event_details_dialog.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_events_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
+
 
 class TimetreeNotificationCenter extends ConsumerWidget {
   const TimetreeNotificationCenter({super.key});
@@ -45,10 +45,8 @@ class TimetreeNotificationCenter extends ConsumerWidget {
         context: context,
         barrierDismissible: false,
         builder: (context) {
-          final groups = ref.read(timetreeGroupsProvider).value ?? [];
           return TimetreeEventDetailsDialog(
             event: event,
-            groups: groups,
             onRefresh: () {
               ref.read(timetreeEventsProvider.notifier).loadEvents();
             },

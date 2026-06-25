@@ -29,12 +29,13 @@ class TimetreeControllerTests {
     @Mock private MemberRepository memberRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private PageRepository pageRepository;
-    @Mock private GroupRepository groupRepository;
     @Mock private TimetreeAuditLogRepository auditLogRepository;
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private TimetreeSecurityService securityService;
     @Mock private AuditService auditService;
     @Mock private WebSocketMetricsService webSocketMetricsService;
+    @Mock private com.asm.dux.infrastructure.dux.DuxHttpClient duxHttpClient;
+    @Mock private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     private SearchController searchController;
     private ExportController exportController;
@@ -51,7 +52,7 @@ class TimetreeControllerTests {
         searchController = new SearchController(eventRepository, calendarRepository, eventAttachmentRepository, eventMessageRepository, memberRepository, securityService);
         exportController = new ExportController(eventRepository, securityService);
         restoreController = new RestoreController(jdbcTemplate, securityService, auditService);
-        timetreeController = new TimetreeController(categoryRepository, pageRepository, groupRepository, auditLogRepository, memberRepository, calendarRepository, eventRepository, auditService, securityService, webSocketMetricsService);
+        timetreeController = new TimetreeController(categoryRepository, pageRepository, auditLogRepository, memberRepository, calendarRepository, eventRepository, auditService, securityService, webSocketMetricsService, duxHttpClient, objectMapper);
 
         mockMember = Member.builder().id(10L).username("testuser").fullName("Test User").role("MEMBER").build();
         mockCalendar = com.asm.dux.timetree.domain.Calendar.builder().id(100L).name("Mock Calendar").deleted(false).build();
@@ -127,18 +128,6 @@ class TimetreeControllerTests {
 
         ResponseEntity<?> responsePdf = exportController.exportEvents("pdf", null, null, null);
         assertEquals(HttpStatus.OK, responsePdf.getStatusCode());
-
-        try {
-            java.io.File dir = new java.io.File("C:/Users/ACHRAF/.gemini/antigravity/brain/7d14387a-76e9-41a3-92e3-8a3acc509b71");
-            if (dir.exists()) {
-                java.nio.file.Files.write(java.nio.file.Paths.get("C:/Users/ACHRAF/.gemini/antigravity/brain/7d14387a-76e9-41a3-92e3-8a3acc509b71/sample_export.csv"), (byte[]) responseCsv.getBody());
-                java.nio.file.Files.write(java.nio.file.Paths.get("C:/Users/ACHRAF/.gemini/antigravity/brain/7d14387a-76e9-41a3-92e3-8a3acc509b71/sample_export.ics"), (byte[]) responseIcs.getBody());
-                java.nio.file.Files.write(java.nio.file.Paths.get("C:/Users/ACHRAF/.gemini/antigravity/brain/7d14387a-76e9-41a3-92e3-8a3acc509b71/sample_export.xlsx"), (byte[]) responseXls.getBody());
-                java.nio.file.Files.write(java.nio.file.Paths.get("C:/Users/ACHRAF/.gemini/antigravity/brain/7d14387a-76e9-41a3-92e3-8a3acc509b71/sample_export.pdf"), (byte[]) responsePdf.getBody());
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     @Test
@@ -165,7 +154,7 @@ class TimetreeControllerTests {
         when(securityService.canReadEvent(eq(mockMember), any(Event.class))).thenReturn(true);
         when(categoryRepository.count()).thenReturn(3L);
         when(pageRepository.count()).thenReturn(7L);
-        when(groupRepository.count()).thenReturn(2L);
+        when(memberRepository.count()).thenReturn(5L);
         when(eventRepository.findAll()).thenReturn(Collections.singletonList(mockEvent));
 
         ResponseEntity<Map<String, Object>> response = timetreeController.getDashboard();
@@ -176,7 +165,7 @@ class TimetreeControllerTests {
         Map<String, Object> summary = (Map<String, Object>) body.get("summary");
         assertEquals(3, summary.get("categoriesCount"));
         assertEquals(7, summary.get("pagesCount"));
-        assertEquals(2, summary.get("groupsCount"));
+        assertEquals(5, summary.get("membersCount"));
 
         Map<String, Long> statusMap = (Map<String, Long>) body.get("eventsByStatus");
         assertEquals(1L, statusMap.get("IN_PROGRESS"));

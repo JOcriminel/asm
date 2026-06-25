@@ -9,13 +9,15 @@ import 'package:dux_front/features/timetree/domain/models/timetree_custom_field.
 class DynamicEventFormRenderer extends StatefulWidget {
   final List<TimetreeCustomField> fields;
   final Map<String, String> values;
-  final Function(Map<String, String> values) onValuesChanged;
+  final Map<String, bool> showEmojiInTitleValues;
+  final Function(Map<String, String> values, Map<String, bool> showEmojiInTitleValues) onValuesChanged;
   final GlobalKey<FormState> formKey;
 
   const DynamicEventFormRenderer({
     super.key,
     required this.fields,
     required this.values,
+    required this.showEmojiInTitleValues,
     required this.onValuesChanged,
     required this.formKey,
   });
@@ -24,17 +26,23 @@ class DynamicEventFormRenderer extends StatefulWidget {
   State<DynamicEventFormRenderer> createState() => _DynamicEventFormRendererState();
 }
 
+
 class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
   late Map<String, String> _currentValues;
+  late Map<String, bool> _currentShowEmojiInTitleValues;
 
   @override
   void initState() {
     super.initState();
     _currentValues = Map<String, String>.from(widget.values);
+    _currentShowEmojiInTitleValues = Map<String, bool>.from(widget.showEmojiInTitleValues);
     // Initialize default values for missing keys
     for (final field in widget.fields) {
       if (!_currentValues.containsKey(field.id) && field.defaultValue != null) {
         _currentValues[field.id] = field.defaultValue!;
+      }
+      if (!_currentShowEmojiInTitleValues.containsKey(field.id)) {
+        _currentShowEmojiInTitleValues[field.id] = false;
       }
     }
   }
@@ -47,15 +55,48 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
       if (widget.values.containsKey(field.id) && widget.values[field.id] != oldWidget.values[field.id]) {
         _currentValues[field.id] = widget.values[field.id]!;
       }
+      if (widget.showEmojiInTitleValues.containsKey(field.id) && widget.showEmojiInTitleValues[field.id] != oldWidget.showEmojiInTitleValues[field.id]) {
+        _currentShowEmojiInTitleValues[field.id] = widget.showEmojiInTitleValues[field.id]!;
+      }
     }
+  }
+
+  bool _isFieldFilled(TimetreeCustomField field) {
+    final val = _currentValues[field.id] ?? '';
+    if (field.fieldType.toUpperCase() == 'BOOLEAN') {
+      return val.toLowerCase() == 'true';
+    }
+    return val.trim().isNotEmpty && val != 'false';
   }
 
   void _updateValue(String fieldId, String value) {
     setState(() {
       _currentValues[fieldId] = value;
+      final field = widget.fields.firstWhere((f) => f.id == fieldId);
+      if (!_isFieldFilled(field)) {
+        _currentShowEmojiInTitleValues[fieldId] = false;
+      }
     });
-    widget.onValuesChanged(_currentValues);
+    widget.onValuesChanged(_currentValues, _currentShowEmojiInTitleValues);
   }
+
+  void _updateShowEmoji(String fieldId, bool show) {
+    setState(() {
+      _currentShowEmojiInTitleValues[fieldId] = show;
+    });
+    widget.onValuesChanged(_currentValues, _currentShowEmojiInTitleValues);
+  }
+
+  String _getOptionLabel(String rawOption) {
+    if (rawOption.contains('|')) {
+      final parts = rawOption.split('|');
+      final text = parts[0];
+      final emoji = parts[1];
+      return '$emoji $text';
+    }
+    return rawOption;
+  }
+
 
   /// Evaluates conditional visibility for a field based on current form values.
   ///
@@ -124,8 +165,66 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
   }
 
   Widget _buildFieldWidget(BuildContext context, TimetreeCustomField field, ThemeData theme) {
+    final baseWidget = _buildBaseFieldWidget(context, field, theme);
+    
+    if (field.emoji != null && field.emoji!.isNotEmpty) {
+      final showEmoji = _currentShowEmojiInTitleValues[field.id] ?? false;
+      final isFilled = _isFieldFilled(field);
+      final canToggleEmoji = !field.readOnly && isFilled;
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          baseWidget,
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: canToggleEmoji
+                ? () {
+                    _updateShowEmoji(field.id, !showEmoji);
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: Checkbox(
+                      value: showEmoji,
+                      onChanged: canToggleEmoji
+                          ? (val) {
+                              _updateShowEmoji(field.id, val ?? false);
+                            }
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Faire apparaître l'émoji ${field.emoji} dans le titre",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: showEmoji 
+                          ? theme.colorScheme.primary 
+                          : (canToggleEmoji ? theme.colorScheme.onSurfaceVariant : Colors.grey),
+                      fontWeight: showEmoji ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return baseWidget;
+  }
+
+  Widget _buildBaseFieldWidget(BuildContext context, TimetreeCustomField field, ThemeData theme) {
     final isReadOnly = field.readOnly;
     final currentValue = _currentValues[field.id] ?? '';
+
 
     // Check if select-based types have options
     final options = _parseOptions(field.options);
@@ -156,7 +255,7 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
             else
               ...options.map((opt) {
                 return RadioListTile<String>(
-                  title: Text(opt),
+                  title: Text(_getOptionLabel(opt)),
                   value: opt,
                   groupValue: currentValue,
                   onChanged: isReadOnly
@@ -214,7 +313,7 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
                 return Material(
                   color: Colors.transparent,
                   child: CheckboxListTile(
-                    title: Text(opt),
+                    title: Text(_getOptionLabel(opt)),
                     value: isChecked,
                     onChanged: isReadOnly
                         ? null
@@ -264,7 +363,7 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
           items: options.map((opt) {
             return DropdownMenuItem<String>(
               value: opt,
-              child: Text(opt),
+              child: Text(_getOptionLabel(opt)),
             );
           }).toList(),
           onChanged: isReadOnly
@@ -296,7 +395,7 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
                   suffixIcon: const Icon(Icons.arrow_drop_down),
                 ),
                 child: Text(
-                  selectedList.isEmpty ? 'Aucune option sélectionnée' : selectedList.join(', '),
+                  selectedList.isEmpty ? 'Aucune option sélectionnée' : selectedList.map(_getOptionLabel).join(', '),
                   style: selectedList.isEmpty ? const TextStyle(color: Colors.grey) : null,
                 ),
               ),
@@ -573,7 +672,7 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
                   children: options.map((opt) {
                     final isChecked = tempSelected.contains(opt);
                     return CheckboxListTile(
-                      title: Text(opt),
+                      title: Text(_getOptionLabel(opt)),
                       value: isChecked,
                       onChanged: (val) {
                         setDialogState(() {

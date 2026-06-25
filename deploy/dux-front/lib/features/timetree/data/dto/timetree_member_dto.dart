@@ -5,6 +5,9 @@ class TimetreeMemberDto {
   final String fullName;
   final String email;
   final String role;
+  final bool canCreateAgendas;
+  final bool canAddMembers;
+  final String? profilePicture;
 
   const TimetreeMemberDto({
     required this.id,
@@ -12,6 +15,9 @@ class TimetreeMemberDto {
     required this.fullName,
     required this.email,
     required this.role,
+    this.canCreateAgendas = true,
+    this.canAddMembers = true,
+    this.profilePicture,
   });
 
   factory TimetreeMemberDto.fromJson(Map<String, dynamic> json) {
@@ -21,6 +27,9 @@ class TimetreeMemberDto {
       fullName: json['fullName'] as String? ?? '',
       email: json['email'] as String? ?? '',
       role: json['role'] as String? ?? '',
+      canCreateAgendas: json['canCreateAgendas'] as bool? ?? true,
+      canAddMembers: json['canAddMembers'] as bool? ?? true,
+      profilePicture: json['profilePicture'] as String?,
     );
   }
 
@@ -31,6 +40,9 @@ class TimetreeMemberDto {
       'fullName': fullName,
       'email': email,
       'role': role,
+      'canCreateAgendas': canCreateAgendas,
+      'canAddMembers': canAddMembers,
+      'profilePicture': profilePicture,
     };
   }
 }

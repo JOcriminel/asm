@@ -81,7 +81,14 @@ public class CustomField {
     @Column(name = "VISIBILITY_RULE", length = 1000)
     private String visibilityRule;
 
+    @Column(name = "EMOJI", length = 50)
+    private String emoji;
+
+    @Column(name = "EMOJI_ORDER")
+    private Integer emojiOrder;
+
     @Column(name = "DELETED", nullable = false)
     @Builder.Default
     private Boolean deleted = false;
 }
+

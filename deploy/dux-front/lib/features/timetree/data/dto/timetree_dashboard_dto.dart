@@ -119,7 +119,7 @@ class TimetreeActivityDto {
 
   factory TimetreeActivityDto.fromJson(Map<String, dynamic> json) {
     return TimetreeActivityDto(
-      id: json['id'] as String? ?? '',
+      id: (json['id'] ?? '').toString(),
       type: json['type'] as String? ?? '',
       title: json['title'] as String? ?? '',
       timestamp: json['timestamp'] as String?,

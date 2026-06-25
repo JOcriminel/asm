@@ -1,8 +1,14 @@
+import 'dart:convert';
+import 'dart:io' as io;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
 import 'package:dux_front/core/widgets/primary_button.dart';
@@ -24,6 +30,64 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _obscurePassword = true;
+
+  Future<void> _pickAndUploadProfilePicture(
+    BuildContext context,
+    WidgetRef ref,
+    TimetreeMember? currentMember,
+  ) async {
+    if (currentMember == null || currentMember.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez patienter pendant le chargement de votre compte TimeTree.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+      if (result != null) {
+        final file = result.files.single;
+        Uint8List? bytes = file.bytes;
+        if (bytes == null && file.path != null) {
+          bytes = await io.File(file.path!).readAsBytes();
+        }
+        if (bytes != null) {
+          final base64String = base64Encode(bytes);
+          await ref.read(timetreeMembersProvider.notifier).updateMember(
+            id: currentMember.id,
+            username: currentMember.username,
+            fullName: currentMember.fullName,
+            email: currentMember.email,
+            role: currentMember.role,
+            profilePicture: base64String,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Photo de profil mise à jour avec succès.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de la mise à jour: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   void _copyToClipboard(String text, String fieldName) {
     if (text.isEmpty) return;
@@ -159,6 +223,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final theme = Theme.of(context);
     final state = ref.watch(profileControllerProvider);
     final stationState = ref.watch(stationControllerProvider);
+    final membersAsync = ref.watch(timetreeMembersProvider);
+    final currentMember = state.profile == null
+        ? null
+        : membersAsync.when(
+            data: (list) => list.firstWhere(
+              (m) => m.username.toLowerCase() == state.profile!.userId.toLowerCase(),
+              orElse: () => const TimetreeMember(id: '', username: '', fullName: '', email: '', role: ''),
+            ),
+            loading: () => null,
+            error: (_, __) => null,
+          );
 
     return Scaffold(
       drawer: const DuxDrawer(),
@@ -219,25 +294,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     child: Column(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: CircleAvatar(
-                            radius: 50,
-                            backgroundColor: Colors.white,
-                            child: Text(
-                              profile.fullName.trim().isNotEmpty
-                                  ? profile.fullName.trim().split(' ').where((e) => e.isNotEmpty).map((e) => e[0]).join().toUpperCase()
-                                  : 'U',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.bold,
+                        Stack(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.white,
+                                backgroundImage: currentMember?.profilePicture != null && currentMember!.profilePicture!.isNotEmpty
+                                    ? MemoryImage(base64Decode(currentMember.profilePicture!))
+                                    : null,
+                                child: currentMember?.profilePicture != null && currentMember!.profilePicture!.isNotEmpty
+                                    ? null
+                                    : Text(
+                                        profile.fullName.trim().isNotEmpty
+                                            ? profile.fullName.trim().split(' ').where((e) => e.isNotEmpty).map((e) => e[0]).join().toUpperCase()
+                                            : 'U',
+                                        style: theme.textTheme.headlineMedium?.copyWith(
+                                          color: theme.colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                               ),
                             ),
-                          ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: InkWell(
+                                onTap: () => _pickAndUploadProfilePicture(context, ref, currentMember),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 18,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         AppSpacing.gapL,
                         Text(

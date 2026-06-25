@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_custom_field.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_custom_fields_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/dynamic_event_form_renderer.dart';
 
@@ -61,7 +59,7 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final role = authState.user?.role.toUpperCase() ?? 'MEMBER';
-    final isAdmin = role == 'ADMIN';
+    final isAdmin = role == 'ADMIN' || role == 'ADMINISTRATEUR';
     final isChef = role == 'CHEF';
 
     // Access control: Members are blocked
@@ -73,26 +71,14 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
       );
     }
 
-    final groupsAsync = ref.watch(timetreeGroupsProvider);
     final calendarsAsync = ref.watch(timetreeCalendarsProvider);
     final fieldsAsync = ref.watch(filteredTimetreeCustomFieldsProvider);
     final theme = Theme.of(context);
-
-    // Filter lists
-    final List<TimetreeGroup> groups = groupsAsync.maybeWhen(
-      data: (list) => list,
-      orElse: () => [],
-    );
 
     final List<TimetreeCalendar> calendars = calendarsAsync.maybeWhen(
       data: (list) => list,
       orElse: () => [],
     );
-
-    // If Chef, restrict scope selection to GROUPS they manage, or GLOBAL read-only (we enforce CRUD block inside hasPermission)
-    final List<TimetreeGroup> managedGroups = isChef
-        ? groups.where((g) => g.chef?.username == authState.user?.username).toList()
-        : groups;
 
     return Scaffold(
       drawer: const DuxDrawer(),
@@ -101,8 +87,8 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(icon: Icon(Icons.settings_outlined), text: 'Définitions'),
-            Tab(icon: Icon(Icons.preview_outlined), text: 'Simulateur Formulaire'),
+            Tab(icon: Icon(Icons.settings_outlined), text: 'listes des champs personalisés'),
+            Tab(icon: Icon(Icons.preview_outlined), text: 'preview Formulaire'),
           ],
         ),
       ),
@@ -122,11 +108,10 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
                         border: InputBorder.none,
                       ),
                       value: _selectedScopeType,
-                      items: [
-                        const DropdownMenuItem(value: 'GLOBAL', child: Text('Global (Tous)')),
-                        const DropdownMenuItem(value: 'GROUP', child: Text('Groupe spécifique')),
-                        const DropdownMenuItem(value: 'CALENDAR', child: Text('Agenda spécifique')),
-                        const DropdownMenuItem(value: 'EVENT', child: Text('Événement spécifique')),
+                      items: const [
+                        DropdownMenuItem(value: 'GLOBAL', child: Text('Global (Tous)')),
+                        DropdownMenuItem(value: 'CALENDAR', child: Text('Agenda spécifique')),
+                        DropdownMenuItem(value: 'EVENT', child: Text('Événement spécifique')),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -140,26 +125,7 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
                     ),
                   ),
                   const SizedBox(width: 16),
-                  if (_selectedScopeType == 'GROUP')
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Sélectionner Groupe',
-                          border: InputBorder.none,
-                        ),
-                        value: _selectedScopeId,
-                        items: managedGroups.map((g) {
-                          return DropdownMenuItem(value: g.id, child: Text(g.name));
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedScopeId = val;
-                          });
-                          _onScopeChanged();
-                        },
-                      ),
-                    )
-                  else if (_selectedScopeType == 'CALENDAR')
+                  if (_selectedScopeType == 'CALENDAR')
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         decoration: const InputDecoration(
@@ -206,7 +172,7 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
               controller: _tabController,
               children: [
                 // Tab 1: Management View
-                _buildManagementTab(context, fieldsAsync, theme, isAdmin, isChef, managedGroups),
+                _buildManagementTab(context, fieldsAsync, theme, isAdmin, isChef),
 
                 // Tab 2: Simulator View
                 _buildSimulatorTab(context, fieldsAsync, theme),
@@ -224,7 +190,6 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
     ThemeData theme,
     bool isAdmin,
     bool isChef,
-    List<TimetreeGroup> managedGroups,
   ) {
     return fieldsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -266,18 +231,13 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
             floatingActionButton: FloatingActionButton.extended(
               icon: const Icon(Icons.add),
               label: const Text('Créer un champ'),
-              onPressed: () => _showFieldFormDialog(context, managedGroups: managedGroups),
+              onPressed: () => _showFieldFormDialog(context),
             ),
           );
         }
 
         // Check if Chef can write for the current scope
         bool canWrite = isAdmin;
-        if (isChef) {
-          if (_selectedScopeType == 'GROUP' && _selectedScopeId != null) {
-            canWrite = managedGroups.any((g) => g.id == _selectedScopeId);
-          }
-        }
 
         return Scaffold(
           body: Column(
@@ -348,18 +308,43 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              field.active ? 'Actif' : 'Inactif',
-                              style: TextStyle(
-                                color: field.active ? Colors.green : Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Switch(
+                              value: field.active,
+                              activeColor: Colors.green,
+                              inactiveTrackColor: Colors.red.shade100,
+                              inactiveThumbColor: Colors.red,
+                              onChanged: canWrite
+                                  ? (val) async {
+                                      try {
+                                        await ref
+                                            .read(timetreeCustomFieldsProvider.notifier)
+                                            .updateField(field.copyWith(active: val));
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                val
+                                                    ? 'Champ "${field.label}" activé'
+                                                    : 'Champ "${field.label}" désactivé',
+                                              ),
+                                              duration: const Duration(seconds: 1),
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Erreur: $e')),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  : null,
                             ),
                             if (canWrite) ...[
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined),
-                                onPressed: () => _showFieldFormDialog(context, field: field, managedGroups: managedGroups),
+                                onPressed: () => _showFieldFormDialog(context, field: field),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -379,7 +364,7 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
               ? FloatingActionButton.extended(
                   icon: const Icon(Icons.add),
                   label: const Text('Créer un champ'),
-                  onPressed: () => _showFieldFormDialog(context, managedGroups: managedGroups),
+                  onPressed: () => _showFieldFormDialog(context),
                 )
               : null,
         );
@@ -420,13 +405,15 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
               DynamicEventFormRenderer(
                 fields: activeFields,
                 values: _simulatorValues,
+                showEmojiInTitleValues: const {},
                 formKey: _simulatorFormKey,
-                onValuesChanged: (updated) {
+                onValuesChanged: (updated, showEmoji) {
                   setState(() {
                     _simulatorValues = updated;
                   });
                 },
               ),
+
               
               const SizedBox(height: 24),
               Row(
@@ -492,14 +479,13 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
     );
   }
 
-  void _showFieldFormDialog(BuildContext context, {TimetreeCustomField? field, required List<TimetreeGroup> managedGroups}) {
+  void _showFieldFormDialog(BuildContext context, {TimetreeCustomField? field}) {
     showDialog<void>(
       context: context,
       builder: (context) => _FieldFormDialog(
         field: field,
         defaultScopeType: _selectedScopeType,
         defaultScopeId: _selectedScopeId,
-        managedGroups: managedGroups,
       ),
     );
   }
@@ -549,13 +535,11 @@ class _FieldFormDialog extends ConsumerStatefulWidget {
   final TimetreeCustomField? field;
   final String defaultScopeType;
   final String? defaultScopeId;
-  final List<TimetreeGroup> managedGroups;
 
   const _FieldFormDialog({
     this.field,
     required this.defaultScopeType,
     this.defaultScopeId,
-    required this.managedGroups,
   });
 
   @override
@@ -586,6 +570,77 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
   late bool _hidden;
   late bool _readOnly;
   String? _visibilityRule;
+  String? _emoji;
+  int? _emojiOrder;
+
+  final List<TextEditingController> _optionControllers = [];
+  final List<String?> _optionEmojis = [];
+
+  void _onOptionTextChanged() {
+    setState(() {});
+  }
+
+  void _showEmojiPickerDialog(BuildContext context, int index) {
+    final popularEmojis = [
+      '🔴', '🔵', '🟢', '🟡', '🟣', '🟠', '⚫', '⚪', '🟤',
+      '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊',
+      '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗',
+      '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳',
+      '🎉', '✨', '🎈', '🎁', '🎂', '🏆', '⭐', '🔥', '💥',
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎',
+      '💼', '📅', '📝', '📌', '📎', '🔒', '🔑', '🛠️', '✈️',
+      '🏠', '🚗', '🍕', '☕', '🎵', '🎮', '💡', '⏰', '📢'
+    ];
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Sélectionner un émoji'),
+          content: SizedBox(
+            width: 300,
+            height: 300,
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 6,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: popularEmojis.length,
+              itemBuilder: (context, idx) {
+                final emoji = popularEmojis[idx];
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _optionEmojis[index] = emoji;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: Center(
+                    child: Text(
+                      emoji,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _optionEmojis[index] = null;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Aucun'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -610,7 +665,40 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
     _hidden = f?.hidden ?? false;
     _readOnly = f?.readOnly ?? false;
     _visibilityRule = f?.visibilityRule;
+    _emoji = f?.emoji;
+    _emojiOrder = f?.emojiOrder;
+
+    if (_options != null && _options!.isNotEmpty) {
+      final list = _options!.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      for (final opt in list) {
+        if (opt.contains('|')) {
+          final parts = opt.split('|');
+          _optionControllers.add(TextEditingController(text: parts[0]));
+          _optionEmojis.add(parts[1].trim().isEmpty ? null : parts[1].trim());
+        } else {
+          _optionControllers.add(TextEditingController(text: opt));
+          _optionEmojis.add(null);
+        }
+      }
+    }
+    if (_optionControllers.isEmpty) {
+      _optionControllers.add(TextEditingController());
+      _optionEmojis.add(null);
+    }
+    for (final ctrl in _optionControllers) {
+      ctrl.addListener(_onOptionTextChanged);
+    }
   }
+
+  @override
+  void dispose() {
+    for (final ctrl in _optionControllers) {
+      ctrl.removeListener(_onOptionTextChanged);
+      ctrl.dispose();
+    }
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -643,6 +731,26 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
                   onSaved: (val) => _label = val!.trim(),
                 ),
                 const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: _emoji,
+                  decoration: const InputDecoration(
+                    labelText: 'Émoji associé (optionnel, ex: 📊)',
+                    hintText: 'Saisissez un émoji',
+                  ),
+                  onSaved: (val) => _emoji = val?.trim().isEmpty == true ? null : val?.trim(),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: _emojiOrder?.toString(),
+                  decoration: const InputDecoration(
+                    labelText: 'Ordre de l\'émoji dans le titre (optionnel)',
+                    hintText: 'ex: 1',
+                  ),
+                  keyboardType: TextInputType.number,
+                  onSaved: (val) => _emojiOrder = val != null ? int.tryParse(val) : null,
+                ),
+                const SizedBox(height: 12),
+
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Type de champ'),
                   value: _fieldType,
@@ -662,15 +770,84 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
                 const SizedBox(height: 12),
                 // Options listing for select types
                 if (['RADIO', 'CHECKBOX', 'DROPDOWN', 'MULTI_SELECT'].contains(_fieldType)) ...[
-                  TextFormField(
-                    initialValue: _options,
-                    decoration: const InputDecoration(
-                      labelText: 'Options possibles (séparées par des virgules)',
-                      hintText: 'Option A, Option B, Option C',
-                    ),
-                    validator: (val) => (val == null || val.trim().isEmpty) ? 'Veuillez saisir au moins une option' : null,
-                    onSaved: (val) => _options = val,
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Options du champ', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
+                  const SizedBox(height: 8),
+                  ...List.generate(_optionControllers.length, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          // Emoji Selector
+                          InkWell(
+                            onTap: () => _showEmojiPickerDialog(context, index),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _optionEmojis[index] ?? '🔵',
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _optionControllers[index],
+                              decoration: InputDecoration(
+                                labelText: 'Option ${index + 1}',
+                                hintText: 'Option ${index + 1}',
+                                border: const OutlineInputBorder(),
+                              ),
+                              validator: (val) {
+                                if (index == 0 && (val == null || val.trim().isEmpty)) {
+                                    return 'Au moins une option requise';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                            tooltip: 'Supprimer l\'option',
+                            onPressed: () {
+                              if (_optionControllers.length > 1) {
+                                setState(() {
+                                  final ctrl = _optionControllers.removeAt(index);
+                                  ctrl.removeListener(_onOptionTextChanged);
+                                  ctrl.dispose();
+                                  _optionEmojis.removeAt(index);
+                                });
+                              } else {
+                                setState(() {
+                                  _optionControllers[index].clear();
+                                  _optionEmojis[index] = null;
+                                });
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.green),
+                            tooltip: 'Ajouter une option',
+                            onPressed: () {
+                              setState(() {
+                                final newCtrl = TextEditingController();
+                                newCtrl.addListener(_onOptionTextChanged);
+                                _optionControllers.insert(index + 1, newCtrl);
+                                _optionEmojis.insert(index + 1, null);
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 12),
                 ],
                 TextFormField(
@@ -683,7 +860,7 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Portée'),
                   value: _scopeType,
-                  items: ['GLOBAL', 'GROUP', 'CALENDAR', 'EVENT']
+                  items: ['GLOBAL', 'CALENDAR', 'EVENT']
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                       .toList(),
                   onChanged: (val) {
@@ -696,17 +873,7 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
                   },
                 ),
                 const SizedBox(height: 12),
-                if (_scopeType == 'GROUP')
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Groupe cible'),
-                    value: _scopeId,
-                    items: widget.managedGroups.map((g) {
-                      return DropdownMenuItem(value: g.id, child: Text(g.name));
-                    }).toList(),
-                    onChanged: (val) => setState(() => _scopeId = val),
-                    validator: (val) => val == null ? 'Sélectionnez un groupe' : null,
-                  )
-                else if (_scopeType == 'CALENDAR')
+                if (_scopeType == 'CALENDAR')
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: 'Agenda cible'),
                     value: _scopeId,
@@ -837,6 +1004,24 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
     if (_formKey.currentState?.validate() ?? false) {
       _formKey.currentState?.save();
 
+      if (['RADIO', 'CHECKBOX', 'DROPDOWN', 'MULTI_SELECT'].contains(_fieldType)) {
+        final List<String> optPairs = [];
+        for (int i = 0; i < _optionControllers.length; i++) {
+          final text = _optionControllers[i].text.trim();
+          if (text.isNotEmpty) {
+            final emoji = _optionEmojis[i];
+            if (emoji != null && emoji.trim().isNotEmpty) {
+              optPairs.add('$text|$emoji');
+            } else {
+              optPairs.add(text);
+            }
+          }
+        }
+        _options = optPairs.isEmpty ? null : optPairs.join(',');
+      } else {
+        _options = null;
+      }
+
       final notifier = ref.read(timetreeCustomFieldsProvider.notifier);
 
       final newField = TimetreeCustomField(
@@ -859,7 +1044,10 @@ class _FieldFormDialogState extends ConsumerState<_FieldFormDialog> {
         hidden: _hidden,
         readOnly: _readOnly,
         visibilityRule: _visibilityRule,
+        emoji: _emoji,
+        emojiOrder: _emojiOrder,
       );
+
 
       try {
         if (widget.field != null) {

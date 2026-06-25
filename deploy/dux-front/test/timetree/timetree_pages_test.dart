@@ -232,7 +232,48 @@ void main() {
       // Switch & delete controls
       expect(find.byType(Switch), findsNWidgets(2));
       expect(find.byIcon(Icons.edit_outlined), findsNWidgets(2));
-      expect(find.byIcon(Icons.delete_outline_rounded), findsNWidgets(2));
+      expect(find.byIcon(Icons.delete_outline_rounded), findsNothing);
+    });
+
+    testWidgets('opens edit dialog and handles category loading error with retry button', (tester) async {
+      final override = filteredTimetreePagesProvider.overrideWith(
+        (ref) => const AsyncValue.data([
+          TimetreePage(id: '1', title: 'Aide client', active: true, displayOrder: 1, categoryId: 'cat-1'),
+        ]),
+      );
+
+      var loadCategoriesCalled = 0;
+      final categoriesNotifier = _FakeCategoriesNotifierWithError(
+        const AsyncValue.error('Network failure', StackTrace.empty),
+        onLoadCategories: () {
+          loadCategoriesCalled++;
+        },
+      );
+
+      await tester.pumpWidget(
+        buildPagesHarness(const TimetreePagesScreen(), [
+          override,
+          timetreeCategoriesProvider.overrideWith((ref) => categoriesNotifier),
+        ]),
+      );
+      await tester.pump();
+
+      // Tap on Edit button to open the dialog
+      await tester.tap(find.byIcon(Icons.edit_outlined));
+      await tester.pumpAndSettle();
+
+      // Verify that the dialog is open and displays the title 'Modifier la page'
+      expect(find.text('Modifier la page'), findsOneWidget);
+
+      // Verify categories error is shown along with Réessayer button
+      expect(find.textContaining('Erreur de chargement des catégories: Network failure'), findsOneWidget);
+      final retryBtn = find.widgetWithText(FilledButton, 'Réessayer');
+      expect(retryBtn, findsOneWidget);
+
+      // Tap Réessayer and verify it triggers loadCategories
+      await tester.tap(retryBtn);
+      await tester.pump();
+      expect(loadCategoriesCalled, 2);
     });
   });
 }
@@ -270,4 +311,18 @@ class _FakeCategoriesRepo extends TimetreeCategoriesRepository {
 
   @override
   Future<List<TimetreeCategory>> getCategories() async => const [];
+}
+
+class _FakeCategoriesNotifierWithError extends TimetreeCategoriesNotifier {
+  _FakeCategoriesNotifierWithError(AsyncValue<List<TimetreeCategory>> initialValue, {required this.onLoadCategories})
+      : super(_FakeCategoriesRepo()) {
+    state = initialValue;
+  }
+
+  final VoidCallback onLoadCategories;
+
+  @override
+  Future<void> loadCategories() async {
+    onLoadCategories();
+  }
 }

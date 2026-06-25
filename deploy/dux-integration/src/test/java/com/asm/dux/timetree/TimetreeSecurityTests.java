@@ -2,10 +2,8 @@ package com.asm.dux.timetree;
 
 import com.asm.dux.timetree.domain.Calendar;
 import com.asm.dux.timetree.domain.Event;
-import com.asm.dux.timetree.domain.Group;
 import com.asm.dux.timetree.domain.Member;
 import com.asm.dux.timetree.repository.CalendarRepository;
-import com.asm.dux.timetree.repository.GroupRepository;
 import com.asm.dux.timetree.repository.MemberRepository;
 import com.asm.dux.timetree.service.TimetreeSecurityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +15,6 @@ import org.mockito.MockitoAnnotations;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -29,9 +26,6 @@ class TimetreeSecurityTests {
 
     @Mock
     private CalendarRepository calendarRepository;
-
-    @Mock
-    private GroupRepository groupRepository;
 
     @InjectMocks
     private TimetreeSecurityService securityService;
@@ -121,18 +115,10 @@ class TimetreeSecurityTests {
                 .role("CHEF")
                 .build();
 
-        Calendar cal1 = Calendar.builder().id(101L).build();
+        // Chef is directly assigned to the calendar via TT_MEMBER_CALENDAR
+        when(calendarRepository.findAllowedCalendarIdsByMemberId(2L)).thenReturn(Collections.singletonList(101L));
 
-        Group managedGroup = Group.builder()
-                .id(10L)
-                .chef(chef)
-                .calendars(Collections.singletonList(cal1))
-                .build();
-
-        when(calendarRepository.findById(101L)).thenReturn(Optional.of(cal1));
-        when(groupRepository.findAll()).thenReturn(Collections.singletonList(managedGroup));
-
-        assertTrue(securityService.canWriteEvent(chef, 101L, 10L));
+        assertTrue(securityService.canWriteEvent(chef, 101L));
     }
 
     @Test
@@ -143,17 +129,22 @@ class TimetreeSecurityTests {
                 .role("MEMBER")
                 .build();
 
-        Calendar cal1 = Calendar.builder().id(101L).build();
+        // Member is directly assigned to the calendar via TT_MEMBER_CALENDAR
+        when(calendarRepository.findAllowedCalendarIdsByMemberId(4L)).thenReturn(Collections.singletonList(101L));
 
-        Group memberGroup = Group.builder()
-                .id(10L)
-                .members(Collections.singletonList(member))
-                .calendars(Collections.singletonList(cal1))
+        assertTrue(securityService.canWriteEvent(member, 101L));
+    }
+
+    @Test
+    void testMemberCannotWriteToUnassignedCalendar() {
+        Member member = Member.builder()
+                .id(4L)
+                .username("member1")
+                .role("MEMBER")
                 .build();
 
-        when(calendarRepository.findById(101L)).thenReturn(Optional.of(cal1));
-        when(groupRepository.findAll()).thenReturn(Collections.singletonList(memberGroup));
+        when(calendarRepository.findAllowedCalendarIdsByMemberId(4L)).thenReturn(Collections.singletonList(101L));
 
-        assertTrue(securityService.canWriteEvent(member, 101L, 10L));
+        assertFalse(securityService.canWriteEvent(member, 999L));
     }
 }

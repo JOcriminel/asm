@@ -6,6 +6,7 @@ import 'package:dux_front/features/timetree/domain/models/timetree_message.dart'
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_message_dto.dart';
 import 'package:dux_front/core/utils/logger.dart';
+import 'dart:math';
 
 class TimetreeChatState {
   final List<TimetreeMessage> messages;
@@ -71,9 +72,19 @@ class TimetreeChatNotifier extends StateNotifier<TimetreeChatState> {
           TimetreeMessageDto.fromJson(payload),
         );
         
-        // Prevent duplicate messages
-        final exists = state.messages.any((m) => m.id == newMsg.id);
-        if (!exists) {
+        // Check if we already have this message (by id or clientMessageId)
+        final existingIndex = state.messages.indexWhere(
+          (m) => m.id == newMsg.id || 
+                 (newMsg.clientMessageId != null && m.clientMessageId == newMsg.clientMessageId),
+        );
+        
+        if (existingIndex != -1) {
+          // Replace the optimistic message with the server-verified one
+          final newList = List<TimetreeMessage>.from(state.messages);
+          newList[existingIndex] = newMsg;
+          state = state.copyWith(messages: newList);
+        } else {
+          // Prepend new incoming message
           state = state.copyWith(
             messages: [newMsg, ...state.messages],
           );
@@ -144,7 +155,7 @@ class TimetreeChatNotifier extends StateNotifier<TimetreeChatState> {
   }
 
   Future<void> sendMessage(String text, {String type = 'TEXT', String? metadata}) async {
-    final clientMsgId = 'msg-${DateTime.now().millisecondsSinceEpoch}-${_ref.read(authControllerProvider).user?.username}';
+    final clientMsgId = _generateUuidV4();
     final wsService = _ref.read(timetreeWebSocketServiceProvider);
 
     final payload = {
@@ -154,39 +165,36 @@ class TimetreeChatNotifier extends StateNotifier<TimetreeChatState> {
       'metadata': metadata,
     };
 
-    if (wsService.isConnected) {
-      wsService.send('/app/event.$_eventId.send', payload);
-    } else {
-      // Offline fallback: save to local queue via websocket service send method
-      wsService.send('/app/event.$_eventId.send', payload);
-      
-      // Also provisionally add to local state to maintain responsiveness
-      final currentUser = _ref.read(authControllerProvider).user;
-      if (currentUser != null) {
-        final tempMsg = TimetreeMessage(
-          id: clientMsgId,
-          eventId: _eventId,
-          message: text,
-          messageType: type == 'IMAGE'
-              ? TimetreeMessageType.image
-              : type == 'FILE'
-                  ? TimetreeMessageType.file
-                  : TimetreeMessageType.text,
-          metadata: metadata,
-          sentAt: DateTime.now(),
-          sender: TimetreeMember(
-            id: currentUser.id,
-            username: currentUser.username,
-            fullName: currentUser.fullName,
-            email: '',
-            role: currentUser.role,
-          ),
-        );
-        state = state.copyWith(
-          messages: [tempMsg, ...state.messages],
-        );
-      }
+    // Always provisionally add to local state first to maintain responsiveness
+    final currentUser = _ref.read(authControllerProvider).user;
+    if (currentUser != null) {
+      final tempMsg = TimetreeMessage(
+        id: clientMsgId,
+        clientMessageId: clientMsgId,
+        eventId: _eventId,
+        message: text,
+        messageType: type == 'IMAGE'
+            ? TimetreeMessageType.image
+            : type == 'FILE'
+                ? TimetreeMessageType.file
+                : TimetreeMessageType.text,
+        metadata: metadata,
+        sentAt: DateTime.now(),
+        sender: TimetreeMember(
+          id: currentUser.id,
+          username: currentUser.username,
+          fullName: currentUser.fullName,
+          email: '',
+          role: currentUser.role,
+        ),
+      );
+      state = state.copyWith(
+        messages: [tempMsg, ...state.messages],
+      );
     }
+
+    // Send over socket connection
+    wsService.send('/app/event.$_eventId.send', payload);
   }
 
   void sendTypingIndicator(bool isTyping) {
@@ -284,3 +292,22 @@ final timetreeChatUnreadCountsProvider =
   final chatService = ref.watch(timetreeChatServiceProvider);
   return TimetreeChatUnreadCountsNotifier(chatService, ref);
 });
+
+String _generateUuidV4() {
+  final random = Random.secure();
+  final values = List<int>.generate(16, (i) => random.nextInt(256));
+  
+  // Set version to 4 (0b0100xxxx)
+  values[6] = (values[6] & 0x0f) | 0x40;
+  // Set variant to 1 (0b10xxxxxx)
+  values[8] = (values[8] & 0x3f) | 0x80;
+  
+  final buffer = StringBuffer();
+  for (var i = 0; i < 16; i++) {
+    if (i == 4 || i == 6 || i == 8 || i == 10) {
+      buffer.write('-');
+    }
+    buffer.write(values[i].toRadixString(16).padLeft(2, '0'));
+  }
+  return buffer.toString();
+}

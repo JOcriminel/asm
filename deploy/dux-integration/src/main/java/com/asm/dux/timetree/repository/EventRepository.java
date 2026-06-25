@@ -12,8 +12,6 @@ import java.util.List;
 @Repository("timetreeEventRepository")
 public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findAllByCalendarId(Long calendarId);
-    List<Event> findAllByGroupId(Long groupId);
-
     @Query("SELECT e FROM Event e WHERE e.calendar.id IN :calendarIds AND " +
            "((e.startDate <= :end AND e.endDate >= :start) OR " +
            "(e.recurrenceRule <> 'NONE' AND (e.recurrenceEndDate IS NULL OR e.recurrenceEndDate >= :start) AND e.startDate <= :end))")

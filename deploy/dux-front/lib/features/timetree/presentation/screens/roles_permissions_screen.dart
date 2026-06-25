@@ -1,17 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_role.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_permission.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_roles_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 
 /// Screen for managing TimeTree Roles & Permissions.
 ///
 /// Organized into two tabs:
-///   1. Rôles: Listing group role assignments, adding and removing roles.
-///   2. Permissions: Permissions Matrix mapping categories and pages to groups.
+///   1. Matrice des Permissions: Permissions Matrix mapping categories and pages.
+///   2. Accès Utilisateurs: Member role management.
 class TimetreeRolesPermissionsScreen extends ConsumerStatefulWidget {
   const TimetreeRolesPermissionsScreen({super.key});
 
@@ -46,267 +48,20 @@ class _TimetreeRolesPermissionsScreenState extends ConsumerState<TimetreeRolesPe
           bottom: TabBar(
             controller: _tabController,
             tabs: const [
-              Tab(icon: Icon(Icons.group_outlined), text: 'Assignation des Rôles'),
               Tab(icon: Icon(Icons.grid_on_outlined), text: 'Matrice des Permissions'),
+              Tab(icon: Icon(Icons.person_pin_rounded), text: 'Accès Utilisateurs'),
             ],
           ),
         ),
         body: TabBarView(
           controller: _tabController,
           children: const [
-            _RolesTab(),
             _PermissionsTab(),
+            _UserAccessTab(),
           ],
         ),
       ),
     );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ROLES TAB
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RolesTab extends ConsumerStatefulWidget {
-  const _RolesTab();
-
-  @override
-  ConsumerState<_RolesTab> createState() => _RolesTabState();
-}
-
-class _RolesTabState extends ConsumerState<_RolesTab> {
-  String _searchQuery = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final rolesAsync = ref.watch(timetreeRolesProvider);
-    final groupsAsync = ref.watch(timetreeGroupsProvider);
-
-    return Column(
-      children: [
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: TextField(
-            onChanged: (val) => setState(() => _searchQuery = val),
-            decoration: InputDecoration(
-              hintText: 'Rechercher un groupe par nom…',
-              prefixIcon: const Icon(Icons.search_rounded),
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-            ),
-          ),
-        ),
-
-        Expanded(
-          child: rolesAsync.when(
-            loading: () => const _LoadingState(message: 'Chargement des rôles…'),
-            error: (err, _) => _ErrorState(
-              message: err.toString(),
-              onRetry: () => ref.read(timetreeRolesProvider.notifier).loadRoles(),
-            ),
-            data: (roles) {
-              if (roles.isEmpty) {
-                return const _EmptyState(
-                  message: 'Aucun rôle disponible sur le serveur',
-                  icon: Icons.security_outlined,
-                );
-              }
-
-              return groupsAsync.when(
-                loading: () => const _LoadingState(message: 'Chargement des groupes…'),
-                error: (err, _) => _ErrorState(
-                  message: err.toString(),
-                  onRetry: () => ref.read(timetreeGroupsProvider.notifier).loadGroups(),
-                ),
-                data: (groups) {
-                  final filteredGroups = groups
-                      .where((g) => g.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-                      .toList();
-
-                  if (filteredGroups.isEmpty) {
-                    return const _EmptyState(
-                      message: 'Aucun groupe correspondant à la recherche',
-                      icon: Icons.group_off_outlined,
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: filteredGroups.length,
-                    itemBuilder: (context, idx) {
-                      final group = filteredGroups[idx];
-                      return _GroupRoleCard(group: group, availableRoles: roles);
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _GroupRoleCard extends ConsumerWidget {
-  const _GroupRoleCard({required this.group, required this.availableRoles});
-
-  final TimetreeGroup group;
-  final List<TimetreeRole> availableRoles;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        group.name,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      if (group.description.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          group.description,
-                          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: () => _showAssignRoleDialog(context, ref),
-                  icon: const Icon(Icons.add_moderator_rounded),
-                  tooltip: 'Assigner un rôle',
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Rôles assignés :',
-              style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            if (group.roles.isEmpty)
-              Text(
-                'Aucun rôle assigné à ce groupe.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontStyle: FontStyle.italic,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: group.roles.map((roleCode) {
-                  final roleName = availableRoles.firstWhere(
-                    (r) => r.code == roleCode,
-                    orElse: () => TimetreeRole(code: roleCode, name: roleCode),
-                  ).name;
-
-                  return Chip(
-                    label: Text(roleName),
-                    backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-                    deleteIcon: const Icon(Icons.cancel, size: 18),
-                    onDeleted: () => _removeRole(context, ref, roleCode),
-                  );
-                }).toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAssignRoleDialog(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Assigner un rôle à "${group.name}"'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: availableRoles.map((role) {
-            final isAlreadyAssigned = group.roles.contains(role.code);
-
-            return ListTile(
-              title: Text(role.name),
-              subtitle: Text(role.code),
-              trailing: isAlreadyAssigned
-                  ? const Icon(Icons.check_circle, color: Colors.green)
-                  : null,
-              enabled: !isAlreadyAssigned,
-              onTap: () async {
-                Navigator.pop(context); // Close dialog
-                try {
-                  await ref.read(timetreeRolesProvider.notifier).assignRoleToGroup(group.id, role.code);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Rôle "${role.name}" assigné avec succès.')),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Échec de l\'assignation : ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-            );
-          }).toList(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _removeRole(BuildContext context, WidgetRef ref, String roleCode) async {
-    try {
-      await ref.read(timetreeRolesProvider.notifier).removeRoleFromGroup(group.id, roleCode);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Rôle retiré avec succès.')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Échec du retrait du rôle : ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 }
 
@@ -327,7 +82,6 @@ class _PermissionsTabState extends ConsumerState<_PermissionsTab> {
   @override
   Widget build(BuildContext context) {
     final permissionsAsync = ref.watch(timetreePermissionsProvider);
-    final groupsAsync = ref.watch(timetreeGroupsProvider);
 
     return Column(
       children: [
@@ -358,57 +112,42 @@ class _PermissionsTabState extends ConsumerState<_PermissionsTab> {
               onRetry: () => ref.read(timetreePermissionsProvider.notifier).loadPermissions(),
             ),
             data: (matrix) {
-              return groupsAsync.when(
-                loading: () => const _LoadingState(message: 'Chargement des groupes…'),
-                error: (err, _) => _ErrorState(
-                  message: err.toString(),
-                  onRetry: () => ref.read(timetreeGroupsProvider.notifier).loadGroups(),
-                ),
-                data: (groups) {
-                  final filteredCategories = matrix.categories
-                      .where((cat) => cat.categoryName.toLowerCase().contains(_searchQuery.toLowerCase()))
-                      .toList();
+              final filteredCategories = matrix.categories
+                  .where((cat) => cat.categoryName.toLowerCase().contains(_searchQuery.toLowerCase()))
+                  .toList();
 
-                  final filteredPages = matrix.pages
-                      .where((p) => p.pageName.toLowerCase().contains(_searchQuery.toLowerCase()))
-                      .toList();
+              final filteredPages = matrix.pages
+                  .where((p) => p.pageName.toLowerCase().contains(_searchQuery.toLowerCase()))
+                  .toList();
 
-                  if (filteredCategories.isEmpty && filteredPages.isEmpty) {
-                    return const _EmptyState(
-                      message: 'Aucun élément correspondant à la recherche',
-                      icon: Icons.grid_off_outlined,
-                    );
-                  }
+              if (filteredCategories.isEmpty && filteredPages.isEmpty) {
+                return const _EmptyState(
+                  message: 'Aucun élément correspondant à la recherche',
+                  icon: Icons.grid_off_outlined,
+                );
+              }
 
-                  return ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      if (filteredCategories.isNotEmpty) ...[
-                        Text(
-                          'Permissions de Catégories',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        ...filteredCategories.map((cat) => _CategoryPermissionCard(
-                              permission: cat,
-                              allGroups: groups,
-                            )),
-                        const SizedBox(height: 24),
-                      ],
-                      if (filteredPages.isNotEmpty) ...[
-                        Text(
-                          'Permissions de Pages',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        ...filteredPages.map((page) => _PagePermissionCard(
-                              permission: page,
-                              allGroups: groups,
-                            )),
-                      ],
-                    ],
-                  );
-                },
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (filteredCategories.isNotEmpty) ...[
+                    Text(
+                      'Permissions de Catégories',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    ...filteredCategories.map((cat) => _CategoryPermissionCard(permission: cat)),
+                    const SizedBox(height: 24),
+                  ],
+                  if (filteredPages.isNotEmpty) ...[
+                    Text(
+                      'Permissions de Pages',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    ...filteredPages.map((page) => _PagePermissionCard(permission: page)),
+                  ],
+                ],
               );
             },
           ),
@@ -419,10 +158,9 @@ class _PermissionsTabState extends ConsumerState<_PermissionsTab> {
 }
 
 class _CategoryPermissionCard extends ConsumerWidget {
-  const _CategoryPermissionCard({required this.permission, required this.allGroups});
+  const _CategoryPermissionCard({required this.permission});
 
   final TimetreeCategoryPermission permission;
-  final List<TimetreeGroup> allGroups;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -438,71 +176,15 @@ class _CategoryPermissionCard extends ConsumerWidget {
           permission.categoryName,
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Groupes autorisés :',
-                style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 4),
-              if (permission.groupIds.isEmpty)
-                Text(
-                  'Aucun groupe (accessible uniquement aux admins)',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: permission.groupIds.map<Widget>((gid) {
-                    final groupName = allGroups.firstWhere(
-                      (g) => g.id == gid,
-                      orElse: () => TimetreeGroup(id: gid, name: 'ID: $gid', description: '', active: false, roles: []),
-                    ).name;
-
-                    return Chip(
-                      label: Text(groupName),
-                    );
-                  }).toList(),
-                ),
-            ],
-          ),
-        ),
-        trailing: IconButton.filledTonal(
-          icon: const Icon(Icons.security_rounded),
-          onPressed: () => _showEditPermissionsDialog(context, ref),
-          tooltip: 'Gérer les groupes autorisés',
-        ),
-      ),
-    );
-  }
-
-  void _showEditPermissionsDialog(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => _EditPermissionsDialog(
-        title: 'Permissions pour ${permission.categoryName}',
-        allGroups: allGroups,
-        selectedGroupIds: permission.groupIds,
-        onSave: (groupIds) async {
-          await ref.read(timetreePermissionsProvider.notifier).updateCategoryPermissions(permission.categoryId, groupIds);
-        },
       ),
     );
   }
 }
 
 class _PagePermissionCard extends ConsumerWidget {
-  const _PagePermissionCard({required this.permission, required this.allGroups});
+  const _PagePermissionCard({required this.permission});
 
   final TimetreePagePermission permission;
-  final List<TimetreeGroup> allGroups;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -518,198 +200,14 @@ class _PagePermissionCard extends ConsumerWidget {
           permission.pageName,
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Groupes autorisés :',
-                style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 4),
-              if (permission.groupIds.isEmpty)
-                Text(
-                  'Aucun groupe (accessible uniquement aux admins)',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontStyle: FontStyle.italic,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: permission.groupIds.map<Widget>((gid) {
-                    final groupName = allGroups.firstWhere(
-                      (g) => g.id == gid,
-                      orElse: () => TimetreeGroup(id: gid, name: 'ID: $gid', description: '', active: false, roles: []),
-                    ).name;
-
-                    return Chip(
-                      label: Text(groupName),
-                    );
-                  }).toList(),
-                ),
-            ],
-          ),
-        ),
-        trailing: IconButton.filledTonal(
-          icon: const Icon(Icons.security_rounded),
-          onPressed: () => _showEditPermissionsDialog(context, ref),
-          tooltip: 'Gérer les groupes autorisés',
-        ),
-      ),
-    );
-  }
-
-  void _showEditPermissionsDialog(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => _EditPermissionsDialog(
-        title: 'Permissions pour ${permission.pageName}',
-        allGroups: allGroups,
-        selectedGroupIds: permission.groupIds,
-        onSave: (groupIds) async {
-          await ref.read(timetreePermissionsProvider.notifier).updatePagePermissions(permission.pageId, groupIds);
-        },
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIALOG & COMMON STATES
+// COMMON STATES
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _EditPermissionsDialog extends StatefulWidget {
-  const _EditPermissionsDialog({
-    required this.title,
-    required this.allGroups,
-    required this.selectedGroupIds,
-    required this.onSave,
-  });
-
-  final String title;
-  final List<TimetreeGroup> allGroups;
-  final List<String> selectedGroupIds;
-  final Future<void> Function(List<String> groupIds) onSave;
-
-  @override
-  State<_EditPermissionsDialog> createState() => _EditPermissionsDialogState();
-}
-
-class _EditPermissionsDialogState extends State<_EditPermissionsDialog> {
-  late List<String> _localSelected;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _localSelected = List.from(widget.selectedGroupIds);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: widget.allGroups.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text(
-                'Aucun groupe de sécurité disponible. Veuillez créer un groupe d\'abord.',
-                textAlign: TextAlign.center,
-              ),
-            )
-          : SizedBox(
-              width: double.maxFinite,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: widget.allGroups.length,
-                itemBuilder: (context, idx) {
-                  final group = widget.allGroups[idx];
-                  final isChecked = _localSelected.contains(group.id);
-
-                  return CheckboxListTile(
-                    title: Text(group.name),
-                    subtitle: group.description.isNotEmpty ? Text(group.description) : null,
-                    value: isChecked,
-                    onChanged: _saving
-                        ? null
-                        : (val) {
-                            setState(() {
-                              if (val == true) {
-                                _localSelected.add(group.id);
-                              } else {
-                                _localSelected.remove(group.id);
-                              }
-                            });
-                          },
-                  );
-                },
-              ),
-            ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        if (widget.allGroups.isNotEmpty)
-          ElevatedButton(
-            onPressed: _saving
-                ? null
-                : () async {
-                    setState(() => _saving = true);
-                    try {
-                      // Call onSave function
-                      await widget.onSave(_localSelected);
-                      if (context.mounted) {
-                        Navigator.pop(context); // Close dialog
-                        // Show "Permission update confirmation" dialog or snackbar
-                        showDialog<void>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Row(
-                              children: [
-                                Icon(Icons.check_circle_outline, color: Colors.green),
-                                SizedBox(width: 8),
-                                Text('Succès'),
-                              ],
-                            ),
-                            content: const Text('Les permissions ont été mises à jour avec succès.'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('OK'),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      setState(() => _saving = false);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Erreur lors de l\'enregistrement : ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-            child: _saving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Enregistrer'),
-          ),
-      ],
-    );
-  }
-}
 
 class _LoadingState extends StatelessWidget {
   const _LoadingState({required this.message});
@@ -810,3 +308,261 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+
+class _UserAccessTab extends ConsumerStatefulWidget {
+  const _UserAccessTab();
+
+  @override
+  ConsumerState<_UserAccessTab> createState() => _UserAccessTabState();
+}
+
+class _UserAccessTabState extends ConsumerState<_UserAccessTab> {
+  String _searchQuery = '';
+
+  Future<String?> _showChefAgendaDialog(BuildContext context, List<TimetreeCalendar> calendars) {
+    TimetreeCalendar? selected = calendars.isNotEmpty ? calendars.first : null;
+    return showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Sélectionner l\'agenda'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Veuillez sélectionner l\'agenda dont cet utilisateur sera le chef :'),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<TimetreeCalendar>(
+                    value: selected,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Agenda',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: calendars.map((c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(c.name),
+                    )).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        selected = val;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: selected == null ? null : () => Navigator.pop(context, selected!.id),
+                  child: const Text('Valider'),
+                ),
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final membersAsync = ref.watch(timetreeMembersProvider);
+    final calendarsAsync = ref.watch(timetreeCalendarsProvider);
+    final theme = Theme.of(context);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            onChanged: (val) => setState(() => _searchQuery = val),
+            decoration: InputDecoration(
+              hintText: 'Rechercher un utilisateur par nom…',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+            ),
+          ),
+        ),
+
+        Expanded(
+          child: membersAsync.when(
+            loading: () => const _LoadingState(message: 'Chargement des utilisateurs…'),
+            error: (err, _) => _ErrorState(
+              message: err.toString(),
+              onRetry: () => ref.read(timetreeMembersProvider.notifier).loadMembers(),
+            ),
+            data: (members) {
+              final filteredMembers = members.where((m) {
+                final query = _searchQuery.toLowerCase();
+                return m.fullName.toLowerCase().contains(query) ||
+                    m.username.toLowerCase().contains(query);
+              }).toList();
+
+              if (filteredMembers.isEmpty) {
+                return const _EmptyState(
+                  message: 'Aucun utilisateur trouvé',
+                  icon: Icons.person_off_rounded,
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: filteredMembers.length,
+                itemBuilder: (context, idx) {
+                  final member = filteredMembers[idx];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              backgroundImage: member.profilePicture != null && member.profilePicture!.isNotEmpty
+                                  ? MemoryImage(base64Decode(member.profilePicture!))
+                                  : null,
+                              child: member.profilePicture != null && member.profilePicture!.isNotEmpty
+                                  ? null
+                                  : Text(member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?'),
+                            ),
+                            title: Text(
+                              member.fullName,
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${member.username} • ${member.role}'),
+                                if (member.role.toUpperCase() == 'CHEF') ...[
+                                  (() {
+                                    final calendars = calendarsAsync.value ?? [];
+                                    final chefCalNames = calendars
+                                        .where((c) => c.members.any((m) => m.id == member.id))
+                                        .map((c) => c.name)
+                                        .join(', ');
+                                    if (chefCalNames.isNotEmpty) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(top: 4.0),
+                                        child: Text(
+                                          'Chef de : $chefCalNames',
+                                          style: TextStyle(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return const SizedBox.shrink();
+                                  })(),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const Divider(),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                            child: Row(
+                              children: [
+                                const Text('Rôle d\'accès: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: DropdownButton<String>(
+                                    value: ['ADMIN', 'CHEF', 'MEMBER', 'ADMINISTRATEUR'].contains(member.role.toUpperCase())
+                                        ? (member.role.toUpperCase() == 'ADMINISTRATEUR' ? 'ADMIN' : member.role.toUpperCase())
+                                        : 'MEMBER',
+                                    isExpanded: true,
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'ADMIN',
+                                        child: Text('Administrateur (ADMIN)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'CHEF',
+                                        child: Text('Chef de Calendrier (CHEF)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'MEMBER',
+                                        child: Text('Membre (MEMBER)'),
+                                      ),
+                                    ],
+                                    onChanged: (newRole) async {
+                                      if (newRole != null && newRole != member.role.toUpperCase()) {
+                                        final scaffoldMessenger = ScaffoldMessenger.of(context);
+                                        List<String>? calendarIds;
+                                        if (newRole == 'CHEF') {
+                                          final calendars = calendarsAsync.value ?? [];
+                                          if (calendars.isEmpty) {
+                                            scaffoldMessenger.showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Aucun agenda disponible pour affectation.'),
+                                                backgroundColor: Colors.orange,
+                                              ),
+                                            );
+                                            return;
+                                          }
+                                          final selectedId = await _showChefAgendaDialog(context, calendars);
+                                          if (selectedId == null) return;
+                                          calendarIds = [selectedId];
+                                        }
+                                        try {
+                                          await ref.read(timetreeMembersProvider.notifier).updateMember(
+                                            id: member.id,
+                                            username: member.username,
+                                            fullName: member.fullName,
+                                            email: member.email,
+                                            role: newRole,
+                                            canCreateAgendas: newRole != 'MEMBER',
+                                            canAddMembers: newRole != 'MEMBER',
+                                            calendarIds: calendarIds,
+                                          );
+                                          scaffoldMessenger.showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Rôle mis à jour avec succès.'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          scaffoldMessenger.showSnackBar(
+                                            SnackBar(
+                                              content: Text('Erreur: $e'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+

@@ -89,12 +89,32 @@ class TimetreeCalendarsRepository {
     }
   }
 
-  /// Assigns a list of calendars to a group.
-  Future<void> assignCalendarsToGroup(String groupId, List<String> calendarIds) async {
+  /// Assigns a member to a calendar.
+  Future<void> addMemberToCalendar(String calendarId, String memberId) async {
     try {
-      await _api.assignCalendarsToGroup(groupId, calendarIds);
+      await _api.addMemberToCalendar(calendarId, memberId);
     } catch (e) {
-      AppLogger.e('TimetreeCalendarsRepository', 'assignCalendarsToGroup failed', e);
+      AppLogger.e('TimetreeCalendarsRepository', 'addMemberToCalendar failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Removes a member from a calendar.
+  Future<void> removeMemberFromCalendar(String calendarId, String memberId) async {
+    try {
+      await _api.removeMemberFromCalendar(calendarId, memberId);
+    } catch (e) {
+      AppLogger.e('TimetreeCalendarsRepository', 'removeMemberFromCalendar failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Sets members of a calendar.
+  Future<void> setCalendarMembers(String calendarId, List<String> memberIds) async {
+    try {
+      await _api.setCalendarMembers(calendarId, memberIds);
+    } catch (e) {
+      AppLogger.e('TimetreeCalendarsRepository', 'setCalendarMembers failed', e);
       throw ApiExceptionHandler.handle(e);
     }
   }

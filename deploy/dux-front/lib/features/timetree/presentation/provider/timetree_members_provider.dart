@@ -29,6 +29,7 @@ class TimetreeMembersNotifier extends StateNotifier<AsyncValue<List<TimetreeMemb
     required String fullName,
     required String email,
     required String role,
+    List<String>? calendarIds,
   }) async {
     final currentList = state.value ?? [];
     try {
@@ -37,6 +38,7 @@ class TimetreeMembersNotifier extends StateNotifier<AsyncValue<List<TimetreeMemb
         fullName: fullName,
         email: email,
         role: role,
+        calendarIds: calendarIds,
       );
       final updatedList = List<TimetreeMember>.from(currentList)..add(newMember);
       updatedList.sort((a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
@@ -54,6 +56,10 @@ class TimetreeMembersNotifier extends StateNotifier<AsyncValue<List<TimetreeMemb
     required String fullName,
     required String email,
     required String role,
+    bool? canCreateAgendas,
+    bool? canAddMembers,
+    String? profilePicture,
+    List<String>? calendarIds,
   }) async {
     final currentList = state.value ?? [];
     try {
@@ -63,6 +69,10 @@ class TimetreeMembersNotifier extends StateNotifier<AsyncValue<List<TimetreeMemb
         fullName: fullName,
         email: email,
         role: role,
+        canCreateAgendas: canCreateAgendas,
+        canAddMembers: canAddMembers,
+        profilePicture: profilePicture,
+        calendarIds: calendarIds,
       );
       final updatedList = currentList.map((item) {
         return item.id == id ? updatedMember : item;

@@ -68,9 +68,6 @@ public class TimetreeWebSocketTests {
     private CalendarRepository calendarRepository;
 
     @Autowired
-    private GroupRepository groupRepository;
-
-    @Autowired
     private EventRepository eventRepository;
 
     @Autowired
@@ -109,11 +106,8 @@ public class TimetreeWebSocketTests {
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
         jdbcTemplate.execute("DELETE FROM dbo.TT_EVENT_MESSAGE");
         jdbcTemplate.execute("DELETE FROM dbo.TT_EVENT");
-        jdbcTemplate.execute("DELETE FROM dbo.TT_CALENDAR_GROUP");
+        jdbcTemplate.execute("DELETE FROM dbo.TT_MEMBER_CALENDAR");
         jdbcTemplate.execute("DELETE FROM dbo.TT_CALENDAR");
-        jdbcTemplate.execute("DELETE FROM dbo.TT_GROUP_MEMBER");
-        jdbcTemplate.execute("DELETE FROM dbo.TT_GROUP_ROLE");
-        jdbcTemplate.execute("DELETE FROM dbo.TT_GROUP");
         jdbcTemplate.execute("DELETE FROM dbo.TT_MEMBER");
         jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
 
@@ -121,24 +115,21 @@ public class TimetreeWebSocketTests {
         alice = memberRepository.save(Member.builder().username("alice").fullName("Alice").role("MEMBER").build());
         bob = memberRepository.save(Member.builder().username("bob").fullName("Bob").role("MEMBER").build());
 
-        // Create Groups and Calendars
-        Group group1 = groupRepository.save(Group.builder().name("Group 1").chef(alice).members(List.of(alice)).build());
-        Group group2 = groupRepository.save(Group.builder().name("Group 2").chef(bob).members(List.of(bob)).build());
+        // Create Calendars with direct member assignments
+        com.asm.dux.timetree.domain.Calendar calA = calendarRepository.save(
+                com.asm.dux.timetree.domain.Calendar.builder().name("Calendar A").build());
+        com.asm.dux.timetree.domain.Calendar calB = calendarRepository.save(
+                com.asm.dux.timetree.domain.Calendar.builder().name("Calendar B").build());
 
-        com.asm.dux.timetree.domain.Calendar calA = calendarRepository.save(com.asm.dux.timetree.domain.Calendar.builder().name("Calendar A").build());
-        com.asm.dux.timetree.domain.Calendar calB = calendarRepository.save(com.asm.dux.timetree.domain.Calendar.builder().name("Calendar B").build());
-
-        group1.setCalendars(List.of(calA));
-        groupRepository.save(group1);
-
-        group2.setCalendars(List.of(calB));
-        groupRepository.save(group2);
+        alice.setCalendars(List.of(calA));
+        bob.setCalendars(List.of(calB));
+        alice = memberRepository.save(alice);
+        bob = memberRepository.save(bob);
 
         // Create Events (Alice can read Event A, Bob can read Event B)
         eventA = eventRepository.save(Event.builder()
                 .title("Event A")
                 .calendar(calA)
-                .group(group1)
                 .startDate(LocalDateTime.now())
                 .endDate(LocalDateTime.now().plusHours(1))
                 .status(EventStatus.PLANNED)
@@ -148,7 +139,6 @@ public class TimetreeWebSocketTests {
         eventB = eventRepository.save(Event.builder()
                 .title("Event B")
                 .calendar(calB)
-                .group(group2)
                 .startDate(LocalDateTime.now())
                 .endDate(LocalDateTime.now().plusHours(1))
                 .status(EventStatus.PLANNED)
@@ -284,6 +274,9 @@ public class TimetreeWebSocketTests {
         assertThat(ack).isNotNull();
         assertThat(ack.get("clientMessageId")).isEqualTo(clientMsgId);
         assertThat(ack.get("serverMessageId")).isNotNull();
+
+        // Give the transaction time to commit completely before checking messageCountBefore
+        Thread.sleep(1000);
 
         // Verify duplicate message is blocked
         int messageCountBefore = eventMessageRepository.findAll().size();

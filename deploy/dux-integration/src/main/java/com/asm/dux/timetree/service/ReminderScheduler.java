@@ -25,7 +25,7 @@ public class ReminderScheduler {
     private final NotificationService notificationService;
 
     @Scheduled(fixedDelay = 60000)
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public void processReminders() {
         LocalDateTime now = LocalDateTime.now();
         List<EventReminder> pending = eventReminderRepository.findPendingReminders(now);

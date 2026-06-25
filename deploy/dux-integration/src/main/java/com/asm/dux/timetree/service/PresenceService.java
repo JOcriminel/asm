@@ -1,6 +1,5 @@
 package com.asm.dux.timetree.service;
 
-import com.asm.dux.timetree.repository.GroupRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,18 +40,15 @@ public class PresenceService {
 
     private final StringRedisTemplate redis;
     private final SimpMessageSendingOperations messagingTemplate;
-    private final GroupRepository groupRepository;
 
     @Value("${timetree.websocket.presence.session-ttl-seconds:30}")
     private long sessionTtlSeconds;
 
     @Autowired
     public PresenceService(StringRedisTemplate redis,
-                           SimpMessageSendingOperations messagingTemplate,
-                           GroupRepository groupRepository) {
+                           SimpMessageSendingOperations messagingTemplate) {
         this.redis = redis;
         this.messagingTemplate = messagingTemplate;
-        this.groupRepository = groupRepository;
     }
 
     // ─── Session lifecycle ───────────────────────────────────────────────────────
@@ -124,8 +120,7 @@ public class PresenceService {
         } catch (Exception e) {
             log.warn("Redis SET failed for user={}", username, e);
         }
-        broadcastPresence(username, "ONLINE");
-        log.info("Broadcasting presence update: user={} status=ONLINE", username);
+        log.info("Presence update: user={} status=ONLINE", username);
     }
 
     private void markOffline(String username) {
@@ -134,22 +129,7 @@ public class PresenceService {
         } catch (Exception e) {
             log.warn("Redis DEL failed for user={}", username, e);
         }
-        broadcastPresence(username, "OFFLINE");
-        log.info("Broadcasting presence update: user={} status=OFFLINE", username);
-    }
-
-    private void broadcastPresence(String username, String status) {
-        // Broadcast to all groups the user belongs to
-        try {
-            List<Long> groupIds = groupRepository.findGroupIdsByMemberUsername(username);
-            Map<String, Object> payload = Map.of("user", username, "status", status,
-                    "timestamp", LocalDateTime.now().toString());
-            for (Long groupId : groupIds) {
-                messagingTemplate.convertAndSend("/topic/group." + groupId + ".presence", payload);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to broadcast presence for user={}", username, e);
-        }
+        log.info("Presence update: user={} status=OFFLINE", username);
     }
 
     private String extractSessionId(org.springframework.messaging.MessageHeaders headers) {

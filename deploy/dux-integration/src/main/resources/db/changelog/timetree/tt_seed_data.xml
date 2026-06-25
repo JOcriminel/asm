@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <!-- ============================================================
+         Seed: Default Categories
+         Only runs if TT_CATEGORY is empty to avoid duplicates.
+         ============================================================ -->
+    <changeSet id="tt-seed-categories-001" author="system" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM dbo.TT_CATEGORY</sqlCheck>
+        </preConditions>
+
+        <!-- 1 – Calendrier -->
+        <insert tableName="TT_CATEGORY" schemaName="dbo">
+            <column name="NAME"          value="Calendrier"/>
+            <column name="CODE"          value="calendrier"/>
+            <column name="ICON"          value="calendar_month_outlined"/>
+            <column name="COLOR"         value="#6366F1"/>
+            <column name="DISPLAY_ORDER" valueNumeric="1"/>
+            <column name="ACTIVE"        valueBoolean="true"/>
+            <column name="CREATED_AT"    valueDate="2026-06-24T00:00:00"/>
+            <column name="CREATED_BY"    value="system"/>
+        </insert>
+
+        <!-- 2 – Gestion des Groupes -->
+        <insert tableName="TT_CATEGORY" schemaName="dbo">
+            <column name="NAME"          value="Gestion"/>
+            <column name="CODE"          value="gestion"/>
+            <column name="ICON"          value="group_outlined"/>
+            <column name="COLOR"         value="#10B981"/>
+            <column name="DISPLAY_ORDER" valueNumeric="2"/>
+            <column name="ACTIVE"        valueBoolean="true"/>
+            <column name="CREATED_AT"    valueDate="2026-06-24T00:00:00"/>
+            <column name="CREATED_BY"    value="system"/>
+        </insert>
+
+        <!-- 3 – Administration -->
+        <insert tableName="TT_CATEGORY" schemaName="dbo">
+            <column name="NAME"          value="Administration"/>
+            <column name="CODE"          value="administration"/>
+            <column name="ICON"          value="admin_panel_settings_outlined"/>
+            <column name="COLOR"         value="#F59E0B"/>
+            <column name="DISPLAY_ORDER" valueNumeric="3"/>
+            <column name="ACTIVE"        valueBoolean="true"/>
+            <column name="CREATED_AT"    valueDate="2026-06-24T00:00:00"/>
+            <column name="CREATED_BY"    value="system"/>
+        </insert>
+    </changeSet>
+
+    <!-- ============================================================
+         Seed: Default Pages
+         Only runs if TT_PAGE is empty.
+         ============================================================ -->
+    <changeSet id="tt-seed-pages-001" author="system" runOnChange="false">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM dbo.TT_PAGE</sqlCheck>
+        </preConditions>
+
+        <!-- Pages under "Calendrier" (ID 1) -->
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="1"/>
+            <column name="NAME"            value="Vue Calendrier Combiné"/>
+            <column name="ROUTE"           value="/timetree/calendar-view"/>
+            <column name="ICON"            value="calendar_view_month_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeCalendarViewScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="1"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="1"/>
+            <column name="NAME"            value="Recherche Globale"/>
+            <column name="ROUTE"           value="/timetree/search"/>
+            <column name="ICON"            value="search_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeSearchScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="2"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <!-- Pages under "Gestion" (ID 2) -->
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="2"/>
+            <column name="NAME"            value="Groupes"/>
+            <column name="ROUTE"           value="/timetree/groups"/>
+            <column name="ICON"            value="group_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeGroupsScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="1"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="2"/>
+            <column name="NAME"            value="Membres &amp; Agendas"/>
+            <column name="ROUTE"           value="/timetree/membership-calendars"/>
+            <column name="ICON"            value="contact_mail_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeMembershipCalendarsScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="2"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="2"/>
+            <column name="NAME"            value="Rôles &amp; Permissions"/>
+            <column name="ROUTE"           value="/timetree/roles-permissions"/>
+            <column name="ICON"            value="security_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeRolesPermissionsScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="3"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <!-- Pages under "Administration" (ID 3) -->
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="3"/>
+            <column name="NAME"            value="Catégories"/>
+            <column name="ROUTE"           value="/timetree/categories"/>
+            <column name="ICON"            value="category_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeCategoriesScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="1"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="3"/>
+            <column name="NAME"            value="Pages"/>
+            <column name="ROUTE"           value="/timetree/pages"/>
+            <column name="ICON"            value="insert_drive_file_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreePagesScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="2"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="3"/>
+            <column name="NAME"            value="Champs Personnalisés"/>
+            <column name="ROUTE"           value="/timetree/custom-fields"/>
+            <column name="ICON"            value="settings_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeCustomFieldsScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="3"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="3"/>
+            <column name="NAME"            value="Logs d'audit"/>
+            <column name="ROUTE"           value="/timetree/admin/audit-logs"/>
+            <column name="ICON"            value="history_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeAuditLogsScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="4"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

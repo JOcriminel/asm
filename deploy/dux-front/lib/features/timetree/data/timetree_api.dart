@@ -20,7 +20,7 @@ class TimetreeApi {
   }
 
   Future<Response> getCategory(String id) async {
-    return _dio.get('/api/timetree/categories/\$id');
+    return _dio.get('/api/timetree/categories/$id');
   }
 
   Future<Response> createCategory(Map<String, dynamic> data) async {
@@ -28,19 +28,19 @@ class TimetreeApi {
   }
 
   Future<Response> updateCategory(String id, Map<String, dynamic> data) async {
-    return _dio.put('/api/timetree/categories/\$id', data: data);
+    return _dio.put('/api/timetree/categories/$id', data: data);
   }
 
   Future<Response> deleteCategory(String id) async {
-    return _dio.delete('/api/timetree/categories/\$id');
+    return _dio.delete('/api/timetree/categories/$id');
   }
 
   Future<Response> activateCategory(String id) async {
-    return _dio.patch('/api/timetree/categories/\$id/activate');
+    return _dio.patch('/api/timetree/categories/$id/activate');
   }
 
   Future<Response> deactivateCategory(String id) async {
-    return _dio.patch('/api/timetree/categories/\$id/deactivate');
+    return _dio.patch('/api/timetree/categories/$id/deactivate');
   }
 
   // Pages CRUD
@@ -49,7 +49,7 @@ class TimetreeApi {
   }
 
   Future<Response> getPage(String id) async {
-    return _dio.get('/api/timetree/pages/\$id');
+    return _dio.get('/api/timetree/pages/$id');
   }
 
   Future<Response> createPage(Map<String, dynamic> data) async {
@@ -57,11 +57,11 @@ class TimetreeApi {
   }
 
   Future<Response> updatePage(String id, Map<String, dynamic> data) async {
-    return _dio.put('/api/timetree/pages/\$id', data: data);
+    return _dio.put('/api/timetree/pages/$id', data: data);
   }
 
   Future<Response> deletePage(String id) async {
-    return _dio.delete('/api/timetree/pages/\$id');
+    return _dio.delete('/api/timetree/pages/$id');
   }
 
   // Groups CRUD
@@ -70,7 +70,7 @@ class TimetreeApi {
   }
 
   Future<Response> getGroup(String id) async {
-    return _dio.get('/api/timetree/groups/\$id');
+    return _dio.get('/api/timetree/groups/$id');
   }
 
   Future<Response> createGroup(Map<String, dynamic> data) async {
@@ -78,11 +78,11 @@ class TimetreeApi {
   }
 
   Future<Response> updateGroup(String id, Map<String, dynamic> data) async {
-    return _dio.put('/api/timetree/groups/\$id', data: data);
+    return _dio.put('/api/timetree/groups/$id', data: data);
   }
 
   Future<Response> deleteGroup(String id) async {
-    return _dio.delete('/api/timetree/groups/\$id');
+    return _dio.delete('/api/timetree/groups/$id');
   }
 
   // Roles
@@ -145,6 +145,18 @@ class TimetreeApi {
     return _dio.delete('/api/timetree/calendars/$id');
   }
 
+  Future<Response> addMemberToCalendar(String calendarId, String memberId) async {
+    return _dio.post('/api/timetree/calendars/$calendarId/members', data: {'memberId': memberId});
+  }
+
+  Future<Response> removeMemberFromCalendar(String calendarId, String memberId) async {
+    return _dio.delete('/api/timetree/calendars/$calendarId/members/$memberId');
+  }
+
+  Future<Response> setCalendarMembers(String calendarId, List<String> memberIds) async {
+    return _dio.put('/api/timetree/calendars/$calendarId/members', data: {'memberIds': memberIds});
+  }
+
   // Group membership & assignments
   Future<Response> addMemberToGroup(String groupId, String memberId) async {
     return _dio.post('/api/timetree/groups/$groupId/members', data: {'memberId': memberId});
@@ -203,9 +215,10 @@ class TimetreeApi {
     return _dio.get('/api/timetree/custom-fields/values/$entityType/$entityId');
   }
 
-  Future<Response> saveCustomFieldValues(String entityType, String entityId, Map<String, String> values) async {
+  Future<Response> saveCustomFieldValues(String entityType, String entityId, Map<String, dynamic> values) async {
     return _dio.post('/api/timetree/custom-fields/values/$entityType/$entityId', data: values);
   }
+
 
   // Events CRUD
   Future<Response> getEvents({
@@ -279,16 +292,49 @@ class TimetreeApi {
     return _dio.get('/api/timetree/events/$eventId/attachments');
   }
 
-  Future<Response> uploadAttachment(String eventId, String filePath, String fileName) async {
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(filePath, filename: fileName),
-    });
-    return _dio.post('/api/timetree/events/$eventId/attachments', data: formData);
+  Future<Response> getPresignedUploadUrl(String eventId, String fileName, int fileSize, String contentType) async {
+    return _dio.post(
+      '/api/timetree/events/$eventId/attachments/presigned-upload',
+      data: {
+        'fileName': fileName,
+        'fileSize': fileSize,
+        'contentType': contentType,
+      },
+    );
   }
 
-  Future<Response> downloadAttachmentBytes(String attachmentId) async {
-    return _dio.get(
-      '/api/timetree/events/attachments/download/$attachmentId',
+  Future<Response> uploadFileToS3(String url, Stream<List<int>> fileStream, int fileSize, String contentType) async {
+    return _dio.put(
+      url,
+      data: fileStream,
+      options: Options(
+        headers: {
+          Headers.contentTypeHeader: contentType,
+          Headers.contentLengthHeader: fileSize,
+        },
+      ),
+    );
+  }
+
+  Future<Response> confirmAttachmentUpload(String eventId, String fileName, String s3Key, int fileSize, String contentType) async {
+    return _dio.post(
+      '/api/timetree/events/$eventId/attachments/confirm',
+      data: {
+        'fileName': fileName,
+        's3Key': s3Key,
+        'fileSize': fileSize,
+        'contentType': contentType,
+      },
+    );
+  }
+
+  Future<Response> getPresignedDownloadUrl(String attachmentId) async {
+    return _dio.get('/api/timetree/events/attachments/presigned-download/$attachmentId');
+  }
+
+  Future<Response<List<int>>> downloadBytesFromUrl(String url) async {
+    return _dio.get<List<int>>(
+      url,
       options: Options(responseType: ResponseType.bytes),
     );
   }
@@ -297,17 +343,43 @@ class TimetreeApi {
     return _dio.delete('/api/timetree/events/attachments/$attachmentId');
   }
 
-  // Notifications
-  Future<Response> getNotifications() async {
-    return _dio.get('/api/timetree/notifications');
+  // Notifications — paginated history
+  Future<Response> getNotifications({int page = 0, int size = 20}) async {
+    return _dio.get('/api/timetree/notifications', queryParameters: {'page': page, 'size': size});
   }
 
+  // PUT mark single notification as read
   Future<Response> markNotificationRead(String notificationId) async {
-    return _dio.post('/api/timetree/notifications/$notificationId/read');
+    return _dio.put('/api/timetree/notifications/$notificationId/read');
   }
 
+  // PUT mark all notifications as read
   Future<Response> markAllNotificationsRead() async {
-    return _dio.post('/api/timetree/notifications/read-all');
+    return _dio.put('/api/timetree/notifications/read-all');
+  }
+
+  // DELETE a notification
+  Future<Response> deleteNotification(String notificationId) async {
+    return _dio.delete('/api/timetree/notifications/$notificationId');
+  }
+
+  // GET notification preferences
+  Future<Response> getNotificationPreferences() async {
+    return _dio.get('/api/timetree/notifications/preferences');
+  }
+
+  // PUT update notification preferences
+  Future<Response> updateNotificationPreferences(Map<String, dynamic> prefs) async {
+    return _dio.put('/api/timetree/notifications/preferences', data: prefs);
+  }
+
+  // GET calendar activity timeline (paginated, optional action filter)
+  Future<Response> getCalendarActivity(String calendarId, {int page = 0, int size = 20, String? action}) async {
+    return _dio.get('/api/timetree/calendars/$calendarId/activity', queryParameters: {
+      'page': page,
+      'size': size,
+      if (action != null && action.isNotEmpty) 'action': action,
+    });
   }
 
   Future<Response> resolveEventId(String type, String id) async {
@@ -370,8 +442,8 @@ class TimetreeApi {
       '/api/timetree/export/$format',
       queryParameters: {
         if (calendarIds != null && calendarIds.isNotEmpty) 'calendarIds': calendarIds,
-        if (start != null) 'start': start,
-        if (end != null) 'end': end,
+        'start': ?start,
+        'end': ?end,
       },
       options: Options(responseType: ResponseType.bytes),
     );

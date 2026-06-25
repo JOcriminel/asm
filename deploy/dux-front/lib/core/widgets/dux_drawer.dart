@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/dux_footer.dart';
 import 'package:dux_front/core/theme/theme_controller.dart';
@@ -28,6 +31,18 @@ class DuxDrawer extends ConsumerWidget {
     final timetreeMenuAsync = ref.watch(timetreeMenuProvider);
     final authState = ref.watch(authControllerProvider);
     final userRole = authState.user?.role.toUpperCase() ?? 'MEMBER';
+    final membersAsync = ref.watch(timetreeMembersProvider);
+    final currentUsername = authState.user?.username;
+    final currentMember = currentUsername == null
+        ? null
+        : membersAsync.when(
+            data: (list) => list.firstWhere(
+              (m) => m.username.toLowerCase() == currentUsername.toLowerCase(),
+              orElse: () => const TimetreeMember(id: '', username: '', fullName: '', email: '', role: ''),
+            ),
+            loading: () => null,
+            error: (_, __) => null,
+          );
     if (currentRoute.startsWith('/timetree')) {
       return timetreeMenuAsync.when(
         data: (menuItems) => _TimetreeDrawer(
@@ -351,7 +366,12 @@ class DuxDrawer extends ConsumerWidget {
                     children: [
                       CircleAvatar(
                         backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                        child: const Icon(Icons.person, color: Colors.grey),
+                        backgroundImage: currentMember?.profilePicture != null && currentMember!.profilePicture!.isNotEmpty
+                            ? MemoryImage(base64Decode(currentMember.profilePicture!))
+                            : null,
+                        child: currentMember?.profilePicture != null && currentMember!.profilePicture!.isNotEmpty
+                            ? null
+                            : const Icon(Icons.person, color: Colors.grey),
                       ),
                       AppSpacing.gapM,
                       Expanded(
@@ -395,7 +415,7 @@ class DuxDrawer extends ConsumerWidget {
 ///
 /// Data comes from [timetreeMenuProvider] which uses the shared [dioProvider]
 /// (auth-intercepted, base-URL configured). No local Dio() instance is created.
-class _TimetreeDrawer extends StatelessWidget {
+class _TimetreeDrawer extends ConsumerWidget {
   const _TimetreeDrawer({
     required this.menuItems,
     required this.currentRoute,
@@ -409,7 +429,21 @@ class _TimetreeDrawer extends StatelessWidget {
   final String userRole;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileState = ref.watch(profileControllerProvider);
+    final membersAsync = ref.watch(timetreeMembersProvider);
+    final currentUsername = ref.watch(authControllerProvider).user?.username;
+    final currentMember = currentUsername == null
+        ? null
+        : membersAsync.when(
+            data: (list) => list.firstWhere(
+              (m) => m.username.toLowerCase() == currentUsername.toLowerCase(),
+              orElse: () => const TimetreeMember(id: '', username: '', fullName: '', email: '', role: ''),
+            ),
+            loading: () => null,
+            error: (_, __) => null,
+          );
+
     return Drawer(
       backgroundColor: theme.colorScheme.surface,
       child: Column(
@@ -598,33 +632,7 @@ class _TimetreeDrawer extends StatelessWidget {
                     context.go('/timetree/pages');
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.group_outlined,
-                    color: currentRoute == '/timetree/groups'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Groupes',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/groups'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/groups'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/groups',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/groups');
-                  },
-                ),
+
                 ListTile(
                   leading: Icon(
                     Icons.security_outlined,
@@ -652,33 +660,7 @@ class _TimetreeDrawer extends StatelessWidget {
                     context.go('/timetree/roles-permissions');
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.contact_mail_outlined,
-                    color: currentRoute == '/timetree/membership-calendars'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Membres & Agendas',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/membership-calendars'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/membership-calendars'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/membership-calendars',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/membership-calendars');
-                  },
-                ),
+
                 if (userRole == 'ADMIN' || userRole == 'CHEF')
                   ListTile(
                     leading: Icon(
@@ -707,7 +689,7 @@ class _TimetreeDrawer extends StatelessWidget {
                       context.go('/timetree/custom-fields');
                     },
                   ),
-                if (userRole == 'ADMIN')
+                if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR')
                   ListTile(
                     leading: Icon(
                       Icons.history_outlined,
@@ -773,6 +755,55 @@ class _TimetreeDrawer extends StatelessWidget {
                     Navigator.pop(context);
                     context.go('/workspace-selector');
                   },
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          // Bottom Section: User Info and Logout
+          SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.m),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                        backgroundImage: currentMember?.profilePicture != null && currentMember!.profilePicture!.isNotEmpty
+                            ? MemoryImage(base64Decode(currentMember.profilePicture!))
+                            : null,
+                        child: currentMember?.profilePicture != null && currentMember!.profilePicture!.isNotEmpty
+                            ? null
+                            : const Icon(Icons.person, color: Colors.grey),
+                      ),
+                      AppSpacing.gapM,
+                      Expanded(
+                        child: Text(
+                          profileState.profile?.fullName ?? 'Utilisateur',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout, color: Colors.redAccent),
+                        tooltip: 'Se déconnecter',
+                        onPressed: () {
+                          ref.read(authControllerProvider.notifier).logout();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.m),
+                  child: DuxFooter(),
                 ),
               ],
             ),

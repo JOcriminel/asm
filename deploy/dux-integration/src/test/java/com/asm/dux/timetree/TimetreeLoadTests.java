@@ -102,9 +102,6 @@ public class TimetreeLoadTests {
     @Autowired
     private CalendarRepository calendarRepository;
 
-    @org.springframework.boot.test.mock.mockito.SpyBean
-    private GroupRepository groupRepository;
-
     @Autowired
     private EventRepository eventRepository;
 
@@ -132,11 +129,6 @@ public class TimetreeLoadTests {
         when(eventChatStatusRepository.save(org.mockito.ArgumentMatchers.any(EventChatStatus.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        org.mockito.Mockito.doReturn(java.util.Collections.emptyList())
-                .when(groupRepository).findMembersByGroupId(org.mockito.ArgumentMatchers.anyLong());
-        org.mockito.Mockito.doReturn(java.util.Collections.emptyList())
-                .when(groupRepository).findMemberUsernamesByGroupId(org.mockito.ArgumentMatchers.anyLong());
-
         // Create test data
         Member member = memberRepository.findByUsername("loaduser").orElseGet(() ->
                 memberRepository.save(Member.builder()
@@ -145,14 +137,14 @@ public class TimetreeLoadTests {
 
         com.asm.dux.timetree.domain.Calendar cal = calendarRepository.save(
                 com.asm.dux.timetree.domain.Calendar.builder()
-                        .name("Load Calendar").build());
+                        .name("Load Calendar")
+                        .build());
 
-        Group group = groupRepository.save(Group.builder()
-                .name("Load Group").chef(member).active(true)
-                .calendars(List.of(cal)).build());
+        member.setCalendars(java.util.List.of(cal));
+        member = memberRepository.save(member);
 
         Event event = eventRepository.save(Event.builder()
-                .title("Load Test Event").calendar(cal).group(group)
+                .title("Load Test Event").calendar(cal)
                 .startDate(java.time.LocalDateTime.now())
                 .endDate(java.time.LocalDateTime.now().plusHours(1))
                 .status(EventStatus.PLANNED).priority(EventPriority.NORMAL)

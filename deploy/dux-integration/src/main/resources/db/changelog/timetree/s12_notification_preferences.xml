@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="s12-notification-pref-001" author="antigravity">
+        <!-- Create Notification Preference Table -->
+        <createTable tableName="TT_NOTIFICATION_PREFERENCE" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" unique="true" foreignKeyName="FK_TT_NP_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="EMAIL_ENABLED" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PUSH_ENABLED" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="MENTIONS_ENABLED" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="REMINDERS_ENABLED" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="CHAT_ENABLED" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

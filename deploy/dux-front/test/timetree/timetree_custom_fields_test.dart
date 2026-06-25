@@ -4,15 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dux_front/features/timetree/data/timetree_api.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_custom_field_dto.dart';
+import 'package:dux_front/features/timetree/data/dto/timetree_custom_field_value_dto.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_custom_field.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_menu_item.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_custom_fields_repository.dart';
-import 'package:dux_front/features/timetree/data/repositories/timetree_groups_repository.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_calendars_repository.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_custom_fields_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_menu_provider.dart';
 import 'package:dux_front/features/timetree/presentation/screens/custom_fields_screen.dart';
@@ -113,7 +111,98 @@ void main() {
       expect(json['sortOrder'], 1);
       expect(json['active'], true);
     });
+
+    test('parses emoji and emojiOrder from json', () {
+      final json = {
+        'id': 'cf-3',
+        'name': 'status',
+        'label': 'Statut',
+        'fieldType': 'STRING',
+        'required': false,
+        'scopeType': 'GLOBAL',
+        'sortOrder': 1,
+        'active': true,
+        'emoji': '📊',
+        'emojiOrder': 2,
+        'hidden': false,
+        'readOnly': false,
+      };
+      final dto = TimetreeCustomFieldDto.fromJson(json);
+      expect(dto.emoji, '📊');
+      expect(dto.emojiOrder, 2);
+    });
+
+    test('serializes emoji and emojiOrder to json', () {
+      const dto = TimetreeCustomFieldDto(
+        id: 'cf-3',
+        name: 'status',
+        label: 'Statut',
+        fieldType: 'STRING',
+        required: false,
+        scopeType: 'GLOBAL',
+        sortOrder: 1,
+        active: true,
+        emoji: '📊',
+        emojiOrder: 2,
+        hidden: false,
+        readOnly: false,
+      );
+      final json = dto.toJson();
+      expect(json['emoji'], '📊');
+      expect(json['emojiOrder'], 2);
+    });
   });
+
+  group('TimetreeCustomFieldValueDto Parsing Tests', () {
+    test('parses showEmojiInTitle correctly from json', () {
+      final json = {
+        'id': 'cfv-1',
+        'field': {
+          'id': 'cf-1',
+          'name': 'test',
+          'label': 'Test',
+          'fieldType': 'STRING',
+          'required': false,
+          'scopeType': 'GLOBAL',
+          'sortOrder': 1,
+          'active': true,
+          'hidden': false,
+          'readOnly': false,
+        },
+        'entityType': 'EVENT',
+        'entityId': '10',
+        'value': 'hello',
+        'showEmojiInTitle': true,
+      };
+      final dto = TimetreeCustomFieldValueDto.fromJson(json);
+      expect(dto.showEmojiInTitle, true);
+    });
+
+    test('serializes showEmojiInTitle correctly to json', () {
+      const dto = TimetreeCustomFieldValueDto(
+        id: 'cfv-1',
+        field: TimetreeCustomFieldDto(
+          id: 'cf-1',
+          name: 'test',
+          label: 'Test',
+          fieldType: 'STRING',
+          required: false,
+          scopeType: 'GLOBAL',
+          sortOrder: 1,
+          active: true,
+          hidden: false,
+          readOnly: false,
+        ),
+        entityType: 'EVENT',
+        entityId: '10',
+        value: 'hello',
+        showEmojiInTitle: true,
+      );
+      final json = dto.toJson();
+      expect(json['showEmojiInTitle'], true);
+    });
+  });
+
 
   group('Domain Model Mapping Tests', () {
     test('CustomField DTO maps to Domain Model', () {
@@ -173,9 +262,6 @@ void main() {
       final fieldsOverride = timetreeCustomFieldsProvider.overrideWith(
         (ref) => _FakeCustomFieldsNotifier(const AsyncValue.loading()),
       );
-      final groupsOverride = timetreeGroupsProvider.overrideWith(
-        (ref) => _FakeGroupsNotifier(const AsyncValue.data([])),
-      );
       final calendarsOverride = timetreeCalendarsProvider.overrideWith(
         (ref) => _FakeCalendarsNotifier(const AsyncValue.data([])),
       );
@@ -203,7 +289,7 @@ void main() {
       await tester.pumpWidget(
         buildCustomFieldsHarness(
           const TimetreeCustomFieldsScreen(),
-          [fieldsOverride, groupsOverride, calendarsOverride, menuOverride, authOverride],
+          [fieldsOverride, calendarsOverride, menuOverride, authOverride],
         ),
       );
 
@@ -213,9 +299,6 @@ void main() {
     testWidgets('non-admin/non-chef sees restricted access warning', (tester) async {
       final fieldsOverride = timetreeCustomFieldsProvider.overrideWith(
         (ref) => _FakeCustomFieldsNotifier(const AsyncValue.data([])),
-      );
-      final groupsOverride = timetreeGroupsProvider.overrideWith(
-        (ref) => _FakeGroupsNotifier(const AsyncValue.data([])),
       );
       final calendarsOverride = timetreeCalendarsProvider.overrideWith(
         (ref) => _FakeCalendarsNotifier(const AsyncValue.data([])),
@@ -244,7 +327,7 @@ void main() {
       await tester.pumpWidget(
         buildCustomFieldsHarness(
           const TimetreeCustomFieldsScreen(),
-          [fieldsOverride, groupsOverride, calendarsOverride, menuOverride, authOverride],
+          [fieldsOverride, calendarsOverride, menuOverride, authOverride],
         ),
       );
 
@@ -292,11 +375,13 @@ void main() {
               child: DynamicEventFormRenderer(
                 fields: fields,
                 values: values,
+                showEmojiInTitleValues: const {},
                 formKey: formKey,
-                onValuesChanged: (updated) {
+                onValuesChanged: (updated, showEmoji) {
                   values.addAll(updated);
                 },
               ),
+
             ),
           ),
         ),
@@ -353,14 +438,16 @@ void main() {
                 return DynamicEventFormRenderer(
                   fields: fields,
                   values: values,
+                  showEmojiInTitleValues: const {},
                   formKey: formKey,
-                  onValuesChanged: (updated) {
+                  onValuesChanged: (updated, showEmoji) {
                     setState(() {
                       values.clear();
                       values.addAll(updated);
                     });
                   },
                 );
+
               },
             ),
           ),
@@ -398,19 +485,7 @@ class _FakeCustomFieldsRepo extends TimetreeCustomFieldsRepository {
   _FakeCustomFieldsRepo() : super(TimetreeApi(Dio()));
 }
 
-class _FakeGroupsNotifier extends TimetreeGroupsNotifier {
-  _FakeGroupsNotifier(AsyncValue<List<TimetreeGroup>> initialValue)
-      : super(_FakeGroupsRepo()) {
-    state = initialValue;
-  }
 
-  @override
-  Future<void> loadGroups() async {}
-}
-
-class _FakeGroupsRepo extends TimetreeGroupsRepository {
-  _FakeGroupsRepo() : super(TimetreeApi(Dio()));
-}
 
 class _FakeCalendarsNotifier extends TimetreeCalendarsNotifier {
   _FakeCalendarsNotifier(AsyncValue<List<TimetreeCalendar>> initialValue)

@@ -2,6 +2,7 @@ package com.asm.dux.timetree.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.List;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -24,7 +25,7 @@ public class Calendar {
     @Column(name = "NAME", nullable = false, length = 150)
     private String name;
 
-    @Column(name = "DESCRIPTION", length = 500)
+    @Column(name = "DESCRIPTION", columnDefinition = "VARCHAR(MAX)")
     private String description;
 
     @Column(name = "COLOR", length = 50)
@@ -33,4 +34,8 @@ public class Calendar {
     @Column(name = "DELETED", nullable = false)
     @Builder.Default
     private Boolean deleted = false;
+
+    @ManyToMany(mappedBy = "calendars", fetch = FetchType.EAGER)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties("calendars")
+    private List<Member> members;
 }

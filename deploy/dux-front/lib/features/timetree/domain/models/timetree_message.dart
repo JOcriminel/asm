@@ -10,6 +10,7 @@ enum TimetreeMessageType {
 
 class TimetreeMessage {
   final String id;
+  final String? clientMessageId;
   final String eventId;
   final String message;
   final TimetreeMessageType messageType;
@@ -19,6 +20,7 @@ class TimetreeMessage {
 
   const TimetreeMessage({
     required this.id,
+    this.clientMessageId,
     required this.eventId,
     required this.message,
     required this.messageType,
@@ -47,6 +49,7 @@ class TimetreeMessage {
 
     return TimetreeMessage(
       id: dto.id,
+      clientMessageId: dto.clientMessageId,
       eventId: dto.eventId,
       message: dto.message,
       messageType: type,
@@ -76,6 +79,7 @@ class TimetreeMessage {
 
     return TimetreeMessageDto(
       id: id,
+      clientMessageId: clientMessageId,
       eventId: eventId,
       message: message,
       messageType: typeStr,

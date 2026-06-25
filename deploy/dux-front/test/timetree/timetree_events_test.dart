@@ -5,13 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:dux_front/features/timetree/data/timetree_api.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_event.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_event_dto.dart';
-import 'package:dux_front/features/timetree/data/repositories/timetree_groups_repository.dart';
+import 'package:dux_front/features/timetree/data/repositories/timetree_calendars_repository.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_events_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/features/timetree/presentation/screens/timetree_calendar_view_screen.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/auth/domain/models/user.dart';
@@ -76,6 +75,22 @@ void main() async {
       expect(dto.participants.first.fullName, 'Chef Cook');
     });
 
+    test('parses nomEvent and titleModifiedDirectly from json', () {
+      final json = {
+        'id': 101,
+        'title': 'Sprint Review',
+        'nomEvent': 'Review Sprint',
+        'titleModifiedDirectly': true,
+        'startDate': '2026-06-23T10:00:00.000',
+        'endDate': '2026-06-23T11:00:00.000',
+        'calendarId': 5,
+      };
+
+      final dto = TimetreeEventDto.fromJson(json);
+      expect(dto.nomEvent, 'Review Sprint');
+      expect(dto.titleModifiedDirectly, true);
+    });
+
     test('serializes correctly to json', () {
       final dto = TimetreeEventDto(
         id: '101',
@@ -87,6 +102,8 @@ void main() async {
         groupId: '2',
         recurrenceRule: 'DAILY',
         recurrenceEndDate: DateTime(2026, 6, 30),
+        nomEvent: 'Daily Meeting',
+        titleModifiedDirectly: false,
       );
 
       final json = dto.toJson();
@@ -95,8 +112,11 @@ void main() async {
       expect(json['startDate'], DateTime(2026, 6, 23, 9, 0).toIso8601String());
       expect(json['recurrenceRule'], 'DAILY');
       expect(json['recurrenceEndDate'], DateTime(2026, 6, 30).toIso8601String());
+      expect(json['nomEvent'], 'Daily Meeting');
+      expect(json['titleModifiedDirectly'], false);
     });
   });
+
 
   group('TimetreeEvent Recurrence Expansion Tests', () {
     test('non-recurring event does not duplicate', () {
@@ -166,15 +186,12 @@ void main() async {
   });
 
   group('TimetreeCalendarViewScreen UI & State Tests', () {
-    final mockGroups = [
-      const TimetreeGroup(
-        id: 'group-1',
-        name: 'Group A',
-        description: 'Test Group A',
-        active: true,
-        calendars: [
-          TimetreeCalendar(id: 'cal-1', name: 'Cal A', description: 'Calendar A', color: 'blue'),
-        ],
+    final mockCalendars = [
+      const TimetreeCalendar(
+        id: 'cal-1',
+        name: 'Cal A',
+        description: 'Calendar A',
+        color: '#2196F3',
         members: [
           TimetreeMember(id: '1', username: 'user_1', fullName: 'User One', email: 'u1@t.com', role: 'MEMBER'),
         ],
@@ -207,7 +224,7 @@ void main() async {
     testWidgets('renders loading state correctly', (tester) async {
       final overrides = [
         ...defaultOverrides,
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(const AsyncValue.loading())),
+        timetreeCalendarsProvider.overrideWith((ref) => _FakeCalendarsNotifier(const AsyncValue.loading())),
       ];
 
       await tester.pumpWidget(buildEventsHarness(const TimetreeCalendarViewScreen(), overrides));
@@ -218,7 +235,7 @@ void main() async {
     testWidgets('renders error state correctly', (tester) async {
       final overrides = [
         ...defaultOverrides,
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(AsyncValue.error('API Error', StackTrace.empty))),
+        timetreeCalendarsProvider.overrideWith((ref) => _FakeCalendarsNotifier(AsyncValue.error('API Error', StackTrace.empty))),
       ];
 
       await tester.pumpWidget(buildEventsHarness(const TimetreeCalendarViewScreen(), overrides));
@@ -228,16 +245,16 @@ void main() async {
       expect(find.text('Réessayer'), findsOneWidget);
     });
 
-    testWidgets('renders empty state when no groups/calendars assigned', (tester) async {
+    testWidgets('renders empty state when no calendars assigned', (tester) async {
       final overrides = [
         ...defaultOverrides,
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(const AsyncValue.data([]))),
+        timetreeCalendarsProvider.overrideWith((ref) => _FakeCalendarsNotifier(const AsyncValue.data([]))),
       ];
 
       await tester.pumpWidget(buildEventsHarness(const TimetreeCalendarViewScreen(), overrides));
       await tester.pump();
 
-      expect(find.text('Aucun groupe ou calendrier affecté.'), findsOneWidget);
+      expect(find.text('Aucun calendrier affecté.'), findsOneWidget);
     });
 
     testWidgets('renders monthly calendar and events on success', (tester) async {
@@ -263,7 +280,7 @@ void main() async {
 
       final overrides = [
         ...defaultOverrides,
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(AsyncValue.data(mockGroups))),
+        timetreeCalendarsProvider.overrideWith((ref) => _FakeCalendarsNotifier(AsyncValue.data(mockCalendars))),
         expandedEventsProvider.overrideWith((ref) => AsyncValue.data(events)),
         currentCalendarDateProvider.overrideWith((ref) => DateTime(2026, 6, 23)),
         calendarViewModeProvider.overrideWith((ref) => 'MONTH'),
@@ -286,7 +303,7 @@ void main() async {
     testWidgets('switches views correctly between Month, Week, and Day', (tester) async {
       final overrides = [
         ...defaultOverrides,
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(AsyncValue.data(mockGroups))),
+        timetreeCalendarsProvider.overrideWith((ref) => _FakeCalendarsNotifier(AsyncValue.data(mockCalendars))),
         expandedEventsProvider.overrideWith((ref) => const AsyncValue.data([])),
         currentCalendarDateProvider.overrideWith((ref) => DateTime(2026, 6, 23)),
       ];
@@ -294,7 +311,11 @@ void main() async {
       await tester.pumpWidget(buildEventsHarness(const TimetreeCalendarViewScreen(), overrides));
       await tester.pump();
 
-      // Find view segmented buttons
+      // Open options popup menu
+      await tester.tap(find.byIcon(Icons.tune_rounded));
+      await tester.pumpAndSettle();
+
+      // Find view segmented buttons inside popup menu
       expect(find.text('Mois'), findsOneWidget);
       expect(find.text('Semaine'), findsOneWidget);
       expect(find.text('Jour'), findsOneWidget);
@@ -314,21 +335,21 @@ class FakeStorageService implements StorageService {
   Future<void> clear() async => _data.clear();
 }
 
-class _FakeGroupsRepo extends TimetreeGroupsRepository {
-  _FakeGroupsRepo() : super(TimetreeApi(Dio()));
+class _FakeCalendarsRepo extends TimetreeCalendarsRepository {
+  _FakeCalendarsRepo() : super(TimetreeApi(Dio()));
 
   @override
-  Future<List<TimetreeGroup>> getGroups() async => const [];
+  Future<List<TimetreeCalendar>> getCalendars() async => const [];
 }
 
-class _FakeGroupsNotifier extends TimetreeGroupsNotifier {
-  _FakeGroupsNotifier(AsyncValue<List<TimetreeGroup>> initialValue)
-      : super(_FakeGroupsRepo()) {
+class _FakeCalendarsNotifier extends TimetreeCalendarsNotifier {
+  _FakeCalendarsNotifier(AsyncValue<List<TimetreeCalendar>> initialValue)
+      : super(_FakeCalendarsRepo()) {
     state = initialValue;
   }
 
   @override
-  Future<void> loadGroups() async {}
+  Future<void> loadCalendars() async {}
 }
 
 class _FakeLoginUseCase implements LoginUseCase {
@@ -379,11 +400,25 @@ class _FakeChatService implements IChatService {
 
 class _FakeNotificationsRepository implements TimetreeNotificationsRepository {
   @override
-  Future<List<TimetreeNotification>> getNotifications() async => [];
+  Future<NotificationPage> getNotifications({int page = 0, int size = 20}) async {
+    return const NotificationPage(notifications: [], totalElements: 0, totalPages: 0, hasMore: false, page: 0, size: 20);
+  }
+  @override
+  Future<List<TimetreeNotification>> getAllNotifications() async => [];
   @override
   Future<void> markRead(String id) async {}
   @override
   Future<void> markAllRead() async {}
+  @override
+  Future<void> deleteNotification(String id) async {}
+  @override
+  Future<NotificationPreferences> getPreferences() async => const NotificationPreferences();
+  @override
+  Future<NotificationPreferences> updatePreferences(NotificationPreferences prefs) async => prefs;
+  @override
+  Future<ActivityPage> getCalendarActivity(String calendarId, {int page = 0, int size = 20, String? action}) async {
+    return const ActivityPage(activity: [], totalElements: 0, totalPages: 0, hasMore: false, page: 0, size: 20);
+  }
   @override
   Future<String> resolveEventId(String type, String id) async => '';
 }

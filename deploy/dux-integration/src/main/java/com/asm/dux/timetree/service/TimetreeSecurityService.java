@@ -19,7 +19,6 @@ public class TimetreeSecurityService {
 
     private final MemberRepository memberRepository;
     private final CalendarRepository calendarRepository;
-    private final GroupRepository groupRepository;
 
     public Member getCurrentMember() {
         try {
@@ -35,7 +34,47 @@ public class TimetreeSecurityService {
                     username = preferredUsername;
                 }
             }
-            return memberRepository.findByUsername(username).orElse(null);
+            final String finalUsername = username;
+            Optional<Member> memberOpt = memberRepository.findByUsername(finalUsername);
+            if (memberOpt.isPresent()) {
+                return memberOpt.get();
+            }
+
+            // Auto-provision user if they exist in Keycloak token but not in TT_MEMBER
+            if (auth instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken) {
+                org.springframework.security.oauth2.jwt.Jwt jwt = 
+                    ((org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken) auth).getToken();
+                String fullName = jwt.getClaimAsString("name");
+                if (fullName == null || fullName.trim().isEmpty()) {
+                    fullName = jwt.getClaimAsString("given_name");
+                    String familyName = jwt.getClaimAsString("family_name");
+                    if (fullName != null && familyName != null) {
+                        fullName = fullName + " " + familyName;
+                    }
+                }
+                if (fullName == null || fullName.trim().isEmpty()) {
+                    fullName = finalUsername;
+                }
+                String email = jwt.getClaimAsString("email");
+                
+                String role = "MEMBER";
+                if ("admin".equalsIgnoreCase(finalUsername)) {
+                    role = "ADMIN";
+                }
+                
+                Member newMember = Member.builder()
+                        .username(finalUsername)
+                        .fullName(fullName)
+                        .email(email)
+                        .role(role)
+                        .canCreateAgendas(true)
+                        .canAddMembers(true)
+                        .build();
+                
+                log.info("Auto-provisioning member: {}", finalUsername);
+                return memberRepository.save(newMember);
+            }
+            return null;
         } catch (Exception e) {
             log.error("Failed to resolve current member", e);
             return null;
@@ -44,7 +83,7 @@ public class TimetreeSecurityService {
 
     public List<Long> getAllowedCalendarIds(Member member) {
         String role = member.getRole().toUpperCase();
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role)) {
             return calendarRepository.findAll().stream().map(Calendar::getId).collect(Collectors.toList());
         }
         return calendarRepository.findAllowedCalendarIdsByMemberId(member.getId());
@@ -53,7 +92,7 @@ public class TimetreeSecurityService {
     public boolean canReadEvent(Member member, Event event) {
         if (member == null || event == null) return false;
         String role = member.getRole().toUpperCase();
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role)) {
             return true;
         }
         if (Boolean.TRUE.equals(event.getIsPrivate())) {
@@ -67,47 +106,24 @@ public class TimetreeSecurityService {
     public boolean canModifyEvent(Member member, Event event) {
         if (member == null || event == null) return false;
         String role = member.getRole().toUpperCase();
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role)) {
             return true;
         }
         if (Boolean.TRUE.equals(event.getLocked())) {
-            if ("CHEF".equals(role) && event.getGroup() != null && event.getGroup().getChef() != null) {
-                return event.getGroup().getChef().getId().equals(member.getId());
+            if ("CHEF".equals(role)) {
+                return getAllowedCalendarIds(member).contains(event.getCalendar().getId());
             }
             return false;
         }
-        return canWriteEvent(member, event.getCalendar().getId(), event.getGroup() != null ? event.getGroup().getId() : null);
+        return canWriteEvent(member, event.getCalendar().getId());
     }
 
-    public boolean canWriteEvent(Member member, Long calendarId, Long groupId) {
+    public boolean canWriteEvent(Member member, Long calendarId) {
         String role = member.getRole().toUpperCase();
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role)) {
             return true;
         }
-
-        Optional<Calendar> calOpt = calendarRepository.findById(calendarId);
-        if (!calOpt.isPresent()) return false;
-        Calendar calendar = calOpt.get();
-
-        List<Group> allGroups = groupRepository.findAll();
-        List<Group> calendarGroups = allGroups.stream()
-                .filter(g -> g.getCalendars() != null && g.getCalendars().contains(calendar))
-                .collect(Collectors.toList());
-
-        if (calendarGroups.isEmpty()) {
-            return false;
-        }
-
-        if ("CHEF".equals(role)) {
-            return calendarGroups.stream().anyMatch(g -> 
-                g.getChef() != null && g.getChef().getId().equals(member.getId()));
-        }
-
-        if ("MEMBER".equals(role)) {
-            return calendarGroups.stream().anyMatch(g -> 
-                g.getMembers() != null && g.getMembers().stream().anyMatch(m -> m.getId().equals(member.getId())));
-        }
-
-        return false;
+        List<Long> allowedIds = getAllowedCalendarIds(member);
+        return allowedIds.contains(calendarId);
     }
 }

@@ -39,7 +39,7 @@ public class AuditController {
             @RequestParam(required = false) String search) {
 
         Member current = securityService.getCurrentMember();
-        if (current == null || !"ADMIN".equalsIgnoreCase(current.getRole())) {
+        if (current == null || !("ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès réservé aux administrateurs");
         }
 
@@ -76,7 +76,7 @@ public class AuditController {
             @RequestParam(required = false) String search) {
 
         Member current = securityService.getCurrentMember();
-        if (current == null || !"ADMIN".equalsIgnoreCase(current.getRole())) {
+        if (current == null || !("ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès réservé aux administrateurs");
         }
 

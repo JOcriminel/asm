@@ -24,7 +24,6 @@ public class EventController {
 
     private final EventRepository eventRepository;
     private final CalendarRepository calendarRepository;
-    private final GroupRepository groupRepository;
     private final MemberRepository memberRepository;
     private final EventMessageRepository eventMessageRepository;
     private final EventAttachmentRepository eventAttachmentRepository;
@@ -40,6 +39,7 @@ public class EventController {
     private final EventReminderRepository eventReminderRepository;
 
     @GetMapping
+    @Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<?> getEvents(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
@@ -84,6 +84,7 @@ public class EventController {
     }
 
     @GetMapping("/{id}")
+    @Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<?> getEvent(@PathVariable Long id) {
         log.info("GET /api/timetree/events/{}", id);
         Member current = securityService.getCurrentMember();
@@ -100,7 +101,7 @@ public class EventController {
     }
 
     @PostMapping
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> createEvent(@RequestBody Map<String, Object> body) {
         log.info("POST /api/timetree/events");
         Member current = securityService.getCurrentMember();
@@ -110,6 +111,23 @@ public class EventController {
 
         try {
             String title = (String) body.get("title");
+            String nomEvent = (String) body.get("nomEvent");
+            Boolean titleModifiedDirectly = (Boolean) body.getOrDefault("titleModifiedDirectly", false);
+            
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole());
+            if (!isAdmin) {
+                titleModifiedDirectly = false;
+                nomEvent = nomEvent != null ? nomEvent : title;
+                title = nomEvent;
+            } else {
+                if (Boolean.TRUE.equals(titleModifiedDirectly)) {
+                    nomEvent = nomEvent != null ? nomEvent : title;
+                } else {
+                    nomEvent = nomEvent != null ? nomEvent : title;
+                    title = nomEvent;
+                }
+            }
+
             String description = (String) body.get("description");
             LocalDateTime startDate = LocalDateTime.parse((String) body.get("startDate"));
             LocalDateTime endDate = LocalDateTime.parse((String) body.get("endDate"));
@@ -117,11 +135,6 @@ public class EventController {
             String color = (String) body.get("color");
             Long calendarId = Long.valueOf(body.get("calendarId").toString());
             
-            Long groupId = null;
-            if (body.get("groupId") != null && !body.get("groupId").toString().isEmpty()) {
-                groupId = Long.valueOf(body.get("groupId").toString());
-            }
-
             String recurrenceRule = (String) body.getOrDefault("recurrenceRule", "NONE");
             LocalDateTime recurrenceEndDate = null;
             if (body.get("recurrenceEndDate") != null && !body.get("recurrenceEndDate").toString().isEmpty()) {
@@ -129,7 +142,7 @@ public class EventController {
             }
 
             // Access control check
-            if (!securityService.canWriteEvent(current, calendarId, groupId)) {
+            if (!securityService.canWriteEvent(current, calendarId)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Permission insuffisante pour planifier sur ce calendrier");
             }
 
@@ -149,6 +162,8 @@ public class EventController {
 
             Event event = Event.builder()
                     .title(title)
+                    .nomEvent(nomEvent)
+                    .titleModifiedDirectly(titleModifiedDirectly)
                     .description(description)
                     .startDate(startDate)
                     .endDate(endDate)
@@ -165,9 +180,6 @@ public class EventController {
                     .priority(priority)
                     .build();
 
-            if (groupId != null) {
-                groupRepository.findById(groupId).ifPresent(event::setGroup);
-            }
 
             // Tags
             if (body.get("tags") instanceof List) {
@@ -254,10 +266,9 @@ public class EventController {
                     .build();
             eventMessageRepository.save(systemMsg);
 
-            // Notify other group members
-            Group group = saved.getGroup();
-            if (group != null && group.getMembers() != null) {
-                for (Member m : group.getMembers()) {
+            // Notify calendar members
+            if (saved.getCalendar() != null && saved.getCalendar().getMembers() != null) {
+                for (Member m : saved.getCalendar().getMembers()) {
                     if (!m.getId().equals(current.getId())) {
                         notificationService.triggerNotification(
                                 m,
@@ -281,7 +292,7 @@ public class EventController {
     }
 
     @PutMapping("/{id}")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> updateEvent(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         log.info("PUT /api/timetree/events/{}", id);
         Member current = securityService.getCurrentMember();
@@ -297,12 +308,8 @@ public class EventController {
                 }
 
                 Long calendarId = Long.valueOf(body.get("calendarId").toString());
-                Long groupId = null;
-                if (body.get("groupId") != null && !body.get("groupId").toString().isEmpty()) {
-                    groupId = Long.valueOf(body.get("groupId").toString());
-                }
 
-                if (!securityService.canWriteEvent(current, calendarId, groupId)) {
+                if (!securityService.canWriteEvent(current, calendarId)) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Permission insuffisante pour le calendrier cible");
                 }
 
@@ -310,8 +317,27 @@ public class EventController {
                 String oldStatus = existing.getStatus().name();
                 String oldPriority = existing.getPriority().name();
 
-                existing.setTitle((String) body.get("title"));
+                String title = (String) body.get("title");
+                String nomEvent = (String) body.get("nomEvent");
+                Boolean titleModifiedDirectly = (Boolean) body.getOrDefault("titleModifiedDirectly", false);
+
+                boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole());
+                if (!isAdmin) {
+                    existing.setTitleModifiedDirectly(false);
+                    existing.setNomEvent(nomEvent != null ? nomEvent : title);
+                    EventTitleHelper.recalculateEventTitle(existing, customFieldValueRepository);
+                } else {
+                    existing.setTitleModifiedDirectly(titleModifiedDirectly);
+                    existing.setNomEvent(nomEvent != null ? nomEvent : title);
+                    if (Boolean.TRUE.equals(titleModifiedDirectly)) {
+                        existing.setTitle(title);
+                    } else {
+                        EventTitleHelper.recalculateEventTitle(existing, customFieldValueRepository);
+                    }
+                }
+
                 existing.setDescription((String) body.get("description"));
+
                 existing.setStartDate(LocalDateTime.parse((String) body.get("startDate")));
                 existing.setEndDate(LocalDateTime.parse((String) body.get("endDate")));
                 existing.setAllDay((Boolean) body.getOrDefault("allDay", false));
@@ -326,12 +352,6 @@ public class EventController {
 
                 Optional<Calendar> calOpt = calendarRepository.findById(calendarId);
                 calOpt.ifPresent(existing::setCalendar);
-
-                if (groupId != null) {
-                    groupRepository.findById(groupId).ifPresent(existing::setGroup);
-                } else {
-                    existing.setGroup(null);
-                }
 
                 existing.setLocked((Boolean) body.getOrDefault("locked", false));
                 existing.setIsPrivate((Boolean) body.getOrDefault("isPrivate", false));
@@ -436,10 +456,9 @@ public class EventController {
                         .build();
                 eventMessageRepository.save(systemMsg);
 
-                // Notify other group members
-                Group group = saved.getGroup();
-                if (group != null && group.getMembers() != null) {
-                    for (Member m : group.getMembers()) {
+                // Notify calendar members
+                if (saved.getCalendar() != null && saved.getCalendar().getMembers() != null) {
+                    for (Member m : saved.getCalendar().getMembers()) {
                         if (!m.getId().equals(current.getId())) {
                             notificationService.triggerNotification(
                                     m,
@@ -464,7 +483,7 @@ public class EventController {
     }
 
     @DeleteMapping("/{id}")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> deleteEvent(@PathVariable Long id) {
         log.info("DELETE /api/timetree/events/{}", id);
         Member current = securityService.getCurrentMember();
@@ -491,9 +510,8 @@ public class EventController {
             );
 
             // Trigger Notifications
-            Group group = existing.getGroup();
-            if (group != null && group.getMembers() != null) {
-                for (Member m : group.getMembers()) {
+            if (existing.getCalendar() != null && existing.getCalendar().getMembers() != null) {
+                for (Member m : existing.getCalendar().getMembers()) {
                     if (!m.getId().equals(current.getId())) {
                         notificationService.triggerNotification(
                                 m,
@@ -545,7 +563,7 @@ public class EventController {
 
     // Dynamic endpoints for participants assignments
     @PostMapping("/{id}/participants")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> addParticipant(@PathVariable Long id, @RequestBody Map<String, String> request) {
         log.info("POST /api/timetree/events/{}/participants", id);
         Member current = securityService.getCurrentMember();
@@ -557,7 +575,7 @@ public class EventController {
 
         return eventRepository.findById(id).flatMap(event -> 
             memberRepository.findById(memberId).map(member -> {
-                if (!securityService.canWriteEvent(current, event.getCalendar().getId(), event.getGroup() != null ? event.getGroup().getId() : null)) {
+                if (!securityService.canWriteEvent(current, event.getCalendar().getId())) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès refusé");
                 }
                 if (event.getParticipants() == null) {
@@ -573,7 +591,7 @@ public class EventController {
     }
 
     @DeleteMapping("/{id}/participants/{memberId}")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> removeParticipant(@PathVariable Long id, @PathVariable Long memberId) {
         log.info("DELETE /api/timetree/events/{}/participants/{}", id, memberId);
         Member current = securityService.getCurrentMember();
@@ -581,7 +599,7 @@ public class EventController {
 
         return eventRepository.findById(id).flatMap(event -> 
             memberRepository.findById(memberId).map(member -> {
-                if (!securityService.canWriteEvent(current, event.getCalendar().getId(), event.getGroup() != null ? event.getGroup().getId() : null)) {
+                if (!securityService.canWriteEvent(current, event.getCalendar().getId())) {
                     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès refusé");
                 }
                 if (event.getParticipants() != null && event.getParticipants().remove(member)) {
@@ -614,15 +632,16 @@ public class EventController {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", e.getId().toString());
         map.put("title", e.getTitle());
+        map.put("nomEvent", e.getNomEvent());
+        map.put("titleModifiedDirectly", e.getTitleModifiedDirectly());
         map.put("description", e.getDescription());
+
         map.put("startDate", e.getStartDate().toString());
         map.put("endDate", e.getEndDate().toString());
         map.put("allDay", e.getAllDay());
         map.put("color", e.getColor());
         map.put("calendarId", e.getCalendar().getId().toString());
         map.put("calendarName", e.getCalendar().getName());
-        map.put("groupId", e.getGroup() != null ? e.getGroup().getId().toString() : null);
-        map.put("groupName", e.getGroup() != null ? e.getGroup().getName() : null);
         map.put("recurrenceRule", e.getRecurrenceRule());
         map.put("recurrenceEndDate", e.getRecurrenceEndDate() != null ? e.getRecurrenceEndDate().toString() : null);
         map.put("locked", e.getLocked());

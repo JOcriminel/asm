@@ -31,4 +31,9 @@ public class CustomFieldValue {
 
     @Column(name = "VALUE", length = 2000)
     private String value;
+
+    @Column(name = "SHOW_EMOJI_IN_TITLE", nullable = false)
+    @Builder.Default
+    private Boolean showEmojiInTitle = false;
 }
+

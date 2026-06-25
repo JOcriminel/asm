@@ -23,7 +23,6 @@ public class CustomFieldController {
     private final CustomFieldRepository customFieldRepository;
     private final CustomFieldValueRepository customFieldValueRepository;
     private final MemberRepository memberRepository;
-    private final GroupRepository groupRepository;
     private final EventRepository eventRepository;
     private final EventMessageRepository eventMessageRepository;
     private final NotificationService notificationService;
@@ -59,24 +58,11 @@ public class CustomFieldController {
             return false;
         }
         String role = member.getRole().toUpperCase();
-        if ("ADMIN".equals(role)) {
+        if ("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role)) {
             return true;
         }
         if ("CHEF".equals(role)) {
-            if ("GROUP".equalsIgnoreCase(scopeType) && scopeId != null) {
-                try {
-                    Long groupId = Long.parseLong(scopeId);
-                    Optional<Group> groupOpt = groupRepository.findById(groupId);
-                    if (groupOpt.isPresent()) {
-                        Group group = groupOpt.get();
-                        // Chef can manage only if they own the group
-                        return group.getChef() != null && group.getChef().getId().equals(member.getId());
-                    }
-                } catch (NumberFormatException e) {
-                    log.error("Failed to parse group ID: {}", scopeId);
-                }
-            }
-            // For other scopes, Chef doesn't have permissions unless they are related
+            // Chef permissions are managed via direct calendar assignments
             return false;
         }
         return false;
@@ -148,6 +134,7 @@ public class CustomFieldController {
 
     // Create custom field definition
     @PostMapping
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> createCustomField(@RequestBody CustomField customField) {
         log.info("POST /api/timetree/custom-fields - name={}", customField.getName());
         
@@ -173,6 +160,7 @@ public class CustomFieldController {
 
     // Update custom field definition
     @PutMapping("/{id}")
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> updateCustomField(@PathVariable Long id, @RequestBody CustomField request) {
         log.info("PUT /api/timetree/custom-fields/{}", id);
         
@@ -192,8 +180,11 @@ public class CustomFieldController {
             existing.setScopeId(request.getScopeId());
             existing.setSortOrder(request.getSortOrder());
             existing.setActive(request.getActive());
+            existing.setEmoji(request.getEmoji());
+            existing.setEmojiOrder(request.getEmojiOrder());
             
             // Validation rules
+
             existing.setMinValue(request.getMinValue());
             existing.setMaxValue(request.getMaxValue());
             existing.setMinLength(request.getMinLength());
@@ -217,6 +208,7 @@ public class CustomFieldController {
 
     // Delete custom field definition
     @DeleteMapping("/{id}")
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> deleteCustomField(@PathVariable Long id) {
         log.info("DELETE /api/timetree/custom-fields/{}", id);
         
@@ -237,6 +229,7 @@ public class CustomFieldController {
 
     // Reorder custom fields in bulk
     @PostMapping("/reorder")
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> reorderCustomFields(@RequestBody List<Map<String, Object>> request) {
         log.info("POST /api/timetree/custom-fields/reorder");
         
@@ -272,20 +265,33 @@ public class CustomFieldController {
 
     // Save/update values for a specific entity
     @PostMapping("/values/{entityType}/{entityId}")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> saveValues(
             @PathVariable String entityType,
             @PathVariable String entityId,
-            @RequestBody Map<String, String> valuesMap) {
+            @RequestBody Map<String, Object> valuesMap) {
         log.info("POST /api/timetree/custom-fields/values/{}/{}", entityType, entityId);
         
         List<CustomFieldValue> savedValues = new ArrayList<>();
         
-        for (Map.Entry<String, String> entry : valuesMap.entrySet()) {
+        for (Map.Entry<String, Object> entry : valuesMap.entrySet()) {
             Long fieldId = Long.parseLong(entry.getKey());
             Optional<CustomField> fieldOpt = customFieldRepository.findById(fieldId);
             if (fieldOpt.isPresent()) {
                 CustomField field = fieldOpt.get();
+                
+                String valueStr = null;
+                Boolean showEmojiInTitle = false;
+                
+                if (entry.getValue() instanceof Map) {
+                    Map<?, ?> mapVal = (Map<?, ?>) entry.getValue();
+                    valueStr = mapVal.get("value") != null ? mapVal.get("value").toString() : null;
+                    if (mapVal.get("showEmojiInTitle") != null) {
+                        showEmojiInTitle = Boolean.valueOf(mapVal.get("showEmojiInTitle").toString());
+                    }
+                } else if (entry.getValue() != null) {
+                    valueStr = entry.getValue().toString();
+                }
                 
                 Optional<CustomFieldValue> valOpt = 
                     customFieldValueRepository.findByFieldIdAndEntityTypeAndEntityId(fieldId, entityType, entityId);
@@ -293,13 +299,15 @@ public class CustomFieldController {
                 CustomFieldValue val;
                 if (valOpt.isPresent()) {
                     val = valOpt.get();
-                    val.setValue(entry.getValue());
+                    val.setValue(valueStr);
+                    val.setShowEmojiInTitle(showEmojiInTitle);
                 } else {
                     val = CustomFieldValue.builder()
                             .field(field)
                             .entityType(entityType)
                             .entityId(entityId)
-                            .value(entry.getValue())
+                            .value(valueStr)
+                            .showEmojiInTitle(showEmojiInTitle)
                             .build();
                 }
                 savedValues.add(customFieldValueRepository.save(val));
@@ -310,6 +318,10 @@ public class CustomFieldController {
             try {
                 Long eventId = Long.parseLong(entityId);
                 eventRepository.findById(eventId).ifPresent(event -> {
+                    // Recalculate event title based on emojis and nomEvent
+                    com.asm.dux.timetree.service.EventTitleHelper.recalculateEventTitle(event, customFieldValueRepository);
+                    eventRepository.save(event);
+
                     // Save system message
                     EventMessage systemMsg = EventMessage.builder()
                             .event(event)
@@ -321,11 +333,10 @@ public class CustomFieldController {
                             .build();
                     eventMessageRepository.save(systemMsg);
 
-                    // Notify group members
-                    Group group = event.getGroup();
-                    if (group != null && group.getMembers() != null) {
+                    // Notify calendar members
+                    if (event.getCalendar() != null && event.getCalendar().getMembers() != null) {
                         Member current = getCurrentMember();
-                        for (Member m : group.getMembers()) {
+                        for (Member m : event.getCalendar().getMembers()) {
                             if (current != null && !m.getId().equals(current.getId())) {
                                 notificationService.triggerNotification(
                                         m,
@@ -344,6 +355,7 @@ public class CustomFieldController {
                 log.error("Failed to post custom field update system message", ex);
             }
         }
+
 
         try {
             Long eId = Long.parseLong(entityId);

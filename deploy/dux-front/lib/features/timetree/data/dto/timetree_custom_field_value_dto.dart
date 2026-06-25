@@ -7,6 +7,7 @@ class TimetreeCustomFieldValueDto {
   final String entityType;
   final String entityId;
   final String? value;
+  final bool showEmojiInTitle;
 
   const TimetreeCustomFieldValueDto({
     required this.id,
@@ -14,6 +15,7 @@ class TimetreeCustomFieldValueDto {
     required this.entityType,
     required this.entityId,
     this.value,
+    this.showEmojiInTitle = false,
   });
 
   factory TimetreeCustomFieldValueDto.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class TimetreeCustomFieldValueDto {
       entityType: json['entityType'] as String? ?? 'EVENT',
       entityId: (json['entityId'] ?? '').toString(),
       value: json['value'] as String?,
+      showEmojiInTitle: json['showEmojiInTitle'] as bool? ?? false,
     );
   }
 
@@ -33,6 +36,8 @@ class TimetreeCustomFieldValueDto {
       'entityType': entityType,
       'entityId': entityId,
       'value': value,
+      'showEmojiInTitle': showEmojiInTitle,
     };
   }
 }
+

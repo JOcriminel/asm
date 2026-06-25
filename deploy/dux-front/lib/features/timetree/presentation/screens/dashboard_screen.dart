@@ -140,10 +140,6 @@ class _DashboardBody extends StatelessWidget {
                 _UpcomingEventsSection(upcoming: dashboard.upcomingEvents),
                 const SizedBox(height: 20),
 
-                // ── Most Active Members & Groups ────────────────────────────
-                _ActiveEntitiesSection(dashboard: dashboard),
-                const SizedBox(height: 20),
-
                 // ── Recent activities ───────────────────────────────────────
                 _SectionHeader(
                   icon: Icons.history_rounded,
@@ -191,16 +187,6 @@ class _StatCardRow extends StatelessWidget {
             icon: Icons.insert_drive_file_outlined,
             color: const Color(0xFF43C89E),
             onTap: () => context.go('/timetree/pages'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            label: 'Groupes',
-            value: dashboard.groupsCount,
-            icon: Icons.group_outlined,
-            color: const Color(0xFFF7934C),
-            onTap: () => context.go('/timetree/groups'),
           ),
         ),
       ],
@@ -346,37 +332,43 @@ class _StatusPrioritySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: _ChartCard(
-            title: 'Événements par Statut',
-            data: dashboard.eventsByStatus,
-            colors: const {
-              'DRAFT': Colors.grey,
-              'PLANNED': Colors.blue,
-              'IN_PROGRESS': Colors.orange,
-              'COMPLETED': Colors.green,
-              'CANCELLED': Colors.red,
-            },
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _ChartCard(
-            title: 'Événements par Priorité',
-            data: dashboard.eventsByPriority,
-            colors: const {
-              'LOW': Colors.green,
-              'NORMAL': Colors.blue,
-              'HIGH': Colors.orange,
-              'CRITICAL': Colors.red,
-            },
-          ),
-        ),
-      ],
-    );
+    final isWide = MediaQuery.of(context).size.width > 600;
+
+    final children = [
+      _ChartCard(
+        title: 'Événements par Statut',
+        data: dashboard.eventsByStatus,
+        colors: const {
+          'DRAFT': Colors.grey,
+          'PLANNED': Colors.blue,
+          'IN_PROGRESS': Colors.orange,
+          'COMPLETED': Colors.green,
+          'CANCELLED': Colors.red,
+        },
+      ),
+      if (!isWide) const SizedBox(height: 16) else const SizedBox(width: 16),
+      _ChartCard(
+        title: 'Événements par Priorité',
+        data: dashboard.eventsByPriority,
+        colors: const {
+          'LOW': Colors.green,
+          'NORMAL': Colors.blue,
+          'HIGH': Colors.orange,
+          'CRITICAL': Colors.red,
+        },
+      ),
+    ];
+
+    if (isWide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children.map((w) => w is SizedBox ? w : Expanded(child: w)).toList(),
+      );
+    } else {
+      return Column(
+        children: children,
+      );
+    }
   }
 }
 

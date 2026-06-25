@@ -36,6 +36,9 @@ class TimetreeMembersRepository {
     required String fullName,
     required String email,
     required String role,
+    bool? canCreateAgendas,
+    bool? canAddMembers,
+    List<String>? calendarIds,
   }) async {
     try {
       final response = await _api.createMember({
@@ -43,6 +46,10 @@ class TimetreeMembersRepository {
         'fullName': fullName,
         'email': email,
         'role': role,
+        if (canCreateAgendas != null) 'canCreateAgendas': canCreateAgendas,
+        if (canAddMembers != null) 'canAddMembers': canAddMembers,
+        if (calendarIds != null)
+          'calendars': calendarIds.map((cid) => {'id': int.tryParse(cid) ?? 0}).toList(),
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {
@@ -63,6 +70,10 @@ class TimetreeMembersRepository {
     required String fullName,
     required String email,
     required String role,
+    bool? canCreateAgendas,
+    bool? canAddMembers,
+    String? profilePicture,
+    List<String>? calendarIds,
   }) async {
     try {
       final response = await _api.updateMember(id, {
@@ -70,6 +81,11 @@ class TimetreeMembersRepository {
         'fullName': fullName,
         'email': email,
         'role': role,
+        if (canCreateAgendas != null) 'canCreateAgendas': canCreateAgendas,
+        if (canAddMembers != null) 'canAddMembers': canAddMembers,
+        if (profilePicture != null) 'profilePicture': profilePicture,
+        if (calendarIds != null)
+          'calendars': calendarIds.map((cid) => {'id': int.tryParse(cid) ?? 0}).toList(),
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {
@@ -93,32 +109,32 @@ class TimetreeMembersRepository {
     }
   }
 
-  /// Adds a member to a group.
-  Future<void> addMemberToGroup(String groupId, String memberId) async {
+  /// Adds a member to a calendar.
+  Future<void> addMemberToCalendar(String calendarId, String memberId) async {
     try {
-      await _api.addMemberToGroup(groupId, memberId);
+      await _api.addMemberToCalendar(calendarId, memberId);
     } catch (e) {
-      AppLogger.e('TimetreeMembersRepository', 'addMemberToGroup failed', e);
+      AppLogger.e('TimetreeMembersRepository', 'addMemberToCalendar failed', e);
       throw ApiExceptionHandler.handle(e);
     }
   }
 
-  /// Removes a member from a group.
-  Future<void> removeMemberFromGroup(String groupId, String memberId) async {
+  /// Removes a member from a calendar.
+  Future<void> removeMemberFromCalendar(String calendarId, String memberId) async {
     try {
-      await _api.removeMemberFromGroup(groupId, memberId);
+      await _api.removeMemberFromCalendar(calendarId, memberId);
     } catch (e) {
-      AppLogger.e('TimetreeMembersRepository', 'removeMemberFromGroup failed', e);
+      AppLogger.e('TimetreeMembersRepository', 'removeMemberFromCalendar failed', e);
       throw ApiExceptionHandler.handle(e);
     }
   }
 
-  /// Assigns a chef to a group.
-  Future<void> assignChefToGroup(String groupId, String? chefId) async {
+  /// Sets all members of a calendar.
+  Future<void> setCalendarMembers(String calendarId, List<String> memberIds) async {
     try {
-      await _api.assignChefToGroup(groupId, chefId);
+      await _api.setCalendarMembers(calendarId, memberIds);
     } catch (e) {
-      AppLogger.e('TimetreeMembersRepository', 'assignChefToGroup failed', e);
+      AppLogger.e('TimetreeMembersRepository', 'setCalendarMembers failed', e);
       throw ApiExceptionHandler.handle(e);
     }
   }

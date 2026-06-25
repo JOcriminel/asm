@@ -52,11 +52,6 @@ class TimetreePagesScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateEditDialog(context, ref),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Page'),
-      ),
     );
   }
 
@@ -274,7 +269,10 @@ class _PagesListView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return RefreshIndicator(
-      onRefresh: () => ref.read(timetreePagesProvider.notifier).loadPages(),
+      onRefresh: () async {
+        await ref.read(timetreePagesProvider.notifier).loadPages();
+        await ref.read(timetreeCategoriesProvider.notifier).loadCategories();
+      },
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: pages.length,
@@ -291,46 +289,6 @@ class _PageTile extends ConsumerWidget {
   const _PageTile({required this.page});
 
   final TimetreePage page;
-
-  void _handleDelete(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Supprimer la page ?'),
-        content: Text('Êtes-vous sûr de vouloir supprimer la page "${page.title}" ? Cette action est définitive.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await ref.read(timetreePagesProvider.notifier).deletePage(page.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Page supprimée avec succès')),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Erreur de suppression: $e')),
-                  );
-                }
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _handleEdit(BuildContext context, WidgetRef ref) {
     showDialog<void>(
@@ -411,12 +369,6 @@ class _PageTile extends ConsumerWidget {
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _handleEdit(context, ref),
               tooltip: 'Modifier',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: () => _handleDelete(context, ref),
-              color: theme.colorScheme.error,
-              tooltip: 'Supprimer',
             ),
           ],
         ),
@@ -529,6 +481,7 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
             children: [
               TextFormField(
                 controller: _titleController,
+                enabled: false,
                 decoration: const InputDecoration(
                   labelText: 'Titre de la page',
                   hintText: 'ex. Conditions Générales, CGU',
@@ -572,12 +525,28 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
                   );
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Text('Erreur de chargement des catégories: $e'),
+                error: (e, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Erreur de chargement des catégories: $e',
+                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () => ref.read(timetreeCategoriesProvider.notifier).loadCategories(),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Réessayer'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
 
               TextFormField(
                 controller: _orderController,
+                enabled: false,
                 decoration: const InputDecoration(
                   labelText: 'Ordre d\'affichage',
                   hintText: 'ex. 1, 2, 3',

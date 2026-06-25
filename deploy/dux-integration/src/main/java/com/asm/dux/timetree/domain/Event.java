@@ -47,10 +47,6 @@ public class Event {
     @JoinColumn(name = "CALENDAR_ID", nullable = false)
     private Calendar calendar;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "GROUP_ID")
-    private Group group;
-
     @Column(name = "RECURRENCE_RULE", nullable = false, length = 50)
     @Builder.Default
     private String recurrenceRule = "NONE"; // NONE, DAILY, WEEKLY, MONTHLY
@@ -74,6 +70,14 @@ public class Event {
     @Column(name = "LOCKED", nullable = false)
     @Builder.Default
     private Boolean locked = false;
+
+    @Column(name = "NOM_EVENT", length = 150)
+    private String nomEvent;
+
+    @Column(name = "TITLE_MODIFIED_DIRECTLY", nullable = false)
+    @Builder.Default
+    private Boolean titleModifiedDirectly = false;
+
 
     @Column(name = "IS_PRIVATE", nullable = false)
     @Builder.Default

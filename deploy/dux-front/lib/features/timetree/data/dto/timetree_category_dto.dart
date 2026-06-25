@@ -16,7 +16,7 @@ class TimetreeCategoryDto {
 
   factory TimetreeCategoryDto.fromJson(Map<String, dynamic> json) {
     return TimetreeCategoryDto(
-      id: json['id'] as String? ?? '',
+      id: (json['id'] ?? '').toString(),
       name: json['name'] as String? ?? '',
       active: json['active'] as bool? ?? false,
       displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,

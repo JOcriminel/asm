@@ -98,10 +98,10 @@ public class ExportController {
 
     private ResponseEntity<?> exportToCsv(List<Event> events) {
         StringWriter sw = new StringWriter();
-        sw.write("ID,Titre,Description,Date Debut,Date Fin,Toute la journee,Calendrier,Groupe,Statut,Priorite,Cree par\n");
+        sw.write("ID,Titre,Description,Date Debut,Date Fin,Toute la journee,Calendrier,Statut,Priorite,Cree par\n");
 
         for (Event e : events) {
-            sw.write(String.format("%d,%s,%s,%s,%s,%b,%s,%s,%s,%s,%s\n",
+            sw.write(String.format("%d,%s,%s,%s,%s,%b,%s,%s,%s,%s\n",
                     e.getId(),
                     escapeCsv(e.getTitle()),
                     escapeCsv(e.getDescription()),
@@ -109,7 +109,6 @@ public class ExportController {
                     e.getEndDate().toString(),
                     e.getAllDay(),
                     escapeCsv(e.getCalendar().getName()),
-                    e.getGroup() != null ? escapeCsv(e.getGroup().getName()) : "",
                     e.getStatus().name(),
                     e.getPriority().name(),
                     escapeCsv(e.getCreatedBy())
@@ -178,7 +177,7 @@ public class ExportController {
 
             // Create headers
             org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
-            String[] headers = {"ID", "Titre", "Description", "Date Debut", "Date Fin", "Toute la journee", "Calendrier", "Groupe", "Statut", "Priorite", "Cree par"};
+            String[] headers = {"ID", "Titre", "Description", "Date Debut", "Date Fin", "Toute la journee", "Calendrier", "Statut", "Priorite", "Cree par"};
             for (int i = 0; i < headers.length; i++) {
                 org.apache.poi.ss.usermodel.Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
@@ -195,10 +194,9 @@ public class ExportController {
                 row.createCell(4).setCellValue(e.getEndDate().toString());
                 row.createCell(5).setCellValue(e.getAllDay());
                 row.createCell(6).setCellValue(e.getCalendar().getName());
-                row.createCell(7).setCellValue(e.getGroup() != null ? e.getGroup().getName() : "");
-                row.createCell(8).setCellValue(e.getStatus().name());
-                row.createCell(9).setCellValue(e.getPriority().name());
-                row.createCell(10).setCellValue(e.getCreatedBy() != null ? e.getCreatedBy() : "");
+                row.createCell(7).setCellValue(e.getStatus().name());
+                row.createCell(8).setCellValue(e.getPriority().name());
+                row.createCell(9).setCellValue(e.getCreatedBy() != null ? e.getCreatedBy() : "");
             }
 
             // Auto-size columns
@@ -234,12 +232,12 @@ public class ExportController {
         document.add(title);
 
         // Create table
-        PdfPTable table = new PdfPTable(7);
+        PdfPTable table = new PdfPTable(6);
         table.setWidthPercentage(100);
-        table.setWidths(new float[]{1.5f, 2.5f, 2.5f, 1.5f, 1.5f, 1.0f, 1.0f});
+        table.setWidths(new float[]{2.5f, 2.0f, 2.0f, 2.0f, 1.5f, 1.5f});
 
         com.lowagie.text.Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
-        String[] headers = {"Titre", "Date Debut", "Date Fin", "Calendrier", "Groupe", "Statut", "Priorite"};
+        String[] headers = {"Titre", "Date Debut", "Date Fin", "Calendrier", "Statut", "Priorite"};
 
         for (String header : headers) {
             PdfPCell cell = new PdfPCell(new Paragraph(header, headerFont));
@@ -255,7 +253,6 @@ public class ExportController {
             table.addCell(new PdfPCell(new Paragraph(e.getStartDate().toString(), rowFont)));
             table.addCell(new PdfPCell(new Paragraph(e.getEndDate().toString(), rowFont)));
             table.addCell(new PdfPCell(new Paragraph(e.getCalendar().getName(), rowFont)));
-            table.addCell(new PdfPCell(new Paragraph(e.getGroup() != null ? e.getGroup().getName() : "", rowFont)));
             table.addCell(new PdfPCell(new Paragraph(e.getStatus().name(), rowFont)));
             table.addCell(new PdfPCell(new Paragraph(e.getPriority().name(), rowFont)));
         }

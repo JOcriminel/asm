@@ -18,11 +18,11 @@ class TimetreePageDto {
 
   factory TimetreePageDto.fromJson(Map<String, dynamic> json) {
     return TimetreePageDto(
-      id: json['id'] as String? ?? '',
+      id: (json['id'] ?? '').toString(),
       title: json['title'] as String? ?? '',
       active: json['active'] as bool? ?? false,
       displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
-      categoryId: json['categoryId'] as String? ?? '',
+      categoryId: (json['categoryId'] ?? '').toString(),
     );
   }
 
@@ -30,6 +30,7 @@ class TimetreePageDto {
     return {
       'id': id,
       'title': title,
+      'name': title,
       'active': active,
       'displayOrder': displayOrder,
       'categoryId': categoryId,

@@ -23,7 +23,7 @@ public class RestoreController {
     @PostMapping("/{entityType}/{id}")
     public ResponseEntity<?> restoreEntity(@PathVariable String entityType, @PathVariable Long id) {
         Member current = securityService.getCurrentMember();
-        if (current == null || !"ADMIN".equalsIgnoreCase(current.getRole())) {
+        if (current == null || !("ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès réservé aux administrateurs");
         }
 

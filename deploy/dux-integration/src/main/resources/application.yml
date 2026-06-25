@@ -63,4 +63,16 @@ timetree:
     offline-queue:
       max-retention-hours: 24
     relay:
-      stomp-port: 61613
+      stomp-port: 61613
+    upload:
+      max-file-size: ${UPLOAD_MAX_SIZE:52428800} # 50MB
+      allowed-mime-types: ${UPLOAD_MIME_TYPES:application/pdf,image/png,image/jpeg,image/gif,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,application/zip}
+
+aws:
+  s3:
+    bucket-name: ${S3_BUCKET_NAME:dux-attachments}
+    region: ${S3_REGION:us-east-1}
+    endpoint-override: ${S3_ENDPOINT_OVERRIDE:}
+  credentials:
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}

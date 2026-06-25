@@ -138,7 +138,7 @@ class _TimetreeAuditLogsScreenState extends ConsumerState<TimetreeAuditLogsScree
     final theme = Theme.of(context);
 
     // Guard screen with admin check
-    if (user == null || user.role.toUpperCase() != 'ADMIN') {
+    if (user == null || (user.role.toUpperCase() != 'ADMIN' && user.role.toUpperCase() != 'ADMINISTRATEUR')) {
       return Scaffold(
         drawer: const DuxDrawer(),
         appBar: AppBar(title: const Text('Accès Refusé')),

@@ -16,4 +16,12 @@
     <include file="db/changelog/timetree/s9_chat_attachments.xml"/>
     <include file="db/changelog/timetree/hardening_sprint.xml"/>
     <include file="db/changelog/timetree/sprint_10_presence.xml"/>
+    <include file="db/changelog/timetree/tt_seed_data.xml"/>
+    <include file="db/changelog/timetree/s12_notification_preferences.xml"/>
+    <include file="db/changelog/timetree/s12_user_permissions.xml"/>
+    <include file="db/changelog/timetree/sprint_13_emoji_custom_fields.xml"/>
+    <include file="db/changelog/timetree/sprint_13_nvarchar_emojis.xml"/>
+    <include file="db/changelog/timetree/sprint_13_remove_groups.xml"/>
+    <include file="db/changelog/timetree/sprint_13_calendar_description_max.xml"/>
 </databaseChangeLog>
+

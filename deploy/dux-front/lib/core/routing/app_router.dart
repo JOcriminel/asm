@@ -17,7 +17,6 @@ import '../../features/station/presentation/screens/station_details_screen.dart'
 import 'package:dux_front/features/timetree/presentation/screens/accueil_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/categories_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/pages_screen.dart';
-import 'package:dux_front/features/timetree/presentation/screens/groups_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/dashboard_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/roles_permissions_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
@@ -426,8 +425,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
     GoRoute(
       path: '/timetree/groups',
-      name: 'timetreeGroups',
-      builder: (context, state) => const TimetreeGroupsScreen(),
+      redirect: (context, state) => '/timetree/calendar-view',
     ),
     GoRoute(
       path: '/timetree/roles-permissions',
@@ -441,8 +439,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     ),
     GoRoute(
       path: '/timetree/membership-calendars',
-      name: 'timetreeMembershipCalendars',
-      builder: (context, state) => const TimetreeMembershipCalendarsScreen(),
+      redirect: (context, state) => '/timetree/calendar-view',
     ),
     GoRoute(
       path: '/timetree/calendar-view',

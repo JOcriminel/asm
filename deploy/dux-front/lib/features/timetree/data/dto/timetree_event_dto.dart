@@ -24,6 +24,8 @@ class TimetreeEventDto {
   final List<TimetreeTag> tags;
   final List<Map<String, dynamic>> dependencies;
   final List<String> reminders;
+  final String? nomEvent;
+  final bool titleModifiedDirectly;
 
   const TimetreeEventDto({
     required this.id,
@@ -47,6 +49,8 @@ class TimetreeEventDto {
     this.tags = const [],
     this.dependencies = const [],
     this.reminders = const [],
+    this.nomEvent,
+    this.titleModifiedDirectly = false,
   });
 
   factory TimetreeEventDto.fromJson(Map<String, dynamic> json) {
@@ -83,6 +87,8 @@ class TimetreeEventDto {
               .toList() ??
           [],
       reminders: (json['reminders'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      nomEvent: json['nomEvent'] as String?,
+      titleModifiedDirectly: json['titleModifiedDirectly'] as bool? ?? false,
     );
   }
 
@@ -107,6 +113,9 @@ class TimetreeEventDto {
       'tags': tags.map((e) => e.toJson()).toList(),
       'dependencyIds': dependencies.map((e) => int.tryParse(e['id'].toString()) ?? e['id']).toList(),
       'reminders': reminders,
+      'nomEvent': nomEvent,
+      'titleModifiedDirectly': titleModifiedDirectly,
     };
   }
 }
+

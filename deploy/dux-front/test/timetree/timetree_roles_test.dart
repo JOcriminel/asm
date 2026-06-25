@@ -10,9 +10,9 @@ import 'package:dux_front/features/timetree/domain/models/timetree_permission.da
 import 'package:dux_front/features/timetree/data/repositories/timetree_roles_repository.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_roles_provider.dart';
 import 'package:dux_front/features/timetree/presentation/screens/roles_permissions_screen.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
-import 'package:dux_front/features/timetree/data/repositories/timetree_groups_repository.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
+import 'package:dux_front/features/timetree/data/repositories/timetree_members_repository.dart';
 
 Widget buildRolesHarness(
   Widget widget,
@@ -111,7 +111,6 @@ void main() {
     testWidgets('renders loading states correctly', (tester) async {
       final overrides = [
         timetreeRolesProvider.overrideWith((ref) => _FakeRolesNotifier(const AsyncValue.loading(), ref)),
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(const AsyncValue.loading())),
         timetreePermissionsProvider.overrideWith((ref) => _FakePermissionsNotifier(const AsyncValue.loading())),
       ];
 
@@ -122,18 +121,22 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsWidgets);
     });
 
-    testWidgets('renders success state lists of roles and groups', (tester) async {
+    testWidgets('renders success state lists of roles and permissions', (tester) async {
       final overrides = [
         timetreeRolesProvider.overrideWith((ref) => _FakeRolesNotifier(const AsyncValue.data([
           TimetreeRole(code: 'admin', name: 'Admin'),
           TimetreeRole(code: 'viewer', name: 'Viewer'),
         ]), ref)),
-        timetreeGroupsProvider.overrideWith((ref) => _FakeGroupsNotifier(const AsyncValue.data([
-          TimetreeGroup(id: '1', name: 'Admin Group', description: 'Group for admins', active: true, roles: ['admin']),
-          TimetreeGroup(id: '2', name: 'Viewer Group', description: 'Group for viewers', active: true, roles: []),
-        ]))),
+        timetreeMembersProvider.overrideWith((ref) => _FakeMembersNotifier(const AsyncValue.data([]))),
         timetreePermissionsProvider.overrideWith((ref) => _FakePermissionsNotifier(const AsyncValue.data(
-          TimetreePermissionMatrix(categories: [], pages: []),
+          TimetreePermissionMatrix(
+            categories: [
+              TimetreeCategoryPermission(categoryId: '1', categoryName: 'Admin Category', groupIds: []),
+            ],
+            pages: [
+              TimetreePagePermission(pageId: '2', pageName: 'Viewer Page', groupIds: []),
+            ],
+          ),
         ))),
       ];
 
@@ -142,10 +145,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Admin Group'), findsOneWidget);
-      expect(find.text('Viewer Group'), findsOneWidget);
-      expect(find.text('Admin'), findsOneWidget); // Assigned role chip
-      expect(find.text('Aucun rôle assigné à ce groupe.'), findsOneWidget); // For group 2
+      expect(find.text('Admin Category'), findsOneWidget);
+      expect(find.text('Viewer Page'), findsOneWidget);
     });
   });
 }
@@ -163,17 +164,17 @@ class _FakeRolesRepo extends TimetreeRolesRepository {
   _FakeRolesRepo() : super(TimetreeApi(Dio()));
 }
 
-class _FakeGroupsNotifier extends TimetreeGroupsNotifier {
-  _FakeGroupsNotifier(AsyncValue<List<TimetreeGroup>> initialValue) : super(_FakeGroupsRepo()) {
+class _FakeMembersNotifier extends TimetreeMembersNotifier {
+  _FakeMembersNotifier(AsyncValue<List<TimetreeMember>> initialValue) : super(_FakeMembersRepo()) {
     state = initialValue;
   }
 
   @override
-  Future<void> loadGroups() async {}
+  Future<void> loadMembers() async {}
 }
 
-class _FakeGroupsRepo extends TimetreeGroupsRepository {
-  _FakeGroupsRepo() : super(TimetreeApi(Dio()));
+class _FakeMembersRepo extends TimetreeMembersRepository {
+  _FakeMembersRepo() : super(TimetreeApi(Dio()));
 }
 
 class _FakePermissionsNotifier extends TimetreePermissionsNotifier {

@@ -4,10 +4,8 @@ import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
-import 'package:dux_front/features/timetree/domain/models/timetree_group.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
-import 'package:dux_front/features/timetree/presentation/provider/timetree_groups_provider.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_members_repository.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_calendars_repository.dart';
 
@@ -23,12 +21,12 @@ class _TimetreeMembershipCalendarsScreenState
     extends ConsumerState<TimetreeMembershipCalendarsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  TimetreeGroup? _selectedGroup;
+  TimetreeCalendar? _selectedCalendar;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -42,15 +40,7 @@ class _TimetreeMembershipCalendarsScreenState
     final authState = ref.watch(authControllerProvider);
     final user = authState.user;
     final role = user?.role.toUpperCase() ?? 'MEMBER';
-    final isAdmin = role == 'ADMIN';
-    final isChef = role == 'CHEF';
-
-    // If Chef, automatically switch to tab 2 (Affectations) and disable others
-    if (isChef && _tabController.index != 2) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _tabController.animateTo(2);
-      });
-    }
+    final isAdmin = role == 'ADMIN' || role == 'ADMINISTRATEUR';
 
     return Scaffold(
       drawer: const DuxDrawer(),
@@ -58,25 +48,20 @@ class _TimetreeMembershipCalendarsScreenState
         title: const Text('TimeTree – Membres & Agendas'),
         bottom: TabBar(
           controller: _tabController,
-          tabs: [
+          tabs: const [
             Tab(
-              icon: const Icon(Icons.people_outline_rounded),
+              icon: Icon(Icons.people_outline_rounded),
               text: 'Membres',
             ),
             Tab(
-              icon: const Icon(Icons.calendar_today_outlined),
+              icon: Icon(Icons.calendar_today_outlined),
               text: 'Agendas',
-            ),
-            Tab(
-              icon: const Icon(Icons.assignment_ind_outlined),
-              text: 'Affectations',
             ),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        physics: isChef ? const NeverScrollableScrollPhysics() : null,
         children: [
           // Tab 1: Members
           isAdmin
@@ -87,16 +72,6 @@ class _TimetreeMembershipCalendarsScreenState
           isAdmin
               ? const _CalendarsTab()
               : const _RestrictedTabMessage(allowedRole: 'Admin'),
-
-          // Tab 3: Assignments
-          _AssignmentsTab(
-            selectedGroup: _selectedGroup,
-            onGroupChanged: (group) {
-              setState(() {
-                _selectedGroup = group;
-              });
-            },
-          ),
         ],
       ),
     );
@@ -237,10 +212,6 @@ class _MembersTab extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showMemberDialog(context, ref),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
@@ -303,6 +274,7 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
   late TextEditingController _fullNameCtrl;
   late TextEditingController _emailCtrl;
   late String _role;
+  String? _selectedCalendarId;
   bool _submitting = false;
 
   @override
@@ -312,6 +284,20 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
     _fullNameCtrl = TextEditingController(text: widget.member?.fullName ?? '');
     _emailCtrl = TextEditingController(text: widget.member?.email ?? '');
     _role = widget.member?.role ?? 'MEMBER';
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.member != null && widget.member!.role == 'CHEF') {
+        final calendars = ref.read(timetreeCalendarsProvider).value ?? [];
+        try {
+          final matchedCalendar = calendars.firstWhere(
+            (c) => c.members.any((m) => m.id == widget.member!.id),
+          );
+          setState(() {
+            _selectedCalendarId = matchedCalendar.id;
+          });
+        } catch (_) {}
+      }
+    });
   }
 
   @override
@@ -325,6 +311,9 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.member != null;
+    final calendarsAsync = ref.watch(timetreeCalendarsProvider);
+    final calendars = calendarsAsync.value ?? [];
+
     return AlertDialog(
       title: Text(isEdit ? 'Modifier le membre' : 'Créer un membre'),
       content: Form(
@@ -361,10 +350,32 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                   if (val != null) {
                     setState(() {
                       _role = val;
+                      if (_role != 'CHEF') {
+                        _selectedCalendarId = null;
+                      } else if (_selectedCalendarId == null && calendars.isNotEmpty) {
+                        _selectedCalendarId = calendars.first.id;
+                      }
                     });
                   }
                 },
               ),
+              if (_role == 'CHEF' && calendars.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedCalendarId ?? (calendars.isNotEmpty ? calendars.first.id : null),
+                  decoration: const InputDecoration(labelText: 'Agenda associé'),
+                  items: calendars.map((c) => DropdownMenuItem(
+                    value: c.id,
+                    child: Text(c.name),
+                  )).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedCalendarId = val;
+                    });
+                  },
+                  validator: (val) => val == null ? 'Veuillez sélectionner un agenda' : null,
+                ),
+              ],
             ],
           ),
         ),
@@ -383,6 +394,9 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                     _submitting = true;
                   });
                   try {
+                    final calendarIds = _role == 'CHEF' && _selectedCalendarId != null
+                        ? [_selectedCalendarId!]
+                        : null;
                     if (isEdit) {
                       await ref.read(timetreeMembersProvider.notifier).updateMember(
                             id: widget.member!.id,
@@ -390,6 +404,7 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                             fullName: _fullNameCtrl.text,
                             email: _emailCtrl.text,
                             role: _role,
+                            calendarIds: calendarIds,
                           );
                     } else {
                       await ref.read(timetreeMembersProvider.notifier).createMember(
@@ -397,6 +412,7 @@ class _MemberFormDialogState extends ConsumerState<_MemberFormDialog> {
                             fullName: _fullNameCtrl.text,
                             email: _emailCtrl.text,
                             role: _role,
+                            calendarIds: calendarIds,
                           );
                     }
                     if (mounted) {
@@ -447,6 +463,11 @@ class _CalendarsTab extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCalendarDialog(context, ref),
+        icon: const Icon(Icons.add),
+        label: const Text('Créer un agenda'),
+      ),
       body: Column(
         children: [
           // Search header
@@ -504,18 +525,65 @@ class _CalendarsTab extends ConsumerWidget {
                         calendarColor = Color(int.parse('FF$cleanHex', radix: 16));
                       } catch (_) {}
 
+                      final chefs = c.members
+                          .where((m) => m.role.toUpperCase() == 'CHEF')
+                          .map((m) => m.fullName)
+                          .toList();
+                      final chefsText = chefs.isNotEmpty ? chefs.join(', ') : 'Aucun';
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           leading: CircleAvatar(
                             backgroundColor: calendarColor,
-                            radius: 12,
+                            radius: 16,
+                            child: Icon(
+                              Icons.calendar_today_rounded,
+                              size: 14,
+                              color: calendarColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white,
+                            ),
                           ),
-                          title: Text(c.name),
-                          subtitle: Text(c.description),
+                          title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (c.description.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(c.description),
+                              ],
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_pin_rounded,
+                                    size: 14,
+                                    color: chefs.isNotEmpty ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      'Chef : $chefsText',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontWeight: chefs.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                                        color: chefs.isNotEmpty ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              IconButton(
+                                icon: const Icon(Icons.people_outline_rounded),
+                                onPressed: () => _showManageCalendarMembersDialog(context, ref, c),
+                                tooltip: 'Gérer les membres',
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined),
                                 onPressed: () => _showCalendarDialog(context, ref, calendar: c),
@@ -536,10 +604,13 @@ class _CalendarsTab extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCalendarDialog(context, ref),
-        child: const Icon(Icons.add),
-      ),
+    );
+  }
+
+  void _showManageCalendarMembersDialog(BuildContext context, WidgetRef ref, TimetreeCalendar calendar) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _ManageCalendarMembersDialog(calendar: calendar),
     );
   }
 
@@ -634,493 +705,234 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.calendar != null;
-    return AlertDialog(
-      title: Text(isEdit ? 'Modifier l\'agenda' : 'Créer un agenda'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(labelText: 'Nom de l\'agenda'),
-                validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
-              ),
-              TextFormField(
-                controller: _descCtrl,
-                decoration: const InputDecoration(labelText: 'Description'),
-                validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
-              ),
-              const SizedBox(height: 24),
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Couleur de l\'agenda', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _colorPalette.map((colorStr) {
-                  final cleanHex = colorStr.replaceAll('#', '');
-                  final col = Color(int.parse('FF$cleanHex', radix: 16));
-                  final isSelected = _colorHex.toUpperCase() == colorStr.toUpperCase();
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _colorHex = colorStr;
-                      });
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: col,
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: Colors.white, width: 3)
-                            : null,
-                        boxShadow: isSelected
-                            ? [
-                                const BoxShadow(
-                                  color: Colors.black26,
-                                  blurRadius: 4,
-                                  offset: Offset(0, 2),
-                                )
-                              ]
-                            : null,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
+    final theme = Theme.of(context);
+    Color parsedColor = Colors.blue;
+    try {
+      final cleanHex = _colorHex.replaceAll('#', '');
+      parsedColor = Color(int.parse('FF$cleanHex', radix: 16));
+    } catch (_) {}
+
+    return Theme(
+      data: theme.copyWith(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: parsedColor,
+          brightness: theme.brightness,
+          primary: parsedColor,
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _submitting
-              ? null
-              : () async {
-                  if (!_formKey.currentState!.validate()) return;
-                  setState(() {
-                    _submitting = true;
-                  });
-                  try {
-                    if (isEdit) {
-                      await ref.read(timetreeCalendarsProvider.notifier).updateCalendar(
-                            id: widget.calendar!.id,
-                            name: _nameCtrl.text,
-                            description: _descCtrl.text,
-                            color: _colorHex,
-                          );
-                    } else {
-                      await ref.read(timetreeCalendarsProvider.notifier).createCalendar(
-                            name: _nameCtrl.text,
-                            description: _descCtrl.text,
-                            color: _colorHex,
-                          );
-                    }
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                              isEdit ? 'Agenda mis à jour' : 'Agenda créé avec succès'),
+      child: AlertDialog(
+        title: Text(isEdit ? 'Modifier l\'agenda' : 'Créer un agenda'),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Nom de l\'agenda'),
+                  validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
+                ),
+                TextFormField(
+                  controller: _descCtrl,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                  validator: (val) => val == null || val.isEmpty ? 'Requis' : null,
+                ),
+                const SizedBox(height: 24),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Couleur de l\'agenda', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _colorPalette.map((colorStr) {
+                    final cleanHex = colorStr.replaceAll('#', '');
+                    final col = Color(int.parse('FF$cleanHex', radix: 16));
+                    final isSelected = _colorHex.toUpperCase() == colorStr.toUpperCase();
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _colorHex = colorStr;
+                        });
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: col,
+                          shape: BoxShape.circle,
+                          border: isSelected
+                              ? Border.all(color: Colors.white, width: 3)
+                              : null,
+                          boxShadow: isSelected
+                              ? [
+                                  const BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  )
+                                ]
+                              : null,
                         ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Erreur: $e')),
-                      );
-                    }
-                  } finally {
-                    if (mounted) {
-                      setState(() {
-                        _submitting = false;
-                      });
-                    }
-                  }
-                },
-          child: _submitting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Enregistrer'),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: _submitting ? null : () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: _submitting
+                ? null
+                : () async {
+                    if (!_formKey.currentState!.validate()) return;
+                    setState(() {
+                      _submitting = true;
+                    });
+                    try {
+                      if (isEdit) {
+                        await ref.read(timetreeCalendarsProvider.notifier).updateCalendar(
+                              id: widget.calendar!.id,
+                              name: _nameCtrl.text,
+                              description: _descCtrl.text,
+                              color: _colorHex,
+                            );
+                      } else {
+                        await ref.read(timetreeCalendarsProvider.notifier).createCalendar(
+                              name: _nameCtrl.text,
+                              description: _descCtrl.text,
+                              color: _colorHex,
+                            );
+                      }
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                isEdit ? 'Agenda mis à jour' : 'Agenda créé avec succès'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Erreur: $e')),
+                        );
+                      }
+                    } finally {
+                      if (mounted) {
+                        setState(() {
+                          _submitting = false;
+                        });
+                      }
+                    }
+                  },
+            child: _submitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Enregistrer'),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Assignments Tab
-// ─────────────────────────────────────────────────────────────────────────────
-class _AssignmentsTab extends ConsumerWidget {
-  const _AssignmentsTab({required this.selectedGroup, required this.onGroupChanged});
-  final TimetreeGroup? selectedGroup;
-  final ValueChanged<TimetreeGroup?> onGroupChanged;
+class _ManageCalendarMembersDialog extends ConsumerStatefulWidget {
+  final TimetreeCalendar calendar;
+  const _ManageCalendarMembersDialog({required this.calendar});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final groupsAsync = ref.watch(timetreeGroupsProvider);
-    final authState = ref.watch(authControllerProvider);
-    final user = authState.user;
-    final role = user?.role.toUpperCase() ?? 'MEMBER';
-    final isChef = role == 'CHEF';
-    final username = user?.username ?? '';
+  ConsumerState<_ManageCalendarMembersDialog> createState() => _ManageCalendarMembersDialogState();
+}
 
-    return groupsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, _) => Center(child: Text('Erreur lors du chargement des groupes: $err')),
-      data: (allGroups) {
-        // If Chef, restrict groups to only those where they are Chef
-        final groups = isChef
-            ? allGroups.where((g) => g.chef?.username == username).toList()
-            : allGroups;
+class _ManageCalendarMembersDialogState extends ConsumerState<_ManageCalendarMembersDialog> {
+  bool _loading = false;
+  late List<TimetreeMember> _currentMembers;
 
-        if (groups.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Text(
-                'Aucun groupe disponible pour la gestion.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        }
-
-        // Keep local selectedGroup reference synced with loaded data
-        TimetreeGroup? currentSelectedGroup;
-        if (selectedGroup != null) {
-          final found = groups.where((g) => g.id == selectedGroup!.id);
-          if (found.isNotEmpty) {
-            currentSelectedGroup = found.first;
-          }
-        }
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Group selector drop down
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: DropdownButtonFormField<TimetreeGroup>(
-                    value: currentSelectedGroup,
-                    hint: const Text('Choisir un groupe'),
-                    items: groups.map((g) {
-                      return DropdownMenuItem(
-                        value: g,
-                        child: Text(g.name),
-                      );
-                    }).toList(),
-                    onChanged: (g) {
-                      onGroupChanged(g);
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Groupe de travail',
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (currentSelectedGroup == null)
-                const Center(
-                  heightFactor: 4,
-                  child: Text('Veuillez sélectionner un groupe pour voir et éditer ses affectations.'),
-                )
-              else ...[
-                _buildChefSection(context, ref, currentSelectedGroup, role),
-                const SizedBox(height: 16),
-                _buildMembersSection(context, ref, currentSelectedGroup),
-                const SizedBox(height: 16),
-                _buildCalendarsSection(context, ref, currentSelectedGroup),
-              ],
-            ],
-          ),
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _currentMembers = List.from(widget.calendar.members);
   }
 
-  // Chef Section
-  Widget _buildChefSection(BuildContext context, WidgetRef ref, TimetreeGroup group, String role) {
-    final theme = Theme.of(context);
-    final chefName = group.chef?.fullName ?? 'Aucun Chef assigné';
-    final isAdmin = role == 'ADMIN';
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Chef de Groupe',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                if (isAdmin)
-                  TextButton.icon(
-                    onPressed: () => _changeChef(context, ref, group),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Modifier'),
-                  ),
-              ],
-            ),
-            const Divider(),
-            ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.person)),
-              title: Text(chefName),
-              subtitle: Text(group.chef != null ? group.chef!.email : ''),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Members Section
-  Widget _buildMembersSection(BuildContext context, WidgetRef ref, TimetreeGroup group) {
-    final theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Membres du Groupe (${group.members.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                TextButton.icon(
-                  onPressed: () => _addMembersToGroup(context, ref, group),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ajouter'),
-                ),
-              ],
-            ),
-            const Divider(),
-            if (group.members.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Aucun membre dans ce groupe.'),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: group.members.length,
-                itemBuilder: (context, index) {
-                  final m = group.members[index];
-                  return ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.person_outline),
-                    title: Text(m.fullName),
-                    subtitle: Text('${m.username} • ${m.email}'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                      onPressed: () => _removeMemberFromGroup(context, ref, group, m),
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Calendars Section
-  Widget _buildCalendarsSection(BuildContext context, WidgetRef ref, TimetreeGroup group) {
-    final theme = Theme.of(context);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Agendas du Groupe (${group.calendars.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                TextButton.icon(
-                  onPressed: () => _assignCalendarsToGroup(context, ref, group),
-                  icon: const Icon(Icons.settings),
-                  label: const Text('Gérer'),
-                ),
-              ],
-            ),
-            const Divider(),
-            if (group.calendars.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Aucun agenda assigné à ce groupe.'),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: group.calendars.length,
-                itemBuilder: (context, index) {
-                  final c = group.calendars[index];
-                  Color calendarColor = Colors.grey;
-                  try {
-                    final cleanHex = c.color.replaceAll('#', '');
-                    calendarColor = Color(int.parse('FF$cleanHex', radix: 16));
-                  } catch (_) {}
-
-                  return ListTile(
-                    dense: true,
-                    leading: CircleAvatar(
-                      backgroundColor: calendarColor,
-                      radius: 8,
-                    ),
-                    title: Text(c.name),
-                    subtitle: Text(c.description),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Change Chef logic
-  Future<void> _changeChef(BuildContext context, WidgetRef ref, TimetreeGroup group) async {
-    final membersRepo = ref.read(timetreeMembersRepositoryProvider);
-    // Load all members to pick chef from
+  Future<void> _removeMember(TimetreeMember member) async {
+    setState(() => _loading = true);
     try {
-      final allMembers = await membersRepo.getMembers();
-      // Keep only members who have the CHEF role (or ADMIN/CHEF roles)
-      final chefs = allMembers.where((m) => m.role == 'CHEF' || m.role == 'ADMIN').toList();
-
-      if (!context.mounted) return;
-
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Assigner un Chef'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: chefs.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return ListTile(
-                    title: const Text('Aucun Chef (Retirer)'),
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await _saveChef(context, ref, group, null);
-                    },
-                  );
-                }
-                final c = chefs[index - 1];
-                return ListTile(
-                  title: Text(c.fullName),
-                  subtitle: Text(c.email),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _saveChef(context, ref, group, c.id);
-                  },
-                );
-              },
-            ),
-          ),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
-    }
-  }
-
-  Future<void> _saveChef(BuildContext context, WidgetRef ref, TimetreeGroup group, String? chefId) async {
-    final membersRepo = ref.read(timetreeMembersRepositoryProvider);
-    try {
-      await membersRepo.assignChefToGroup(group.id, chefId);
-      // Reload groups to update UI
-      ref.read(timetreeGroupsProvider.notifier).loadGroups();
-      if (context.mounted) {
+      final repo = ref.read(timetreeCalendarsRepositoryProvider);
+      await repo.removeMemberFromCalendar(widget.calendar.id, member.id);
+      setState(() {
+        _currentMembers.removeWhere((m) => m.id == member.id);
+      });
+      ref.read(timetreeCalendarsProvider.notifier).loadCalendars();
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chef mis à jour avec succès')),
+          SnackBar(content: Text('${member.fullName} retiré de l\'agenda')),
         );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  // Remove Member
-  Future<void> _removeMemberFromGroup(
-      BuildContext context, WidgetRef ref, TimetreeGroup group, TimetreeMember member) async {
-    final membersRepo = ref.read(timetreeMembersRepositoryProvider);
+  Future<void> _addMember(TimetreeMember member) async {
+    setState(() => _loading = true);
     try {
-      await membersRepo.removeMemberFromGroup(group.id, member.id);
-      ref.read(timetreeGroupsProvider.notifier).loadGroups();
-      if (context.mounted) {
+      final repo = ref.read(timetreeCalendarsRepositoryProvider);
+      await repo.addMemberToCalendar(widget.calendar.id, member.id);
+      setState(() {
+        _currentMembers.add(member);
+      });
+      ref.read(timetreeCalendarsProvider.notifier).loadCalendars();
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${member.fullName} retiré du groupe')),
+          SnackBar(content: Text('${member.fullName} ajouté à l\'agenda')),
         );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  // Add Member selection dialog
-  Future<void> _addMembersToGroup(BuildContext context, WidgetRef ref, TimetreeGroup group) async {
+  Future<void> _showAddMemberSelection() async {
     final membersRepo = ref.read(timetreeMembersRepositoryProvider);
     try {
       final allMembers = await membersRepo.getMembers();
-      // Filter out members who are already in this group
       final available = allMembers
-          .where((m) => !group.members.any((existing) => existing.id == m.id))
+          .where((m) => !_currentMembers.any((existing) => existing.id == m.id))
           .toList();
 
-      if (!context.mounted) return;
+      if (!mounted) return;
 
       if (available.isEmpty) {
         showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Ajouter des membres'),
-            content: const Text('Tous les membres du système font déjà partie de ce groupe.'),
+            content: const Text('Tous les membres du système font déjà partie de cet agenda.'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fermer')),
             ],
@@ -1132,7 +944,7 @@ class _AssignmentsTab extends ConsumerWidget {
       showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Ajouter au groupe'),
+          title: const Text('Sélectionner un membre'),
           content: SizedBox(
             width: double.maxFinite,
             child: ListView.builder(
@@ -1146,21 +958,7 @@ class _AssignmentsTab extends ConsumerWidget {
                   trailing: const Icon(Icons.add_circle_outline),
                   onTap: () async {
                     Navigator.pop(context);
-                    try {
-                      await membersRepo.addMemberToGroup(group.id, m.id);
-                      ref.read(timetreeGroupsProvider.notifier).loadGroups();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${m.fullName} ajouté au groupe')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Erreur: $e')),
-                        );
-                      }
-                    }
+                    await _addMember(m);
                   },
                 );
               },
@@ -1175,128 +973,65 @@ class _AssignmentsTab extends ConsumerWidget {
     }
   }
 
-  // Manage calendars mapping dialog
-  Future<void> _assignCalendarsToGroup(BuildContext context, WidgetRef ref, TimetreeGroup group) async {
-    final calendarsRepo = ref.read(timetreeCalendarsRepositoryProvider);
-    try {
-      final allCalendars = await calendarsRepo.getCalendars();
-
-      if (!context.mounted) return;
-
-      showDialog<void>(
-        context: context,
-        builder: (context) => _ManageGroupCalendarsDialog(
-          group: group,
-          allCalendars: allCalendars,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
-    }
-  }
-}
-
-class _ManageGroupCalendarsDialog extends ConsumerStatefulWidget {
-  const _ManageGroupCalendarsDialog({required this.group, required this.allCalendars});
-  final TimetreeGroup group;
-  final List<TimetreeCalendar> allCalendars;
-
-  @override
-  ConsumerState<_ManageGroupCalendarsDialog> createState() => _ManageGroupCalendarsDialogState();
-}
-
-class _ManageGroupCalendarsDialogState extends ConsumerState<_ManageGroupCalendarsDialog> {
-  late List<String> _selectedIds;
-  bool _submitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedIds = widget.group.calendars.map((c) => c.id).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return AlertDialog(
-      title: const Text('Gérer les agendas'),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              'Membres – ${widget.calendar.name}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            onPressed: _loading ? null : _showAddMemberSelection,
+            tooltip: 'Ajouter un membre',
+          ),
+        ],
+      ),
       content: SizedBox(
         width: double.maxFinite,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: widget.allCalendars.length,
-          itemBuilder: (context, index) {
-            final c = widget.allCalendars[index];
-            final isChecked = _selectedIds.contains(c.id);
-            Color calendarColor = Colors.grey;
-            try {
-              final cleanHex = c.color.replaceAll('#', '');
-              calendarColor = Color(int.parse('FF$cleanHex', radix: 16));
-            } catch (_) {}
-
-            return CheckboxListTile(
-              secondary: CircleAvatar(backgroundColor: calendarColor, radius: 8),
-              title: Text(c.name),
-              value: isChecked,
-              onChanged: (checked) {
-                setState(() {
-                  if (checked == true) {
-                    _selectedIds.add(c.id);
-                  } else {
-                    _selectedIds.remove(c.id);
-                  }
-                });
-              },
-            );
-          },
-        ),
+        height: 300,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _currentMembers.isEmpty
+                ? Center(
+                    child: Text(
+                      'Aucun membre dans cet agenda.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontStyle: FontStyle.italic,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _currentMembers.length,
+                    itemBuilder: (context, index) {
+                      final m = _currentMembers[index];
+                      return ListTile(
+                        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                        title: Text(m.fullName),
+                        subtitle: Text(m.role),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                          onPressed: () => _removeMember(m),
+                        ),
+                      );
+                    },
+                  ),
       ),
       actions: [
         TextButton(
-          onPressed: _submitting ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _submitting
-              ? null
-              : () async {
-                  setState(() {
-                    _submitting = true;
-                  });
-                  try {
-                    final calendarsRepo = ref.read(timetreeCalendarsRepositoryProvider);
-                    await calendarsRepo.assignCalendarsToGroup(widget.group.id, _selectedIds);
-                    ref.read(timetreeGroupsProvider.notifier).loadGroups();
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Agendas affectés avec succès')),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Erreur: $e')),
-                      );
-                    }
-                  } finally {
-                    if (mounted) {
-                      setState(() {
-                        _submitting = false;
-                      });
-                    }
-                  }
-                },
-          child: _submitting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Text('Enregistrer'),
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fermer'),
         ),
       ],
     );
   }
 }
+

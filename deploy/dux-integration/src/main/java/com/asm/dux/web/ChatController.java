@@ -32,7 +32,6 @@ public class ChatController {
     private final NotificationService notificationService;
     
     private final MemberRepository memberRepository;
-    private final GroupRepository groupRepository;
     private final SimpMessageSendingOperations messagingTemplate;
     private final DuplicateMessageDetector duplicateMessageDetector;
     private final WebSocketMetricsService metricsService;
@@ -41,6 +40,7 @@ public class ChatController {
 
     // Get paginated chat messages for an event
     @GetMapping("/{id}/messages")
+    @Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<?> getMessages(
             @PathVariable Long id,
             @RequestParam(defaultValue = "0") int page,
@@ -80,7 +80,7 @@ public class ChatController {
 
     // Post a new message
     @PostMapping("/{id}/messages")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> sendMessage(
             @PathVariable Long id,
             @RequestBody Map<String, Object> body) {
@@ -125,14 +125,14 @@ public class ChatController {
         updateReadMarker(event, current, saved.getId());
 
         // Notify other group members who have access to this event
-        notifyGroupMembers(event, current, text, saved.getId());
+        notifyCalendarMembers(event, current, text, saved.getId());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(mapToMessageMap(saved));
     }
 
     // Mark chat as read
     @PostMapping("/{id}/chat/read")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public ResponseEntity<?> markRead(@PathVariable Long id) {
         log.info("POST chat/read for event id={}", id);
 
@@ -171,7 +171,7 @@ public class ChatController {
 
     // WebSocket STOMP: Real-time message delivery
     @MessageMapping("event.{id}.send")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public void handleStompMessage(@DestinationVariable Long id, Map<String, Object> body, Principal principal) {
         long startTime = System.currentTimeMillis();
         metricsService.incrementMessages();
@@ -249,7 +249,7 @@ public class ChatController {
         queueForOfflineMembers(event, sender, messagePayload);
 
         // Notify other group members (push notifications)
-        notifyGroupMembers(event, sender, text, saved.getId());
+        notifyCalendarMembers(event, sender, text, saved.getId());
 
         // Send direct ACK with clientMessageId + serverMessageId + timestamp
         sendStompAck(sender, clientMessageId, saved.getId());
@@ -291,7 +291,7 @@ public class ChatController {
 
     // WebSocket STOMP: Real-time read receipt updates
     @MessageMapping("event.{id}.read")
-    @Transactional
+    @Transactional(value = "timertreeTransactionManager")
     public void handleStompRead(@DestinationVariable Long id, Principal principal) {
         if (principal == null) return;
         String username = principal.getName();
@@ -361,36 +361,57 @@ public class ChatController {
         messagingTemplate.convertAndSendToUser(sender.getUsername(), "/queue/ack", ackPayload);
     }
 
-    private void notifyGroupMembers(Event event, Member current, String text, Long msgId) {
-        Group group = event.getGroup();
-        if (group != null) {
-            List<Member> members = groupRepository.findMembersByGroupId(group.getId());
-            for (Member m : members) {
+    private List<String> extractMentions(String text) {
+        List<String> mentions = new ArrayList<>();
+        if (text == null) return mentions;
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("@([a-zA-Z0-9_]+)");
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            mentions.add(matcher.group(1));
+        }
+        return mentions;
+    }
+
+    private void notifyCalendarMembers(Event event, Member current, String text, Long msgId) {
+        if (event.getCalendar() != null && event.getCalendar().getMembers() != null) {
+            List<String> mentionedUsernames = extractMentions(text);
+            for (Member m : event.getCalendar().getMembers()) {
                 if (!m.getId().equals(current.getId())) {
-                    notificationService.triggerNotification(
-                            m,
-                            "Nouveau message dans " + event.getTitle(),
-                            current.getFullName() + ": " + text,
-                            "NEW_MESSAGE",
-                            "MESSAGE",
-                            msgId,
-                            "NEW"
-                    );
+                    boolean isMentioned = mentionedUsernames.contains(m.getUsername());
+                    if (isMentioned) {
+                        notificationService.triggerNotification(
+                                m,
+                                "Nouvelle mention dans " + event.getTitle(),
+                                current.getFullName() + " vous a mentionné: " + text,
+                                "MENTION",
+                                "MESSAGE",
+                                msgId,
+                                "MENTIONED"
+                        );
+                    } else {
+                        notificationService.triggerNotification(
+                                m,
+                                "Nouveau message dans " + event.getTitle(),
+                                current.getFullName() + ": " + text,
+                                "NEW_MESSAGE",
+                                "MESSAGE",
+                                msgId,
+                                "NEW"
+                        );
+                    }
                 }
             }
         }
     }
 
-    /** Queue the message payload for all offline group members for replay on reconnect. */
+    /** Queue the message payload for all offline calendar members for replay on reconnect. */
     private void queueForOfflineMembers(Event event, Member sender, Map<String, Object> payload) {
         try {
-            Group group = event.getGroup();
-            if (group == null) return;
-            List<String> usernames = groupRepository.findMemberUsernamesByGroupId(group.getId());
-            for (String username : usernames) {
-                if (!username.equals(sender.getUsername()) && !presenceService.isOnline(username)) {
-                    offlineQueueService.enqueue(username, payload);
-                    log.debug("Queued offline message for user={} event={}", username, event.getId());
+            if (event.getCalendar() == null || event.getCalendar().getMembers() == null) return;
+            for (Member m : event.getCalendar().getMembers()) {
+                if (!m.getUsername().equals(sender.getUsername()) && !presenceService.isOnline(m.getUsername())) {
+                    offlineQueueService.enqueue(m.getUsername(), payload);
+                    log.debug("Queued offline message for user={} event={}", m.getUsername(), event.getId());
                 }
             }
         } catch (Exception e) {

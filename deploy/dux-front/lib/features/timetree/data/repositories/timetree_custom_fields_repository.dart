@@ -146,7 +146,7 @@ class TimetreeCustomFieldsRepository {
   }
 
   /// Save custom field values for a specific entity
-  Future<void> saveCustomFieldValues(String entityType, String entityId, Map<String, String> values) async {
+  Future<void> saveCustomFieldValues(String entityType, String entityId, Map<String, dynamic> values) async {
     try {
       await _api.saveCustomFieldValues(entityType, entityId, values);
     } catch (e) {
@@ -154,6 +154,7 @@ class TimetreeCustomFieldsRepository {
       throw ApiExceptionHandler.handle(e);
     }
   }
+
 }
 
 /// Provider for [TimetreeCustomFieldsRepository].
