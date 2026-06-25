@@ -322,7 +322,7 @@ class DuxDrawer extends ConsumerWidget {
                     color: theme.colorScheme.primary,
                   ),
                   title: Text(
-                    'Espace DUX TimeTree',
+                    'Espace Dux Calendar',
                     style: theme.textTheme.bodyLarge?.copyWith(
                       color: theme.colorScheme.onSurface,
                     ),
@@ -465,7 +465,7 @@ class _TimetreeDrawer extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'TimeTree',
+                    'Dux Calendar',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.primary,

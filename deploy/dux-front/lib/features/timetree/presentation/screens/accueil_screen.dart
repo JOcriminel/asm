@@ -8,8 +8,8 @@ class TimetreeAccueilScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: const DuxDrawer(),
-      appBar: AppBar(title: const Text('TimeTree Accueil')),
-      body: const Center(child: Text('Welcome to TimeTree')),
+      appBar: AppBar(title: const Text('Dux Calendar Accueil')),
+      body: const Center(child: Text('Welcome to Dux Calendar')),
     );
   }
 }

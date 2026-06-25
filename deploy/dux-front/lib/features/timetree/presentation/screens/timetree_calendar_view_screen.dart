@@ -941,7 +941,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                               decoration: BoxDecoration(
                                 color: calendarColor,
                                 borderRadius: BorderRadius.circular(6),
-                                image: coverBase64.isNotEmpty
+                                image: coverBase64.isNotEmpty && coverBase64 != 'default'
                                     ? DecorationImage(
                                         image: MemoryImage(base64Decode(coverBase64)),
                                         fit: BoxFit.cover,
@@ -962,7 +962,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                                         ),
                                       ),
                                     )
-                                  : (coverBase64.isEmpty
+                                  : (coverBase64.isEmpty || coverBase64 == 'default'
                                       ? Center(
                                           child: Icon(
                                             iconData,

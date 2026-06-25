@@ -23,7 +23,7 @@ class TimetreeCategoriesScreen extends ConsumerWidget {
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('TimeTree – Catégories'),
+        title: const Text('Dux Calendar – Catégories'),
         elevation: 0,
       ),
       body: Column(
