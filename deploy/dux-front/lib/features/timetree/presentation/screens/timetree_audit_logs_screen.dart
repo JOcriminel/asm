@@ -165,7 +165,7 @@ class _TimetreeAuditLogsScreenState extends ConsumerState<TimetreeAuditLogsScree
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('TimeTree – Journal d\'Audit'),
+        title: const Text('Dux Calender – Journal d\'Audit'),
         elevation: 0,
         actions: [
           if (_isExporting)

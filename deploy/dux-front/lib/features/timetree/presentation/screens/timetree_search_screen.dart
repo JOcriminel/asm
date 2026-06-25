@@ -43,7 +43,7 @@ class _TimetreeSearchScreenState extends ConsumerState<TimetreeSearchScreen> wit
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('Dux Calendar – Recherche Globale'),
+        title: const Text('Dux Calender – Recherche Globale'),
         elevation: 0,
         bottom: TabBar(
           controller: _tabController,

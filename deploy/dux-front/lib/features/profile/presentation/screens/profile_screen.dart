@@ -39,7 +39,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (currentMember == null || currentMember.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Veuillez patienter pendant le chargement de votre compte TimeTree.'),
+          content: Text('Veuillez patienter pendant le chargement de votre compte Dux Calender.'),
           backgroundColor: Colors.orange,
         ),
       );

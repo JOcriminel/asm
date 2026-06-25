@@ -26,7 +26,7 @@ class TimetreePagesScreen extends ConsumerWidget {
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('TimeTree – Pages'),
+        title: const Text('Dux Calender – Pages'),
         elevation: 0,
       ),
       body: Column(

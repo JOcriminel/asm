@@ -145,7 +145,7 @@ class WorkspaceSelectorScreen extends ConsumerWidget {
                                   const SizedBox(width: 24),
                                   _buildWorkspaceCard(
                                     context: context,
-                                    title: 'DUX TimeTree',
+                                    title: 'Dux Calender',
                                     subtitle: 'Espace Administration & Menus',
                                     description:
                                         'Gérez vos catégories, pages dynamiques, groupes de menus et rôles d\'utilisateurs.',
@@ -176,7 +176,7 @@ class WorkspaceSelectorScreen extends ConsumerWidget {
                                   const SizedBox(height: 24),
                                   _buildWorkspaceCard(
                                     context: context,
-                                    title: 'DUX TimeTree',
+                                    title: 'Dux Calender',
                                     subtitle: 'Espace Administration & Menus',
                                     description:
                                         'Gérez vos catégories, pages dynamiques, groupes de menus et rôles d\'utilisateurs.',

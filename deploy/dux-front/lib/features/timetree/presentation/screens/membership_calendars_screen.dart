@@ -45,7 +45,7 @@ class _TimetreeMembershipCalendarsScreenState
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('TimeTree – Membres & Agendas'),
+        title: const Text('Dux Calender – Membres & Agendas'),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

@@ -44,7 +44,7 @@ class _TimetreeRolesPermissionsScreenState extends ConsumerState<TimetreeRolesPe
       child: Scaffold(
         drawer: const DuxDrawer(),
         appBar: AppBar(
-          title: const Text('TimeTree – Rôles & Permissions'),
+          title: const Text('Dux Calender – Rôles & Permissions'),
           bottom: TabBar(
             controller: _tabController,
             tabs: const [

@@ -43,7 +43,37 @@ services:
       - TIMETREE_DB_HOST=sqlsrv
       - TIMETREE_DB_USER=sa
       - TIMETREE_DB_PASS=P5v9yast34Iy9qU
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SPRING_WEBSOCKET_BROKER_TYPE=relay
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
+      - TIMETREE_WEBSOCKET_RELAY_STOMP_PORT=61613
     depends_on:
       - sqlsrv
       - keycloak
+      - redis
+      - rabbitmq
     restart: always
+
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: always
+
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3.12-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "61613:61613"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    command: sh -c "rabbitmq-plugins enable --offline rabbitmq_stomp && rabbitmq-server"
+    restart: always
+

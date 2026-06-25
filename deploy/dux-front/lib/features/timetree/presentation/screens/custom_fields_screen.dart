@@ -66,7 +66,7 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
     if (role == 'MEMBER') {
       return Scaffold(
         drawer: const DuxDrawer(),
-        appBar: AppBar(title: const Text('TimeTree – Champs Personnalisés')),
+        appBar: AppBar(title: const Text('Dux Calender – Champs Personnalisés')),
         body: const _RestrictedAccessMessage(),
       );
     }
@@ -83,7 +83,7 @@ class _TimetreeCustomFieldsScreenState extends ConsumerState<TimetreeCustomField
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('TimeTree – Champs Personnalisés'),
+        title: const Text('Dux Calender – Champs Personnalisés'),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

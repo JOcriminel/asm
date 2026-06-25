@@ -16,7 +16,7 @@ class TimetreeDashboardScreen extends ConsumerWidget {
     return Scaffold(
       drawer: const DuxDrawer(),
       appBar: AppBar(
-        title: const Text('TimeTree – Tableau de bord'),
+        title: const Text('Dux Calender – Tableau de bord'),
         centerTitle: false,
         elevation: 0,
         actions: [
