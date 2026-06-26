@@ -722,6 +722,33 @@ class _TimetreeDrawer extends ConsumerWidget {
                 const Divider(),
                 ListTile(
                   leading: Icon(
+                    Icons.person_rounded,
+                    color: currentRoute == '/timetree/profile'
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    'Mon profil',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: currentRoute == '/timetree/profile'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: currentRoute == '/timetree/profile'
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  selected: currentRoute == '/timetree/profile',
+                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/timetree/profile');
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
                     Icons.phone_android_rounded,
                     color: theme.colorScheme.primary,
                   ),

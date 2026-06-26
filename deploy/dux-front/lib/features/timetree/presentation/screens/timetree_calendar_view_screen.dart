@@ -566,185 +566,272 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                 ),
               ),
             ),
-            child: GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: 0.6,
-              ),
-              itemCount: 42,
-              itemBuilder: (context, index) {
-                final cellDate = cellDates[index];
-                final cellDayNumber = cellDate.day;
-                final isCurrentMonth = cellDate.month == focusedDate.month;
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final totalWidth = constraints.maxWidth;
+                final totalHeight = constraints.maxHeight;
+                final cellWidth = totalWidth / 7;
+                final cellHeight = totalHeight / 6;
 
-                final dayEvents = events.where((e) {
-                  final start = e.startDate;
-                  final end = e.endDate;
-                  final cellStart = DateTime(cellDate.year, cellDate.month, cellDate.day, 0, 0, 0);
-                  final cellEnd = DateTime(cellDate.year, cellDate.month, cellDate.day, 23, 59, 59);
-                  return start.isBefore(cellEnd) && end.isAfter(cellStart);
-                }).toList();
+                const double dayHeaderHeight = 20.0;
+                const double slotHeight = 14.0;
+                const double slotSpacing = 2.0;
 
-                // Highlight current date
-                final now = DateTime.now();
-                final isToday = cellDate.year == now.year && cellDate.month == now.month && cellDate.day == now.day;
+                final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
 
-                final dayColor = isToday
-                    ? theme.colorScheme.primary
-                    : (cellDate.weekday == 7
-                        ? Colors.red
-                        : (isCurrentMonth
-                            ? (theme.brightness == Brightness.dark ? Colors.white70 : Colors.black87)
-                            : (theme.brightness == Brightness.dark ? Colors.grey[700] : Colors.grey[400])));
+                return Column(
+                  children: List.generate(6, (w) {
+                    final weekStart = w * 7;
+                    final List<Widget> weekEventWidgets = [];
 
-                final cellBgColor = isToday
-                    ? (theme.brightness == Brightness.dark ? Colors.blue.withOpacity(0.1) : theme.colorScheme.primary.withValues(alpha: 0.15))
-                    : (theme.brightness == Brightness.dark ? Colors.black : theme.colorScheme.surfaceContainer);
+                    // Scan event slots (0 to 4) for this week
+                    for (int idx = 0; idx < 5; idx++) {
+                      int d = 0;
+                      while (d < 7) {
+                        final index = weekStart + d;
 
-                final borderSideColor = theme.brightness == Brightness.dark ? Colors.grey[900]! : Colors.grey[200]!;
+                        // Check if slot 4 is used for "+X de plus" on this day
+                        final isMoreIndicatorSlot = idx == 4 && cellEventCounts[index] > 5;
 
-                return InkWell(
-                  onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
-                  child: Container(
-                    margin: EdgeInsets.zero,
-                    decoration: BoxDecoration(
-                      color: cellBgColor,
-                      border: Border(
-                        bottom: BorderSide(color: borderSideColor, width: 0.5),
-                        right: BorderSide(color: borderSideColor, width: 0.5),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Align(
-                          alignment: Alignment.topCenter,
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 4.0, bottom: 2.0),
-                            child: Text(
-                              '$cellDayNumber',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 10,
-                                color: dayColor,
+                        if (isMoreIndicatorSlot) {
+                          final cellDate = cellDates[index];
+                          final dayEvents = events.where((e) {
+                            final start = e.startDate;
+                            final end = e.endDate;
+                            final cellStart = DateTime(cellDate.year, cellDate.month, cellDate.day, 0, 0, 0);
+                            final cellEnd = DateTime(cellDate.year, cellDate.month, cellDate.day, 23, 59, 59);
+                            return start.isBefore(cellEnd) && end.isAfter(cellStart);
+                          }).toList();
+
+                          weekEventWidgets.add(
+                            Positioned(
+                              left: d * cellWidth,
+                              width: cellWidth,
+                              top: dayHeaderHeight + idx * (slotHeight + slotSpacing),
+                              height: slotHeight,
+                              child: Center(
+                                child: InkWell(
+                                  onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
+                                  child: Text(
+                                    '+${cellEventCounts[index] - 4} de plus',
+                                    style: theme.textTheme.labelSmall?.copyWith(fontSize: 8, color: Colors.blueAccent),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: ListView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: cellSlots[index].length > 4 ? 5 : cellSlots[index].length,
-                            itemBuilder: (context, idx) {
-                              if (idx == 4 && cellEventCounts[index] > 5) {
-                                return Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      '+${cellEventCounts[index] - 4} de plus',
-                                      style: theme.textTheme.labelSmall?.copyWith(fontSize: 8, color: Colors.blueAccent),
+                          );
+                          d++;
+                          continue;
+                        }
+
+                        final event = (idx < cellSlots[index].length) ? cellSlots[index][idx] : null;
+                        if (event != null) {
+                          int startCol = d;
+                          int endCol = d;
+
+                          // Find how long this event continues in this week at this slot
+                          while (endCol < 6) {
+                            final nextIndex = weekStart + endCol + 1;
+                            final nextIsMoreIndicator = idx == 4 && cellEventCounts[nextIndex] > 5;
+                            if (nextIsMoreIndicator) break;
+
+                            final nextEvent = (idx < cellSlots[nextIndex].length) ? cellSlots[nextIndex][idx] : null;
+                            if (nextEvent != null && nextEvent.id == event.id) {
+                              endCol++;
+                            } else {
+                              break;
+                            }
+                          }
+
+                          final segmentLength = endCol - startCol + 1;
+                          final segmentStartIndex = weekStart + startCol;
+
+                          // Determine border radius and margins
+                          final bool isStartCell = (segmentStartIndex == 0) || 
+                              (segmentStartIndex > 0 && (cellSlots[segmentStartIndex - 1].length <= idx || cellSlots[segmentStartIndex - 1][idx]?.id != event.id));
+
+                          final lastIndex = weekStart + endCol;
+                          final bool isEndCell = (lastIndex == 41) || 
+                              (lastIndex < 41 && (cellSlots[lastIndex + 1].length <= idx || cellSlots[lastIndex + 1][idx]?.id != event.id));
+
+                          final double marginLeft = isStartCell ? 2.0 : 0.0;
+                          final double marginRight = isEndCell ? 2.0 : 0.0;
+
+                          final borderRadius = BorderRadius.only(
+                            topLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
+                            bottomLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
+                            topRight: isEndCell ? const Radius.circular(4) : Radius.zero,
+                            bottomRight: isEndCell ? const Radius.circular(4) : Radius.zero,
+                          );
+
+                          final color = event.color != null && event.color!.isNotEmpty
+                              ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
+                              : _getCalendarColor(event.calendarId, calendars);
+
+                          final bool isSpanning = event.endDate.difference(event.startDate).inHours > 24;
+                          final bool isSpanningOrAllDay = event.allDay || isSpanning;
+
+                          final chipBgColor = isSpanningOrAllDay ? color : color.withValues(alpha: 0.15);
+                          final chipTextColor = isSpanningOrAllDay ? Colors.white : color;
+
+                          final unreadCount = unreadCounts[event.id.toString()] ?? 0;
+
+                          final chip = Container(
+                            margin: EdgeInsets.only(
+                              left: marginLeft,
+                              right: marginRight,
+                              top: 1,
+                              bottom: 1,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: chipBgColor,
+                              borderRadius: borderRadius,
+                            ),
+                            height: slotHeight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    event.title,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 8.2, 
+                                      color: chipTextColor, 
+                                      fontWeight: isSpanningOrAllDay ? FontWeight.bold : FontWeight.w600,
+                                      letterSpacing: -0.3,
+                                      height: 1.0,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                                if (unreadCount > 0)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 2),
+                                    width: 4,
+                                    height: 4,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
                                     ),
                                   ),
-                                );
-                              }
+                              ],
+                            ),
+                          );
 
-                              final event = cellSlots[index][idx];
-                              if (event == null) {
-                                return const SizedBox(height: 14);
-                              }
+                          final segmentStartDate = cellDates[segmentStartIndex];
+                          final segmentDayEvents = events.where((e) {
+                            final start = e.startDate;
+                            final end = e.endDate;
+                            final cellStart = DateTime(segmentStartDate.year, segmentStartDate.month, segmentStartDate.day, 0, 0, 0);
+                            final cellEnd = DateTime(segmentStartDate.year, segmentStartDate.month, segmentStartDate.day, 23, 59, 59);
+                            return start.isBefore(cellEnd) && end.isAfter(cellStart);
+                          }).toList();
 
-                              final color = event.color != null && event.color!.isNotEmpty
-                                  ? Color(int.tryParse(event.color!) ?? Colors.blue.value)
-                                  : _getCalendarColor(event.calendarId, calendars);
+                          weekEventWidgets.add(
+                            Positioned(
+                              left: startCol * cellWidth,
+                              width: segmentLength * cellWidth,
+                              top: dayHeaderHeight + idx * (slotHeight + slotSpacing),
+                              height: slotHeight + slotSpacing,
+                              child: InkWell(
+                                onTap: () => _showDayEventsBottomSheet(context, segmentStartDate, segmentDayEvents, calendars),
+                                child: chip,
+                              ),
+                            ),
+                          );
 
-                              final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
-                              final unreadCount = unreadCounts[event.id.toString()] ?? 0;
+                          d = endCol + 1;
+                        } else {
+                          d++;
+                        }
+                      }
+                    }
 
-                              // Determine if this is the start cell for this event in this week
-                              final int weekStartIdx = (index ~/ 7) * 7;
-                              final bool isStartCell = (index == weekStartIdx) || 
-                                  (index > weekStartIdx && (cellSlots[index - 1].length <= idx || cellSlots[index - 1][idx]?.id != event.id));
+                    return SizedBox(
+                      width: totalWidth,
+                      height: cellHeight,
+                      child: Stack(
+                        children: [
+                          // Background row of 7 day cells
+                          Row(
+                            children: List.generate(7, (d) {
+                              final index = weekStart + d;
+                              final cellDate = cellDates[index];
+                              final cellDayNumber = cellDate.day;
+                              final isCurrentMonth = cellDate.month == focusedDate.month;
 
-                              // Determine if this is the end cell for this event in this week
-                              final int weekEndIdx = weekStartIdx + 6;
-                              final bool isEndCell = (index == weekEndIdx) || 
-                                  (index < 41 && (cellSlots[index + 1].length <= idx || cellSlots[index + 1][idx]?.id != event.id));
+                              final dayEvents = events.where((e) {
+                                final start = e.startDate;
+                                final end = e.endDate;
+                                final cellStart = DateTime(cellDate.year, cellDate.month, cellDate.day, 0, 0, 0);
+                                final cellEnd = DateTime(cellDate.year, cellDate.month, cellDate.day, 23, 59, 59);
+                                return start.isBefore(cellEnd) && end.isAfter(cellStart);
+                              }).toList();
 
-                              final double marginLeft = isStartCell ? 2.0 : 0.0;
-                              final double marginRight = isEndCell ? 2.0 : 0.0;
+                              final now = DateTime.now();
+                              final isToday = cellDate.year == now.year && cellDate.month == now.month && cellDate.day == now.day;
 
-                              final borderRadius = BorderRadius.only(
-                                topLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
-                                bottomLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
-                                topRight: isEndCell ? const Radius.circular(4) : Radius.zero,
-                                bottomRight: isEndCell ? const Radius.circular(4) : Radius.zero,
-                              );
+                              final dayColor = isToday
+                                  ? theme.colorScheme.primary
+                                  : (cellDate.weekday == 7
+                                      ? Colors.red
+                                      : (isCurrentMonth
+                                          ? (theme.brightness == Brightness.dark ? Colors.white70 : Colors.black87)
+                                          : (theme.brightness == Brightness.dark ? Colors.grey[700] : Colors.grey[400])));
 
-                              final bool isSpanning = event.endDate.difference(event.startDate).inHours > 24;
-                              final bool isSpanningOrAllDay = event.allDay || isSpanning;
+                              final cellBgColor = isToday
+                                  ? (theme.brightness == Brightness.dark ? Colors.blue.withOpacity(0.1) : theme.colorScheme.primary.withValues(alpha: 0.15))
+                                  : (theme.brightness == Brightness.dark ? Colors.black : theme.colorScheme.surfaceContainer);
 
-                              final chipBgColor = isSpanningOrAllDay ? color : color.withValues(alpha: 0.15);
-                              final chipTextColor = isSpanningOrAllDay ? Colors.white : color;
+                              final borderSideColor = theme.brightness == Brightness.dark ? Colors.grey[900]! : Colors.grey[200]!;
 
-                              final chip = Container(
-                                margin: EdgeInsets.only(
-                                  left: marginLeft,
-                                  right: marginRight,
-                                  top: 1,
-                                  bottom: 1,
-                                ),
-                                padding: const EdgeInsets.symmetric(horizontal: 2),
-                                alignment: Alignment.centerLeft,
-                                decoration: BoxDecoration(
-                                  color: chipBgColor,
-                                  borderRadius: borderRadius,
-                                ),
-                                height: 14,
-                                child: isStartCell
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          Expanded(
+                              return Expanded(
+                                child: InkWell(
+                                  onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: cellBgColor,
+                                      border: Border(
+                                        bottom: BorderSide(color: borderSideColor, width: 0.5),
+                                        right: BorderSide(color: borderSideColor, width: 0.5),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        Align(
+                                          alignment: Alignment.topCenter,
+                                          child: Padding(
+                                            padding: const EdgeInsets.only(top: 4.0, bottom: 2.0),
                                             child: Text(
-                                              event.title,
-                                              style: TextStyle(
-                                                fontSize: 8.2, 
-                                                color: chipTextColor, 
-                                                fontWeight: isSpanningOrAllDay ? FontWeight.bold : FontWeight.w600,
-                                                letterSpacing: -0.3,
-                                                height: 1.0,
+                                              '$cellDayNumber',
+                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                                fontSize: 10,
+                                                color: dayColor,
                                               ),
-                                              overflow: TextOverflow.ellipsis,
-                                              maxLines: 1,
                                             ),
                                           ),
-                                          if (unreadCount > 0)
-                                            Container(
-                                              margin: const EdgeInsets.only(left: 2),
-                                              width: 4,
-                                              height: 4,
-                                              decoration: const BoxDecoration(
-                                                color: Colors.red,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                        ],
-                                      )
-                                    : const SizedBox.shrink(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               );
-
-                              return InkWell(
-                                onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
-                                child: chip,
-                              );
-                            },
+                            }),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
+                          // Foreground event chips
+                          ...weekEventWidgets,
+                        ],
+                      ),
+                    );
+                  }),
                 );
               },
             ),

@@ -457,6 +457,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       builder: (context, state) => const TimetreeAuditLogsScreen(),
     ),
     GoRoute(
+      path: '/timetree/profile',
+      name: 'timetreeProfile',
+      builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
       path: '/timetree/search',
       name: 'timetreeSearch',
       builder: (context, state) => const TimetreeSearchScreen(),
