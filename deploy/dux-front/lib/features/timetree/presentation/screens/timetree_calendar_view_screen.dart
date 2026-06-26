@@ -232,7 +232,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                           (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
                       return ListTile(
                         leading: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
-                        title: Text(isDark ? 'Mode sombre/clair'),
+                        title: Text(isDark ? 'Mode clair' : 'Mode sombre'),
                       );
                     },
                   ),
