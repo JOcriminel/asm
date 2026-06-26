@@ -6,6 +6,10 @@ import 'package:dux_front/features/auth/presentation/controllers/auth_controller
 import 'package:dux_front/features/timetree/presentation/provider/timetree_chat_provider.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_message.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_events_provider.dart';
+import 'package:dux_front/features/timetree/data/repositories/timetree_custom_fields_repository.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_custom_field_value.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_tag.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 
 class TimetreeEventDetailsDialog extends ConsumerStatefulWidget {
   final TimetreeEvent event;
@@ -31,13 +35,35 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
   bool _isLiked = false;
   bool _isAttending = false;
 
+  List<TimetreeCustomFieldValue> _customFieldValues = [];
+  bool _loadingCustomFields = false;
+
   @override
   void initState() {
     super.initState();
+    _loadCustomFieldValues();
     // Scroll to bottom when frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
     });
+  }
+
+  Future<void> _loadCustomFieldValues() async {
+    setState(() => _loadingCustomFields = true);
+    try {
+      final baseEventId = widget.event.id.split('_rec_').first;
+      final values = await ref.read(timetreeCustomFieldsRepositoryProvider).getCustomFieldValues('EVENT', baseEventId);
+      if (mounted) {
+        setState(() {
+          _customFieldValues = values;
+          _loadingCustomFields = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadingCustomFields = false);
+      }
+    }
   }
 
   @override
@@ -168,9 +194,6 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
     final authState = ref.watch(authControllerProvider);
     final currentUsername = authState.user?.username ?? '';
 
-    final dateStr = formatDetailsDate(ev.startDate);
-    final timeStr = ev.allDay ? 'Jour entier' : formatFrenchTime(ev.startDate);
-
     // Messages ordered chronologically (oldest at the top, newest at the bottom)
     final messages = chatState.messages.reversed.toList();
 
@@ -204,58 +227,139 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Large Event Details
+                          const SizedBox(height: 16),
+ 
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  dateStr,
-                                  style: TextStyle(
-                                    color: textColor.withOpacity(0.9),
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  timeStr,
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Event Rows (Alarm, Calendar/Category, Tag/Color name)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Column(
                               children: [
-                                _buildDetailRow(
-                                  icon: Icons.alarm_on_rounded,
-                                  iconColor: iconColor,
-                                  text: getReminderLabel(ev.startDate, ev.reminders),
-                                  textColor: textColor,
+                                // Card 1: Time, Alarm & Agenda
+                                _buildDetailsCard(
+                                  isDark: isDark,
+                                  children: [
+                                    _buildDetailRow(
+                                      icon: Icons.access_time_rounded,
+                                      iconColor: iconColor,
+                                      text: formatDateTimeRange(ev),
+                                      textColor: textColor,
+                                    ),
+                                    _buildDetailRow(
+                                      icon: Icons.alarm_on_rounded,
+                                      iconColor: iconColor,
+                                      text: getReminderLabel(ev.startDate, ev.reminders),
+                                      textColor: textColor,
+                                    ),
+                                    _buildDetailRow(
+                                      icon: Icons.calendar_today_rounded,
+                                      iconColor: iconColor,
+                                      text: ev.calendarName ?? 'Travail',
+                                      textColor: textColor,
+                                    ),
+                                    _buildDetailRow(
+                                      icon: Icons.local_offer_outlined,
+                                      iconColor: iconColor,
+                                      text: getColorName(ev.color),
+                                      textColor: textColor,
+                                    ),
+                                    if (ev.description != null && ev.description!.isNotEmpty)
+                                      _buildDetailRow(
+                                        icon: Icons.description_outlined,
+                                        iconColor: iconColor,
+                                        text: ev.description!,
+                                        textColor: textColor,
+                                      ),
+                                  ],
                                 ),
-                                _buildDetailRow(
-                                  icon: Icons.calendar_today_rounded,
-                                  iconColor: iconColor,
-                                  text: ev.calendarName ?? 'Travail',
-                                  textColor: textColor,
+
+                                // Card 2: Event Details (Status, Priority, Recurrence, Tags, Dependencies)
+                                _buildDetailsCard(
+                                  isDark: isDark,
+                                  children: [
+                                    _buildDetailRow(
+                                      icon: Icons.info_outline_rounded,
+                                      iconColor: iconColor,
+                                      text: "Nom: ${ev.nomEvent ?? ev.title}",
+                                      textColor: textColor,
+                                    ),
+                                    _buildDetailRow(
+                                      icon: Icons.repeat_rounded,
+                                      iconColor: iconColor,
+                                      text: "Répétition: ${getRecurrenceLabel(ev.recurrenceRule, ev.recurrenceEndDate)}",
+                                      textColor: textColor,
+                                    ),
+                                    _buildDetailRow(
+                                      icon: Icons.hourglass_empty_rounded,
+                                      iconColor: iconColor,
+                                      text: "Statut: ${getStatusLabel(ev.status)}",
+                                      textColor: textColor,
+                                    ),
+                                    _buildDetailRow(
+                                      icon: Icons.priority_high_rounded,
+                                      iconColor: iconColor,
+                                      text: "Priorité: ${getPriorityLabel(ev.priority)}",
+                                      textColor: textColor,
+                                    ),
+                                    if (ev.isPrivate)
+                                      _buildDetailRow(
+                                        icon: Icons.lock_outline_rounded,
+                                        iconColor: iconColor,
+                                        text: "Événement Privé",
+                                        textColor: textColor,
+                                      ),
+                                    if (ev.locked)
+                                      _buildDetailRow(
+                                        icon: Icons.lock_rounded,
+                                        iconColor: Colors.redAccent,
+                                        text: "Événement Verrouillé",
+                                        textColor: textColor,
+                                      ),
+                                    _buildTagsRow(ev.tags, iconColor, textColor),
+                                    _buildDependenciesRow(ev.dependencies, iconColor, textColor),
+                                  ],
                                 ),
-                                _buildDetailRow(
-                                  icon: Icons.local_offer_outlined,
-                                  iconColor: iconColor,
-                                  text: getColorName(ev.color),
-                                  textColor: textColor,
-                                ),
+
+                                // Card 3: Participants
+                                if (ev.participants.isNotEmpty)
+                                  _buildDetailsCard(
+                                    isDark: isDark,
+                                    children: [
+                                      _buildParticipantsListRow(ev.participants, iconColor, textColor),
+                                    ],
+                                  ),
+
+                                // Card 4: Champs Personnalisés
+                                if (!_loadingCustomFields && _customFieldValues.any((cfv) => (cfv.value ?? '').isNotEmpty))
+                                  _buildDetailsCard(
+                                    isDark: isDark,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 8, top: 4),
+                                        child: Text(
+                                          "CHAMPS PERSONNALISÉS",
+                                          style: TextStyle(
+                                            color: subTextColor,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0,
+                                          ),
+                                        ),
+                                      ),
+                                      ..._customFieldValues.map((cfv) {
+                                        final resolved = _resolveValueAndEmoji(cfv);
+                                        final content = resolved['content'] ?? '';
+                                        if (content.isEmpty) return const SizedBox.shrink();
+                                        final emoji = resolved['emoji'] ?? '';
+                                        return _buildCustomFieldRow(
+                                          label: cfv.field.label,
+                                          emoji: emoji,
+                                          content: content,
+                                          iconColor: iconColor,
+                                          textColor: textColor,
+                                          subTextColor: subTextColor,
+                                        );
+                                      }),
+                                    ],
+                                  ),
                               ],
                             ),
                           ),
@@ -362,30 +466,21 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
               onPressed: () => Navigator.pop(context),
             ),
 
-            // Overlapping/horizontal row of participants
+            // Event Title in the navigation bar (middle)
             Expanded(
               child: Center(
-                child: SizedBox(
-                  height: 32,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    scrollDirection: Axis.horizontal,
-                    itemCount: ev.participants.length,
-                    itemBuilder: (context, idx) {
-                      final p = ev.participants[idx];
-                      final initials = p.fullName.isNotEmpty ? p.fullName.substring(0, 1).toUpperCase() : '?';
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        child: CircleAvatar(
-                          radius: 12,
-                          backgroundColor: Colors.purple.shade300,
-                          child: Text(
-                            initials,
-                            style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      );
-                    },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    ev.title,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
@@ -458,14 +553,394 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, color: iconColor, size: 22),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: iconColor, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: textColor.withValues(alpha: 0.9),
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, String> _resolveValueAndEmoji(TimetreeCustomFieldValue val) {
+    final rawValue = val.value ?? '';
+    if (rawValue.isEmpty) {
+      return {'emoji': '', 'content': ''};
+    }
+
+    String content = rawValue;
+    String emoji = val.field.emoji ?? '';
+
+    final fieldType = val.field.fieldType.toUpperCase();
+    if (fieldType == 'BOOLEAN') {
+      content = rawValue.toLowerCase() == 'true' ? 'Oui' : 'Non';
+    } else {
+      final items = rawValue.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      final cleanItems = <String>[];
+      final optionEmojis = <String>[];
+
+      for (final item in items) {
+        if (item.contains('|')) {
+          final parts = item.split('|');
+          cleanItems.add(parts[0].trim());
+          if (parts.length > 1) {
+            optionEmojis.add(parts[1].trim());
+          }
+        } else {
+          cleanItems.add(item);
+        }
+      }
+
+      if (cleanItems.isNotEmpty) {
+        content = cleanItems.join(', ');
+      }
+      if (optionEmojis.isNotEmpty) {
+        emoji = emoji + optionEmojis.join('');
+      }
+    }
+
+    return {
+      'emoji': emoji,
+      'content': content,
+    };
+  }
+
+  Widget _buildCustomFieldRow({
+    required String label,
+    required String emoji,
+    required String content,
+    required Color iconColor,
+    required Color textColor,
+    required Color subTextColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: emoji.isNotEmpty
+                  ? Text(
+                      emoji,
+                      style: const TextStyle(fontSize: 14),
+                    )
+                  : Icon(
+                      Icons.dashboard_customize_outlined,
+                      color: iconColor,
+                      size: 14,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: subTextColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  content,
+                  style: TextStyle(
+                    color: textColor.withValues(alpha: 0.9),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailsCard({
+    required List<Widget> children,
+    required bool isDark,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161616) : const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
+  String formatDateTimeRange(TimetreeEvent ev) {
+    final start = ev.startDate;
+    final end = ev.endDate;
+    final startDayStr = formatDetailsDate(start);
+    final endDayStr = formatDetailsDate(end);
+
+    if (ev.allDay) {
+      if (start.year == end.year && start.month == end.month && start.day == end.day) {
+        return "$startDayStr (Jour entier)";
+      } else {
+        return "Du $startDayStr au $endDayStr (Jour entier)";
+      }
+    } else {
+      final startTimeStr = formatFrenchTime(start);
+      final endTimeStr = formatFrenchTime(end);
+      if (start.year == end.year && start.month == end.month && start.day == end.day) {
+        return "$startDayStr, de $startTimeStr à $endTimeStr";
+      } else {
+        return "Du $startDayStr à $startTimeStr\nau $endDayStr à $endTimeStr";
+      }
+    }
+  }
+
+  String getRecurrenceLabel(String rule, DateTime? endDate) {
+    String label = 'Aucune';
+    switch (rule.toUpperCase()) {
+      case 'DAILY':
+        label = 'Tous les jours';
+        break;
+      case 'WEEKLY':
+        label = 'Toutes les semaines';
+        break;
+      case 'MONTHLY':
+        label = 'Tous les mois';
+        break;
+    }
+    if (rule.toUpperCase() != 'NONE' && endDate != null) {
+      label += " (jusqu'au ${DateFormat('dd/MM/yyyy').format(endDate)})";
+    }
+    return label;
+  }
+
+  String getStatusLabel(String status) {
+    switch (status.toUpperCase()) {
+      case 'DRAFT':
+        return 'Brouillon';
+      case 'PLANNED':
+        return 'Planifié';
+      case 'IN_PROGRESS':
+        return 'En cours';
+      case 'COMPLETED':
+        return 'Terminé';
+      case 'CANCELLED':
+        return 'Annulé';
+      default:
+        return status;
+    }
+  }
+
+  String getPriorityLabel(String priority) {
+    switch (priority.toUpperCase()) {
+      case 'LOW':
+        return 'Basse';
+      case 'NORMAL':
+        return 'Normale';
+      case 'HIGH':
+        return 'Haute';
+      case 'CRITICAL':
+        return 'Critique';
+      default:
+        return priority;
+    }
+  }
+
+  Widget _buildTagsRow(List<TimetreeTag> tags, Color iconColor, Color textColor) {
+    if (tags.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.local_offer_rounded, color: iconColor, size: 22),
           const SizedBox(width: 16),
-          Text(
-            text,
-            style: TextStyle(
-              color: textColor.withOpacity(0.9),
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: tags.map((t) {
+                Color? chipBg;
+                final tagColor = t.color;
+                if (tagColor != null && tagColor.isNotEmpty) {
+                  final parsedColor = int.tryParse(tagColor);
+                  if (parsedColor != null) {
+                    chipBg = Color(parsedColor).withValues(alpha: 0.2);
+                  }
+                }
+                final borderCol = chipBg != null && tagColor != null
+                    ? Color(int.parse(tagColor)).withValues(alpha: 0.5)
+                    : iconColor.withValues(alpha: 0.3);
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: chipBg ?? iconColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: borderCol,
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    t.name,
+                    style: TextStyle(
+                      color: textColor.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDependenciesRow(List<Map<String, dynamic>> dependencies, Color iconColor, Color textColor) {
+    if (dependencies.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.link_rounded, color: iconColor, size: 22),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: dependencies.map((dep) {
+                final depTitle = dep['title'] ?? 'Événement';
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: iconColor.withValues(alpha: 0.2),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    "Dépend de: $depTitle",
+                    style: TextStyle(
+                      color: textColor.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantsListRow(List<TimetreeMember> participants, Color iconColor, Color textColor) {
+    if (participants.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.people_alt_outlined, color: iconColor, size: 22),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Participants",
+                  style: TextStyle(
+                    color: textColor.withValues(alpha: 0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: participants.map((p) {
+                    final fullName = p.fullName;
+                    final initials = fullName.isNotEmpty ? fullName.substring(0, 1).toUpperCase() : '?';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade50.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.purple.shade300.withValues(alpha: 0.3),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 8,
+                            backgroundColor: Colors.purple.shade300,
+                            child: Text(
+                              initials,
+                              style: const TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            fullName,
+                            style: TextStyle(
+                              color: textColor.withValues(alpha: 0.9),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
           ),
         ],
