@@ -1858,14 +1858,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
       if (widget.event == null) {
         // Create event
-        await ref.read(timetreeEventsProvider.notifier).createEvent(ev);
-        
-        // Find the newly created event (latest in list or we find the one matching properties)
-        final eventsList = ref.read(timetreeEventsProvider).value ?? [];
-        final created = eventsList.firstWhere(
-          (e) => e.title == _title && e.startDate == _startDate && e.calendarId == _selectedCalendarId,
-          orElse: () => ev,
-        );
+        final created = await ref.read(timetreeEventsProvider.notifier).createEvent(ev);
 
         if (created.id.isNotEmpty && payload.isNotEmpty) {
           final baseCreatedId = created.id.split('_rec_').first;

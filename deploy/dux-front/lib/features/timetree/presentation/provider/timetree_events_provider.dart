@@ -145,12 +145,13 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
   }
 
   /// Creates a new event.
-  Future<void> createEvent(TimetreeEvent event) async {
+  Future<TimetreeEvent> createEvent(TimetreeEvent event) async {
     final currentList = state.value ?? [];
     try {
       final newEvent = await _repository.createEvent(event);
       state = AsyncValue.data(List<TimetreeEvent>.from(currentList)..add(newEvent));
       await loadEvents(silent: true);
+      return newEvent;
     } catch (e) {
       state = AsyncValue.data(currentList);
       rethrow;
