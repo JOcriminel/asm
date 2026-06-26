@@ -1785,6 +1785,55 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     _loadCustomFields();
   }
 
+  void _showCustomFieldsPopup() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.assignment_outlined, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Champs Personnalisés'),
+            ],
+          ),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: DynamicEventFormRenderer(
+                fields: _customFields,
+                values: _customFieldValues,
+                showEmojiInTitleValues: _customFieldEmojiValues,
+                formKey: _customFieldsFormKey,
+                onValuesChanged: (vals, emojis) {
+                  setState(() {
+                    _customFieldValues = vals;
+                    _customFieldEmojiValues = emojis;
+                  });
+                },
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (_customFieldsFormKey.currentState?.validate() ?? true) {
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Valider'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _pickDateTime(bool isStart) async {
     final initialDate = isStart ? _startDate : _endDate;
     final pickedDate = await showDatePicker(
@@ -1825,10 +1874,30 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
   Future<void> _saveEvent() async {
     final isBaseFormValid = _formKey.currentState?.validate() ?? false;
-    final isCustomFieldsValid = _customFields.isEmpty ||
-        (_customFieldsFormKey.currentState?.validate() ?? false);
+    
+    bool isCustomFieldsValid = true;
+    for (final field in _customFields) {
+      if (field.required) {
+        final val = _customFieldValues[field.id] ?? '';
+        if (val.trim().isEmpty || val == 'false') {
+          isCustomFieldsValid = false;
+          break;
+        }
+      }
+    }
 
-    if (!isBaseFormValid || !isCustomFieldsValid) return;
+    if (!isBaseFormValid) return;
+
+    if (!isCustomFieldsValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez renseigner tous les champs personnalisés requis.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      _showCustomFieldsPopup();
+      return;
+    }
 
     _formKey.currentState?.save();
 
@@ -1965,19 +2034,33 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    initialValue: _nomEvent,
-                    decoration: const InputDecoration(labelText: "Nom de l'événement", border: OutlineInputBorder()),
-                    validator: (val) => val == null || val.trim().isEmpty ? "Nom de l'événement requis" : null,
-                    onSaved: (val) => _nomEvent = val ?? '',
-                    onChanged: (val) {
-                      setState(() {
-                        _nomEvent = val;
-                        if (!_titleModifiedDirectly) {
-                          _title = val;
-                        }
-                      });
-                    },
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          initialValue: _nomEvent,
+                          decoration: const InputDecoration(labelText: "Nom de l'événement", border: OutlineInputBorder()),
+                          validator: (val) => val == null || val.trim().isEmpty ? "Nom de l'événement requis" : null,
+                          onSaved: (val) => _nomEvent = val ?? '',
+                          onChanged: (val) {
+                            setState(() {
+                              _nomEvent = val;
+                              if (!_titleModifiedDirectly) {
+                                _title = val;
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                      if (_customFields.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          onPressed: _showCustomFieldsPopup,
+                          icon: const Icon(Icons.assignment_outlined),
+                          tooltip: 'Champs Personnalisés',
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 12),
                   if (isChefOrAdmin) ...[
@@ -2459,27 +2542,6 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                         },
                       );
                     }).toList(),
-                  ),
-                const SizedBox(height: 16),
-
-                // Dynamic Custom Fields header & section
-                const Divider(),
-                const Text('Champs Personnalisés', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                if (_loadingFields)
-                  const Center(child: CircularProgressIndicator())
-                else if (_customFields.isEmpty)
-                  const Text('Aucun champ personnalisé défini pour cet agenda.', style: TextStyle(fontSize: 12, color: Colors.grey))
-                else
-                  DynamicEventFormRenderer(
-                    fields: _customFields,
-                    values: _customFieldValues,
-                    showEmojiInTitleValues: _customFieldEmojiValues,
-                    formKey: _customFieldsFormKey,
-                    onValuesChanged: (vals, emojis) {
-                      _customFieldValues = vals;
-                      _customFieldEmojiValues = emojis;
-                    },
                   ),
               ],
             ),
