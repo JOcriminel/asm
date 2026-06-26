@@ -6,6 +6,8 @@ import 'package:dux_front/features/timetree/data/timetree_api.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_custom_field_dto.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_custom_field_value_dto.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_custom_field.dart';
+import 'package:dux_front/features/timetree/data/dto/timetree_custom_field_category_dto.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_custom_field_category.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_custom_field_value.dart';
 
 /// Repository for managing generic Custom Fields and their values.
@@ -151,6 +153,75 @@ class TimetreeCustomFieldsRepository {
       await _api.saveCustomFieldValues(entityType, entityId, values);
     } catch (e) {
       AppLogger.e('TimetreeCustomFieldsRepository', 'saveCustomFieldValues failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Fetch all custom field categories
+  Future<List<TimetreeCustomFieldCategory>> getCustomFieldCategories() async {
+    try {
+      final response = await _api.getCustomFieldCategories();
+      final data = response.data;
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map(TimetreeCustomFieldCategoryDto.fromJson)
+            .map(TimetreeCustomFieldCategory.fromDto)
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      AppLogger.e('TimetreeCustomFieldsRepository', 'getCustomFieldCategories failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Create a custom field category
+  Future<TimetreeCustomFieldCategory> createCustomFieldCategory(String name, int displayOrder) async {
+    try {
+      final response = await _api.createCustomFieldCategory({
+        'name': name,
+        'displayOrder': displayOrder,
+        'active': true,
+      });
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final dto = TimetreeCustomFieldCategoryDto.fromJson(data);
+        return TimetreeCustomFieldCategory.fromDto(dto);
+      }
+      throw Exception('Format de réponse invalide');
+    } catch (e) {
+      AppLogger.e('TimetreeCustomFieldsRepository', 'createCustomFieldCategory failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Update a custom field category
+  Future<TimetreeCustomFieldCategory> updateCustomFieldCategory(String id, String name, int displayOrder, bool active) async {
+    try {
+      final response = await _api.updateCustomFieldCategory(id, {
+        'name': name,
+        'displayOrder': displayOrder,
+        'active': active,
+      });
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final dto = TimetreeCustomFieldCategoryDto.fromJson(data);
+        return TimetreeCustomFieldCategory.fromDto(dto);
+      }
+      throw Exception('Format de réponse invalide');
+    } catch (e) {
+      AppLogger.e('TimetreeCustomFieldsRepository', 'updateCustomFieldCategory failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  /// Delete a custom field category
+  Future<void> deleteCustomFieldCategory(String id) async {
+    try {
+      await _api.deleteCustomFieldCategory(id);
+    } catch (e) {
+      AppLogger.e('TimetreeCustomFieldsRepository', 'deleteCustomFieldCategory failed', e);
       throw ApiExceptionHandler.handle(e);
     }
   }

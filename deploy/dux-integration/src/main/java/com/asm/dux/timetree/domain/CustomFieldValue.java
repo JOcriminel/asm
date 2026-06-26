@@ -19,7 +19,7 @@ public class CustomFieldValue {
     @Column(name = "ID")
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "FIELD_ID", nullable = false)
     private CustomField field;
 

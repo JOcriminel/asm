@@ -182,6 +182,7 @@ public class CustomFieldController {
             existing.setActive(request.getActive());
             existing.setEmoji(request.getEmoji());
             existing.setEmojiOrder(request.getEmojiOrder());
+            existing.setCategory(request.getCategory());
             
             // Validation rules
 

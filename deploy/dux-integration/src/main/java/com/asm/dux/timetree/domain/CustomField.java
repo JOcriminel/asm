@@ -40,6 +40,10 @@ public class CustomField {
     @Column(name = "OPTIONS", length = 1000)
     private String options; // Comma-separated list for select types
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "CATEGORY_ID")
+    private CustomFieldCategory category;
+
     @Column(name = "SCOPE_TYPE", nullable = false, length = 100)
     private String scopeType; // e.g. "GROUP", "CALENDAR", "EVENT", "GLOBAL"
 

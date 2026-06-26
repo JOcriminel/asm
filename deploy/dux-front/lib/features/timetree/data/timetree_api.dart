@@ -210,6 +210,23 @@ class TimetreeApi {
     return _dio.post('/api/timetree/custom-fields/reorder', data: reorderList);
   }
 
+  // Custom Field categories
+  Future<Response> getCustomFieldCategories() async {
+    return _dio.get('/api/timetree/custom-fields/categories');
+  }
+
+  Future<Response> createCustomFieldCategory(Map<String, dynamic> data) async {
+    return _dio.post('/api/timetree/custom-fields/categories', data: data);
+  }
+
+  Future<Response> updateCustomFieldCategory(String id, Map<String, dynamic> data) async {
+    return _dio.put('/api/timetree/custom-fields/categories/$id', data: data);
+  }
+
+  Future<Response> deleteCustomFieldCategory(String id) async {
+    return _dio.delete('/api/timetree/custom-fields/categories/$id');
+  }
+
   // Custom Field values
   Future<Response> getCustomFieldValues(String entityType, String entityId) async {
     return _dio.get('/api/timetree/custom-fields/values/$entityType/$entityId');

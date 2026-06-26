@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="cf-categories-001" author="antigravity">
+        <!-- Custom Field Category Table -->
+        <createTable tableName="CF_CATEGORY" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="NAME" type="NVARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="DISPLAY_ORDER" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ACTIVE" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Add category reference to field definitions -->
+        <addColumn tableName="CF_DEFINITION" schemaName="dbo">
+            <column name="CATEGORY_ID" type="BIGINT">
+                <constraints foreignKeyName="FK_CF_DEFINITION_CATEGORY" referencedTableName="CF_CATEGORY" referencedColumnNames="ID"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

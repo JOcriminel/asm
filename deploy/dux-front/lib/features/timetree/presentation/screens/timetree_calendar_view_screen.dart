@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_events_repository.dart';
+import 'package:dux_front/core/utils/logger.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_tag.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -143,12 +144,6 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
             ),
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.star_outline_rounded),
-              onPressed: () {
-                // Favorite indicator/action placeholder
-              },
-            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.tune_rounded),
               tooltip: 'Choisir la vue',
@@ -454,93 +449,79 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
     // Map of day index (0..41) -> total event count active on that day
     final List<int> cellEventCounts = List.generate(42, (_) => 0);
 
-    // Compute slots week-by-week (6 weeks)
-    for (int w = 0; w < 6; w++) {
-      final int weekStartIdx = w * 7;
-      final int weekEndIdx = weekStartIdx + 6;
-      final List<DateTime> weekDays = cellDates.sublist(weekStartIdx, weekEndIdx + 1);
-
-      // Get all events active in this week
-      final List<TimetreeEvent> weekEvents = [];
-      for (final e in events) {
-        final start = e.startDate;
-        final end = e.endDate;
-        final weekStart = DateTime(weekDays.first.year, weekDays.first.month, weekDays.first.day, 0, 0, 0);
-        final weekEnd = DateTime(weekDays.last.year, weekDays.last.month, weekDays.last.day, 23, 59, 59);
-        if (start.isBefore(weekEnd) && end.isAfter(weekStart)) {
-          weekEvents.add(e);
-        }
+    // Get all events active in this 42-day range
+    final List<TimetreeEvent> activeEvents = [];
+    final rangeStart = DateTime(cellDates.first.year, cellDates.first.month, cellDates.first.day, 0, 0, 0);
+    final rangeEnd = DateTime(cellDates.last.year, cellDates.last.month, cellDates.last.day, 23, 59, 59);
+    for (final e in events) {
+      if (e.startDate.isBefore(rangeEnd) && e.endDate.isAfter(rangeStart)) {
+        activeEvents.add(e);
       }
+    }
 
-      // Sort week events:
-      // 1. Duration within this week (descending)
-      // 2. Start date (ascending)
-      weekEvents.sort((a, b) {
-        final aStart = a.startDate.isBefore(weekDays.first) ? weekDays.first : a.startDate;
-        final aEnd = a.endDate.isAfter(weekDays.last) ? weekDays.last : a.endDate;
-        final bStart = b.startDate.isBefore(weekDays.first) ? weekDays.first : b.startDate;
-        final bEnd = b.endDate.isAfter(weekDays.last) ? weekDays.last : b.endDate;
-        final aDur = aEnd.difference(aStart).inDays;
-        final bDur = bEnd.difference(bStart).inDays;
-        if (aDur != bDur) {
-          return bDur.compareTo(aDur); // Descending duration
-        }
-        return a.startDate.compareTo(b.startDate); // Ascending start date
-      });
-
-      // Allocate slots
-      final List<List<TimetreeEvent?>> daySlots = List.generate(7, (_) => []);
-      for (final event in weekEvents) {
-        final List<bool> activeDays = List.generate(7, (d) {
-          final day = weekDays[d];
-          final cellStart = DateTime(day.year, day.month, day.day, 0, 0, 0);
-          final cellEnd = DateTime(day.year, day.month, day.day, 23, 59, 59);
-          return event.startDate.isBefore(cellEnd) && event.endDate.isAfter(cellStart);
-        });
-
-        int slotIdx = 0;
-        while (true) {
-          bool slotFree = true;
-          for (int d = 0; d < 7; d++) {
-            if (activeDays[d]) {
-              if (slotIdx < daySlots[d].length && daySlots[d][slotIdx] != null) {
-                slotFree = false;
-                break;
-              }
-            }
-          }
-          if (slotFree) break;
-          slotIdx++;
-        }
-
-        // Fill slots
-        for (int d = 0; d < 7; d++) {
-          if (activeDays[d]) {
-            while (daySlots[d].length <= slotIdx) {
-              daySlots[d].add(null);
-            }
-            daySlots[d][slotIdx] = event;
-          }
-        }
+    // Sort active events:
+    // 1. Duration within this 42-day range (descending)
+    // 2. Start date (ascending)
+    activeEvents.sort((a, b) {
+      final aStart = a.startDate.isBefore(rangeStart) ? rangeStart : a.startDate;
+      final aEnd = a.endDate.isAfter(rangeEnd) ? rangeEnd : a.endDate;
+      final bStart = b.startDate.isBefore(rangeStart) ? rangeStart : b.startDate;
+      final bEnd = b.endDate.isAfter(rangeEnd) ? rangeEnd : b.endDate;
+      final aDur = aEnd.difference(aStart).inDays;
+      final bDur = bEnd.difference(bStart).inDays;
+      if (aDur != bDur) {
+        return bDur.compareTo(aDur);
       }
+      return a.startDate.compareTo(b.startDate);
+    });
 
-      // Copy daySlots to cellSlots
-      for (int d = 0; d < 7; d++) {
-        final cellIdx = weekStartIdx + d;
-        cellSlots[cellIdx] = daySlots[d];
-        
-        // Also count total events for this day
-        int count = 0;
-        final day = weekDays[d];
+    // Allocate slots globally across 42 days
+    for (final event in activeEvents) {
+      final List<bool> activeDays = List.generate(42, (d) {
+        final day = cellDates[d];
         final cellStart = DateTime(day.year, day.month, day.day, 0, 0, 0);
         final cellEnd = DateTime(day.year, day.month, day.day, 23, 59, 59);
-        for (final e in events) {
-          if (e.startDate.isBefore(cellEnd) && e.endDate.isAfter(cellStart)) {
-            count++;
+        return event.startDate.isBefore(cellEnd) && event.endDate.isAfter(cellStart);
+      });
+
+      int slotIdx = 0;
+      while (true) {
+        bool slotFree = true;
+        for (int d = 0; d < 42; d++) {
+          if (activeDays[d]) {
+            if (slotIdx < cellSlots[d].length && cellSlots[d][slotIdx] != null) {
+              slotFree = false;
+              break;
+            }
           }
         }
-        cellEventCounts[cellIdx] = count;
+        if (slotFree) break;
+        slotIdx++;
       }
+
+      // Fill slots
+      for (int d = 0; d < 42; d++) {
+        if (activeDays[d]) {
+          while (cellSlots[d].length <= slotIdx) {
+            cellSlots[d].add(null);
+          }
+          cellSlots[d][slotIdx] = event;
+        }
+      }
+    }
+
+    // Compute total event count active on each day
+    for (int d = 0; d < 42; d++) {
+      int count = 0;
+      final day = cellDates[d];
+      final cellStart = DateTime(day.year, day.month, day.day, 0, 0, 0);
+      final cellEnd = DateTime(day.year, day.month, day.day, 23, 59, 59);
+      for (final e in events) {
+        if (e.startDate.isBefore(cellEnd) && e.endDate.isAfter(cellStart)) {
+          count++;
+        }
+      }
+      cellEventCounts[d] = count;
     }
 
     return Column(
@@ -703,7 +684,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                               final bool isSpanning = event.endDate.difference(event.startDate).inHours > 24;
                               final bool isSpanningOrAllDay = event.allDay || isSpanning;
 
-                              final chipBgColor = isSpanningOrAllDay ? color : Colors.transparent;
+                              final chipBgColor = isSpanningOrAllDay ? color : color.withValues(alpha: 0.15);
                               final chipTextColor = isSpanningOrAllDay ? Colors.white : color;
 
                               final chip = Container(
@@ -713,7 +694,8 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                                   top: 1,
                                   bottom: 1,
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                alignment: Alignment.centerLeft,
                                 decoration: BoxDecoration(
                                   color: chipBgColor,
                                   borderRadius: borderRadius,
@@ -722,14 +704,17 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                                 child: isStartCell
                                     ? Row(
                                         mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
                                           Expanded(
                                             child: Text(
                                               event.title,
                                               style: TextStyle(
-                                                fontSize: 9, 
+                                                fontSize: 8.2, 
                                                 color: chipTextColor, 
-                                                fontWeight: isSpanningOrAllDay ? FontWeight.bold : FontWeight.normal,
+                                                fontWeight: isSpanningOrAllDay ? FontWeight.bold : FontWeight.w600,
+                                                letterSpacing: -0.3,
+                                                height: 1.0,
                                               ),
                                               overflow: TextOverflow.ellipsis,
                                               maxLines: 1,
@@ -738,14 +723,11 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                                           if (unreadCount > 0)
                                             Container(
                                               margin: const EdgeInsets.only(left: 2),
-                                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                              width: 4,
+                                              height: 4,
                                               decoration: const BoxDecoration(
                                                 color: Colors.red,
                                                 shape: BoxShape.circle,
-                                              ),
-                                              child: Text(
-                                                '$unreadCount',
-                                                style: const TextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold),
                                               ),
                                             ),
                                         ],
@@ -867,14 +849,18 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
   }
 
   Future<void> _selectMonthYear(BuildContext context, DateTime currentDate) async {
-    final DateTime? picked = await showDatePicker(
+    final DateTime? picked = await showDialog<DateTime>(
       context: context,
-      initialDate: currentDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      initialDatePickerMode: DatePickerMode.year,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: _CustomDatePickerDialog(initialDate: currentDate),
+        );
+      },
     );
-    if (picked != null && picked != currentDate) {
+    if (picked != null) {
       ref.read(currentCalendarDateProvider.notifier).state = DateTime(picked.year, picked.month, 1);
     }
   }
@@ -1638,16 +1624,18 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     });
 
     try {
+      final baseEventId = ev.id.split('_rec_').first;
+
       // 1. Fetch Field definitions
       final fields = await ref.read(timetreeCustomFieldsRepositoryProvider).getEventFields(
             calendarId: ev.calendarId,
-            eventId: ev.id,
+            eventId: baseEventId,
           );
 
       // 2. Fetch Saved field values
       final values = await ref.read(timetreeCustomFieldsRepositoryProvider).getCustomFieldValues(
             'EVENT',
-            ev.id,
+            baseEventId,
           );
 
       final Map<String, String> valuesMap = {};
@@ -1665,7 +1653,8 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
         _customFieldEmojiValues = emojiMap;
         _loadingFields = false;
       });
-    } catch (_) {
+    } catch (e) {
+      AppLogger.e('EventFormDialogState', 'Error loading custom fields', e);
       setState(() {
         _loadingFields = false;
       });
@@ -1786,20 +1775,22 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
         );
 
         if (created.id.isNotEmpty && payload.isNotEmpty) {
+          final baseCreatedId = created.id.split('_rec_').first;
           await ref.read(timetreeCustomFieldsRepositoryProvider).saveCustomFieldValues(
                 'EVENT',
-                created.id,
+                baseCreatedId,
                 payload,
               );
         }
       } else {
         // Update event
-        await ref.read(timetreeEventsProvider.notifier).updateEvent(widget.event!.id, ev);
+        final baseEventId = widget.event!.id.split('_rec_').first;
+        await ref.read(timetreeEventsProvider.notifier).updateEvent(baseEventId, ev);
         
         if (payload.isNotEmpty) {
           await ref.read(timetreeCustomFieldsRepositoryProvider).saveCustomFieldValues(
                 'EVENT',
-                widget.event!.id,
+                baseEventId,
                 payload,
               );
         }
@@ -2383,6 +2374,356 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
         ),
       ],
     ),
+    );
+  }
+}
+
+class _CustomDatePickerDialog extends StatefulWidget {
+  final DateTime initialDate;
+  const _CustomDatePickerDialog({Key? key, required this.initialDate}) : super(key: key);
+
+  @override
+  State<_CustomDatePickerDialog> createState() => _CustomDatePickerDialogState();
+}
+
+class _CustomDatePickerDialogState extends State<_CustomDatePickerDialog> {
+  int _selectedMonth = 1;
+  int _selectedYear = 2026;
+  DateTime _selectedDate = DateTime.now();
+  List<DateTime> _gridDays = [];
+
+  final List<String> _months = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+  ];
+
+  final List<String> _weekdays = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMonth = widget.initialDate.month;
+    _selectedYear = widget.initialDate.year;
+    _selectedDate = widget.initialDate;
+    _updateDays();
+  }
+
+  void _updateDays() {
+    final days = <DateTime>[];
+    final firstDay = DateTime(_selectedYear, _selectedMonth, 1);
+    final leadingOffset = firstDay.weekday % 7;
+    final prevMonth = DateTime(_selectedYear, _selectedMonth - 1, 1);
+    final daysInPrevMonth = DateTime(_selectedYear, _selectedMonth, 0).day;
+    
+    for (int i = leadingOffset - 1; i >= 0; i--) {
+      days.add(DateTime(prevMonth.year, prevMonth.month, daysInPrevMonth - i));
+    }
+    
+    final daysInCurrentMonth = DateTime(_selectedYear, _selectedMonth + 1, 0).day;
+    for (int i = 1; i <= daysInCurrentMonth; i++) {
+      days.add(DateTime(_selectedYear, _selectedMonth, i));
+    }
+    
+    final trailingCount = 42 - days.length;
+    final nextMonth = DateTime(_selectedYear, _selectedMonth + 1, 1);
+    for (int i = 1; i <= trailingCount; i++) {
+      days.add(DateTime(nextMonth.year, nextMonth.month, i));
+    }
+    
+    setState(() {
+      _gridDays = days;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final activeTextColor = isDark ? Colors.white : Colors.black87;
+    final years = List<int>.generate(21, (i) => 2020 + i);
+
+    return SizedBox(
+      width: 320,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Main calendar card
+          Container(
+            padding: const EdgeInsets.only(
+              top: 20,
+              left: 20,
+              right: 20,
+              bottom: 60, // extra padding for the overlapping footer
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.grey[900] : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Month / Year Dropdowns
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.grey[850] : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedMonth,
+                            isExpanded: true,
+                            dropdownColor: isDark ? Colors.grey[900] : Colors.white,
+                            icon: Icon(
+                              Icons.keyboard_arrow_down,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                            items: List.generate(12, (index) {
+                              return DropdownMenuItem<int>(
+                                value: index + 1,
+                                child: Text(
+                                  _months[index],
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: activeTextColor,
+                                  ),
+                                ),
+                              );
+                            }),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedMonth = val;
+                                  _updateDays();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.grey[850] : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: _selectedYear,
+                            isExpanded: true,
+                            dropdownColor: isDark ? Colors.grey[900] : Colors.white,
+                            icon: Icon(
+                              Icons.keyboard_arrow_down,
+                              color: isDark ? Colors.white70 : Colors.black54,
+                            ),
+                            items: years.map((y) {
+                              return DropdownMenuItem<int>(
+                                value: y,
+                                child: Text(
+                                  '$y',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: activeTextColor,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _selectedYear = val;
+                                  _updateDays();
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Weekday Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: _weekdays.map((day) {
+                    return SizedBox(
+                      width: 32,
+                      child: Center(
+                        child: Text(
+                          day,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.grey[500] : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+
+                // Days Grid
+                Column(
+                  children: List.generate(6, (rowIndex) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(7, (colIndex) {
+                          final index = rowIndex * 7 + colIndex;
+                          if (index >= _gridDays.length) {
+                            return const SizedBox(width: 32, height: 32);
+                          }
+                          
+                          final date = _gridDays[index];
+                          final isCurrentMonth = date.month == _selectedMonth && date.year == _selectedYear;
+                          final isSelected = date.day == _selectedDate.day &&
+                              date.month == _selectedDate.month &&
+                              date.year == _selectedDate.year;
+                          
+                          Color textColor;
+                          if (isSelected) {
+                            textColor = Colors.white;
+                          } else if (isCurrentMonth) {
+                            textColor = activeTextColor;
+                          } else {
+                            textColor = isDark ? Colors.grey[750]! : Colors.grey[350]!;
+                          }
+                          
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedDate = date;
+                                if (date.month != _selectedMonth || date.year != _selectedYear) {
+                                  _selectedMonth = date.month;
+                                  _selectedYear = date.year;
+                                  _updateDays();
+                                }
+                              });
+                            },
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.blueAccent : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${date.day}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+
+          // Overlapping bottom footer card
+          Positioned(
+            bottom: -20,
+            left: 10,
+            right: 10,
+            child: Container(
+              height: 52,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[850] : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // Formatted Date
+                  Expanded(
+                    child: Text(
+                      (() {
+                        final raw = DateFormat('d MMMM yyyy', 'fr_FR').format(_selectedDate);
+                        if (raw.isEmpty) return '';
+                        final parts = raw.split(' ');
+                        if (parts.length == 3) {
+                          final month = parts[1];
+                          if (month.isNotEmpty) {
+                            parts[1] = month[0].toUpperCase() + month.substring(1);
+                          }
+                          return parts.join(' ');
+                        }
+                        return raw;
+                      })(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: activeTextColor,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  
+                  // Cancel / Confirm Actions
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Annuler',
+                      style: TextStyle(
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, _selectedDate),
+                    child: const Text(
+                      'Confirmer',
+                      style: TextStyle(
+                        color: Colors.blueAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

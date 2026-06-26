@@ -114,7 +114,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
   }
 
   /// Fetches raw events from backend.
-  Future<void> loadEvents() async {
+  Future<void> loadEvents({bool silent = false}) async {
     final selectedCalendarIds = _ref.read(selectedCalendarIdsProvider);
     final focusedDate = _ref.read(currentCalendarDateProvider);
     final viewMode = _ref.read(calendarViewModeProvider);
@@ -124,7 +124,9 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
       return;
     }
 
-    state = const AsyncValue.loading();
+    if (!silent) {
+      state = const AsyncValue.loading();
+    }
     try {
       final range = getRangeForDate(focusedDate, viewMode);
       final list = await _repository.getEvents(
@@ -148,6 +150,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
     try {
       final newEvent = await _repository.createEvent(event);
       state = AsyncValue.data(List<TimetreeEvent>.from(currentList)..add(newEvent));
+      await loadEvents(silent: true);
     } catch (e) {
       state = AsyncValue.data(currentList);
       rethrow;
@@ -164,6 +167,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
         final itemBaseId = item.id.split('_rec_').first;
         return itemBaseId == baseId ? updatedEvent : item;
       }).toList());
+      await loadEvents(silent: true);
     } catch (e) {
       state = AsyncValue.data(currentList);
       rethrow;
@@ -180,6 +184,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
         final itemBaseId = item.id.split('_rec_').first;
         return itemBaseId != baseId;
       }).toList());
+      await loadEvents(silent: true);
     } catch (e) {
       state = AsyncValue.data(currentList);
       rethrow;
@@ -210,6 +215,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
       state = AsyncValue.data(currentList.map((item) {
         return item.id.split('_rec_').first == baseId ? updatedEvent : item;
       }).toList());
+      await loadEvents(silent: true);
     } catch (e) {
       // Revert on failure
       state = AsyncValue.data(currentList);
@@ -227,6 +233,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
         final itemBaseId = item.id.split('_rec_').first;
         return itemBaseId == baseId ? updatedEvent : item;
       }).toList());
+      await loadEvents(silent: true);
     } catch (e) {
       rethrow;
     }
@@ -242,6 +249,7 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
         final itemBaseId = item.id.split('_rec_').first;
         return itemBaseId == baseId ? updatedEvent : item;
       }).toList());
+      await loadEvents(silent: true);
     } catch (e) {
       rethrow;
     }

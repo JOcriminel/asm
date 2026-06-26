@@ -1,4 +1,5 @@
 import 'package:dux_front/features/timetree/data/dto/timetree_custom_field_dto.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_custom_field_category.dart';
 
 /// Clean domain model representing a Custom Field definition.
 class TimetreeCustomField {
@@ -27,6 +28,7 @@ class TimetreeCustomField {
   final String? visibilityRule;
   final String? emoji;
   final int? emojiOrder;
+  final TimetreeCustomFieldCategory? category;
 
   const TimetreeCustomField({
     required this.id,
@@ -50,6 +52,7 @@ class TimetreeCustomField {
     this.visibilityRule,
     this.emoji,
     this.emojiOrder,
+    this.category,
   });
 
   factory TimetreeCustomField.fromDto(TimetreeCustomFieldDto dto) {
@@ -75,6 +78,7 @@ class TimetreeCustomField {
       visibilityRule: dto.visibilityRule,
       emoji: dto.emoji,
       emojiOrder: dto.emojiOrder,
+      category: dto.category != null ? TimetreeCustomFieldCategory.fromDto(dto.category!) : null,
     );
   }
 
@@ -101,6 +105,7 @@ class TimetreeCustomField {
       visibilityRule: visibilityRule,
       emoji: emoji,
       emojiOrder: emojiOrder,
+      category: category?.toDto(),
     );
   }
 
@@ -126,6 +131,7 @@ class TimetreeCustomField {
     String? visibilityRule,
     String? emoji,
     int? emojiOrder,
+    TimetreeCustomFieldCategory? category,
   }) {
     return TimetreeCustomField(
       id: id ?? this.id,
@@ -149,6 +155,7 @@ class TimetreeCustomField {
       visibilityRule: visibilityRule ?? this.visibilityRule,
       emoji: emoji ?? this.emoji,
       emojiOrder: emojiOrder ?? this.emojiOrder,
+      category: category ?? this.category,
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'timetree_custom_field_category_dto.dart';
+
 /// DTO representing the backend payload for a Custom Field definition.
 class TimetreeCustomFieldDto {
   final String id;
@@ -21,6 +23,7 @@ class TimetreeCustomFieldDto {
   final String? visibilityRule;
   final String? emoji;
   final int? emojiOrder;
+  final TimetreeCustomFieldCategoryDto? category;
 
   const TimetreeCustomFieldDto({
     required this.id,
@@ -44,6 +47,7 @@ class TimetreeCustomFieldDto {
     this.visibilityRule,
     this.emoji,
     this.emojiOrder,
+    this.category,
   });
 
   factory TimetreeCustomFieldDto.fromJson(Map<String, dynamic> json) {
@@ -69,6 +73,7 @@ class TimetreeCustomFieldDto {
       visibilityRule: json['visibilityRule'] as String?,
       emoji: json['emoji'] as String?,
       emojiOrder: json['emojiOrder'] as int?,
+      category: json['category'] != null ? TimetreeCustomFieldCategoryDto.fromJson(json['category'] as Map<String, dynamic>) : null,
     );
   }
 
@@ -95,6 +100,7 @@ class TimetreeCustomFieldDto {
       'visibilityRule': visibilityRule,
       'emoji': emoji,
       'emojiOrder': emojiOrder,
+      'category': category?.toJson(),
     };
   }
 }

@@ -150,14 +150,54 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
       );
     }
 
+    // Group fields by category
+    final Map<String, List<TimetreeCustomField>> grouped = {};
+    final Map<String, int> categoryOrders = {};
+
+    for (final field in visibleFields) {
+      final catName = field.category?.name ?? 'Autres';
+      grouped.putIfAbsent(catName, () => []).add(field);
+      categoryOrders[catName] = field.category?.displayOrder ?? 9999;
+    }
+
+    // Sort group keys
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == 'Autres') return 1;
+        if (b == 'Autres') return -1;
+        return categoryOrders[a]!.compareTo(categoryOrders[b]!);
+      });
+
     return Form(
       key: widget.formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: visibleFields.map((field) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _buildFieldWidget(context, field, theme),
+        children: sortedKeys.map((catName) {
+          final fields = grouped[catName]!;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            clipBehavior: Clip.antiAlias,
+            child: ExpansionTile(
+              initiallyExpanded: false,
+              title: Text(
+                catName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: fields.map((field) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: _buildFieldWidget(context, field, theme),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
           );
         }).toList(),
       ),
