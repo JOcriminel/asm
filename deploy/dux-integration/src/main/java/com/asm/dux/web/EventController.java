@@ -37,6 +37,8 @@ public class EventController {
     private final AuditService auditService;
     private final TagRepository tagRepository;
     private final EventReminderRepository eventReminderRepository;
+    private final TimetreeAuditLogRepository auditLogRepository;
+
 
     @GetMapping
     @Transactional(value = "timertreeTransactionManager", readOnly = true)
@@ -697,4 +699,36 @@ public class EventController {
         
         return map;
     }
+
+    @GetMapping("/{id}/history")
+    @Transactional(value = "timertreeTransactionManager", readOnly = true)
+    public ResponseEntity<?> getEventHistory(@PathVariable Long id) {
+        log.info("GET /api/timetree/events/{}/history", id);
+        Member current = securityService.getCurrentMember();
+        if (current == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Utilisateur non authentifié");
+        }
+
+        Optional<Event> eventOpt = eventRepository.findById(id);
+        if (!eventOpt.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+        Event event = eventOpt.get();
+
+        String role = current.getRole().toUpperCase();
+        if (!("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role) || "CHEF".equals(role))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès réservé aux administrateurs et chefs d'agenda");
+        }
+
+        if (!("ADMIN".equals(role) || "ADMINISTRATEUR".equals(role))) {
+            List<Long> allowedCalendarIds = securityService.getAllowedCalendarIds(current);
+            if (!allowedCalendarIds.contains(event.getCalendar().getId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Accès refusé à l'historique de cet événement");
+            }
+        }
+
+        List<TimetreeAuditLog> logs = auditLogRepository.findByEntityTypeAndEntityIdOrderByActionDateDesc("EVENT", id);
+        return ResponseEntity.ok(logs);
+    }
 }
+

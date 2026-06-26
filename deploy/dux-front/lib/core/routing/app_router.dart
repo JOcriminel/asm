@@ -23,6 +23,7 @@ import 'package:dux_front/features/timetree/presentation/screens/membership_cale
 import 'package:dux_front/features/timetree/presentation/screens/timetree_calendar_view_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/custom_fields_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/timetree_audit_logs_screen.dart';
+import 'package:dux_front/features/timetree/presentation/screens/timetree_event_traceability_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/timetree_search_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
 import '../../features/clients/presentation/screens/client_list_screen.dart';
@@ -455,6 +456,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       path: '/timetree/admin/audit-logs',
       name: 'timetreeAuditLogs',
       builder: (context, state) => const TimetreeAuditLogsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/traceability',
+      name: 'timetreeTraceability',
+      builder: (context, state) => const TimetreeEventTraceabilityScreen(),
     ),
     GoRoute(
       path: '/timetree/profile',

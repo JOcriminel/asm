@@ -5,6 +5,7 @@ import 'package:dux_front/core/utils/logger.dart';
 import 'package:dux_front/features/timetree/data/timetree_api.dart';
 import 'package:dux_front/features/timetree/data/dto/timetree_event_dto.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_event.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_audit_log.dart';
 
 /// Repository for managing TimeTree Events and their participants.
 class TimetreeEventsRepository {
@@ -53,6 +54,26 @@ class TimetreeEventsRepository {
       throw ApiExceptionHandler.handle(e);
     }
   }
+
+  /// Fetches audit log history for an event by ID.
+  Future<List<TimetreeAuditLog>> getEventHistory(String id) async {
+    try {
+      final baseId = id.split('_rec_').first;
+      final response = await _api.getEventHistory(baseId);
+      final data = response.data;
+      if (data is List) {
+        return data
+            .whereType<Map<String, dynamic>>()
+            .map(TimetreeAuditLog.fromJson)
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      AppLogger.e('TimetreeEventsRepository', 'getEventHistory($id) failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
 
   /// Creates a new event.
   Future<TimetreeEvent> createEvent(TimetreeEvent event) async {

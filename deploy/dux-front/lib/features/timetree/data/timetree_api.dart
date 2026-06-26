@@ -254,6 +254,11 @@ class TimetreeApi {
     return _dio.get('/api/timetree/events/$id');
   }
 
+  Future<Response> getEventHistory(String id) async {
+    return _dio.get('/api/timetree/events/$id/history');
+  }
+
+
   Future<Response> createEvent(Map<String, dynamic> data) async {
     return _dio.post('/api/timetree/events', data: data);
   }

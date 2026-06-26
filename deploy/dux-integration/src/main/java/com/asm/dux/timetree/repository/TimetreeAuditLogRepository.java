@@ -16,6 +16,9 @@ public interface TimetreeAuditLogRepository extends JpaRepository<TimetreeAuditL
     @Query("SELECT t FROM TimetreeAuditLog t ORDER BY t.actionDate DESC")
     List<TimetreeAuditLog> findRecentLogs(Pageable pageable);
 
+    List<TimetreeAuditLog> findByEntityTypeAndEntityIdOrderByActionDateDesc(String entityType, Long entityId);
+
+
     @Query("SELECT t FROM TimetreeAuditLog t WHERE " +
            "((t.entityType = 'CALENDAR' AND t.entityId = :calendarId) OR " +
            "(:hasEvents = true AND t.entityType = 'EVENT' AND t.entityId IN :eventIds) OR " +

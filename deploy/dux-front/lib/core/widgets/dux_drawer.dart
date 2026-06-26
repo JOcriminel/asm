@@ -717,6 +717,34 @@ class _TimetreeDrawer extends ConsumerWidget {
                       context.go('/timetree/admin/audit-logs');
                     },
                   ),
+                if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR' || userRole == 'CHEF')
+                  ListTile(
+                    leading: Icon(
+                      Icons.track_changes_outlined,
+                      color: currentRoute == '/timetree/traceability'
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      'Traçabilité',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: currentRoute == '/timetree/traceability'
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: currentRoute == '/timetree/traceability'
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    selected: currentRoute == '/timetree/traceability',
+                    selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/timetree/traceability');
+                    },
+                  ),
                 const Divider(),
                 ...menuItems.map((item) => _buildItem(context, item)),
                 const Divider(),
