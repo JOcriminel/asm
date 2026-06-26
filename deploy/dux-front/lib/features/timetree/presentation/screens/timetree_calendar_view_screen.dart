@@ -1503,6 +1503,8 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
   final _customFieldsFormKey = GlobalKey<FormState>();
 
   late String _title;
+  late String _nomEvent;
+  late bool _titleModifiedDirectly;
   String? _description;
   late DateTime _startDate;
   late DateTime _endDate;
@@ -1545,6 +1547,8 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     final ev = widget.event;
 
     _title = ev?.title ?? '';
+    _nomEvent = ev?.nomEvent ?? ev?.title ?? '';
+    _titleModifiedDirectly = ev?.titleModifiedDirectly ?? false;
     _description = ev?.description;
     _startDate = ev?.startDate ?? widget.initialDate ?? DateTime.now();
     _endDate = ev?.endDate ?? (widget.initialDate != null 
@@ -1752,6 +1756,8 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       tags: _selectedTags,
       dependencies: _selectedDependencies,
       reminders: compiledReminders,
+      nomEvent: _nomEvent,
+      titleModifiedDirectly: _titleModifiedDirectly,
     );
 
     try {
@@ -1823,6 +1829,16 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       orElse: () => widget.calendars.isNotEmpty ? widget.calendars.first : const TimetreeCalendar(id: '', name: '', description: '', color: '#2196F3', members: []),
     );
     final calendarMembers = selectedCalendar.members;
+    final memberInCal = calendarMembers.firstWhere(
+      (m) => m.username.toLowerCase() == user?.username.toLowerCase(),
+      orElse: () => const TimetreeMember(id: '', username: '', fullName: '', email: '', role: ''),
+    );
+    final isChefOrAdmin = role == 'ADMIN' ||
+        role == 'ADMINISTRATEUR' ||
+        role == 'CHEF' ||
+        memberInCal.role.toUpperCase() == 'CHEF' ||
+        memberInCal.role.toUpperCase() == 'ADMIN' ||
+        memberInCal.role.toUpperCase() == 'ADMINISTRATEUR';
 
     Color dialogThemeColor = Colors.blue;
     try {
@@ -1848,11 +1864,50 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextFormField(
-                    initialValue: _title,
-                    decoration: const InputDecoration(labelText: 'Titre', border: OutlineInputBorder()),
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Titre requis' : null,
-                    onSaved: (val) => _title = val ?? '',
+                    initialValue: _nomEvent,
+                    decoration: const InputDecoration(labelText: "Nom de l'événement", border: OutlineInputBorder()),
+                    validator: (val) => val == null || val.trim().isEmpty ? "Nom de l'événement requis" : null,
+                    onSaved: (val) => _nomEvent = val ?? '',
+                    onChanged: (val) {
+                      setState(() {
+                        _nomEvent = val;
+                        if (!_titleModifiedDirectly) {
+                          _title = val;
+                        }
+                      });
+                    },
                   ),
+                  const SizedBox(height: 12),
+                  if (isChefOrAdmin) ...[
+                    TextFormField(
+                      initialValue: _title,
+                      key: ValueKey('title_field_$_titleModifiedDirectly'),
+                      decoration: const InputDecoration(labelText: 'Titre', border: OutlineInputBorder()),
+                      enabled: _titleModifiedDirectly,
+                      validator: (val) => (_titleModifiedDirectly && (val == null || val.trim().isEmpty)) ? 'Titre requis' : null,
+                      onSaved: (val) => _title = val ?? '',
+                    ),
+                    const SizedBox(height: 6),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Modifier le titre directement (outrepasser les émojis)'),
+                      value: _titleModifiedDirectly,
+                      onChanged: (val) {
+                        setState(() {
+                          _titleModifiedDirectly = val ?? false;
+                          if (!_titleModifiedDirectly) {
+                            _title = _nomEvent;
+                          }
+                        });
+                      },
+                    ),
+                  ] else ...[
+                    TextFormField(
+                      initialValue: _title.isNotEmpty ? _title : "Généré automatiquement",
+                      decoration: const InputDecoration(labelText: 'Titre (Lecture seule)', border: OutlineInputBorder()),
+                      enabled: false,
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextFormField(
                     initialValue: _description,

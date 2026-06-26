@@ -24,5 +24,6 @@
     <include file="db/changelog/timetree/sprint_13_remove_groups.xml"/>
     <include file="db/changelog/timetree/sprint_13_calendar_description_max.xml"/>
     <include file="db/changelog/timetree/cf_categories.xml"/>
+    <include file="db/changelog/timetree/sprint_13_nvarchar_options.xml"/>
 </databaseChangeLog>
 

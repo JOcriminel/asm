@@ -206,11 +206,35 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
 
   Widget _buildFieldWidget(BuildContext context, TimetreeCustomField field, ThemeData theme) {
     final baseWidget = _buildBaseFieldWidget(context, field, theme);
+    final options = _parseOptions(field.options);
+    final hasOptionEmoji = options.any((opt) => opt.contains('|'));
     
-    if (field.emoji != null && field.emoji!.isNotEmpty) {
+    if ((field.emoji != null && field.emoji!.isNotEmpty) || hasOptionEmoji) {
       final showEmoji = _currentShowEmojiInTitleValues[field.id] ?? false;
       final isFilled = _isFieldFilled(field);
       final canToggleEmoji = !field.readOnly && isFilled;
+
+      String resolvedEmoji = '';
+      if (field.emoji != null && field.emoji!.isNotEmpty) {
+        resolvedEmoji = field.emoji!;
+      } else if (hasOptionEmoji) {
+        final currentValue = _currentValues[field.id] ?? '';
+        final selectedOptions = currentValue.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty);
+        final emojis = <String>[];
+        for (final opt in selectedOptions) {
+          if (opt.contains('|')) {
+            final parts = opt.split('|');
+            if (parts.length >= 2) {
+              emojis.add(parts[1].trim());
+            }
+          }
+        }
+        resolvedEmoji = emojis.join('');
+      }
+
+      final labelText = resolvedEmoji.isNotEmpty
+          ? "Faire apparaître l'émoji $resolvedEmoji dans le titre"
+          : "Faire apparaître l'émoji dans le titre";
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +267,7 @@ class _DynamicEventFormRendererState extends State<DynamicEventFormRenderer> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    "Faire apparaître l'émoji ${field.emoji} dans le titre",
+                    labelText,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: showEmoji 
                           ? theme.colorScheme.primary 

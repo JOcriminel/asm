@@ -162,4 +162,34 @@ class CustomFieldTitleTests {
         // cf2 (5) comes before cf1 (null -> 9999)
         assertEquals("✨🎈 Event Name", event.getTitle());
     }
+
+    @Test
+    void testRecalculateEventTitle_WithOptionLevelEmojis() {
+        Event event = Event.builder()
+                .id(1L)
+                .title("Nom de l'événement")
+                .nomEvent("Nom de l'événement")
+                .titleModifiedDirectly(false)
+                .build();
+
+        CustomField cfOption = CustomField.builder()
+                .id(104L)
+                .name("Option Field")
+                .emoji(null) // No field-level emoji
+                .emojiOrder(1)
+                .build();
+
+        CustomFieldValue valOption = CustomFieldValue.builder()
+                .field(cfOption)
+                .value("local|📍, livraison|🚚") // Option-level emojis
+                .showEmojiInTitle(true)
+                .build();
+
+        when(customFieldValueRepository.findAllByEntityTypeAndEntityId("EVENT", "1"))
+                .thenReturn(Collections.singletonList(valOption));
+
+        EventTitleHelper.recalculateEventTitle(event, customFieldValueRepository);
+
+        assertEquals("📍🚚 Nom de l'événement", event.getTitle());
+    }
 }

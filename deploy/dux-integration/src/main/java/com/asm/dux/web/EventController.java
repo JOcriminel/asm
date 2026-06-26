@@ -114,7 +114,7 @@ public class EventController {
             String nomEvent = (String) body.get("nomEvent");
             Boolean titleModifiedDirectly = (Boolean) body.getOrDefault("titleModifiedDirectly", false);
             
-            boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole());
+            boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()) || "CHEF".equalsIgnoreCase(current.getRole());
             if (!isAdmin) {
                 titleModifiedDirectly = false;
                 nomEvent = nomEvent != null ? nomEvent : title;
@@ -321,7 +321,7 @@ public class EventController {
                 String nomEvent = (String) body.get("nomEvent");
                 Boolean titleModifiedDirectly = (Boolean) body.getOrDefault("titleModifiedDirectly", false);
 
-                boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole());
+                boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()) || "CHEF".equalsIgnoreCase(current.getRole());
                 if (!isAdmin) {
                     existing.setTitleModifiedDirectly(false);
                     existing.setNomEvent(nomEvent != null ? nomEvent : title);
