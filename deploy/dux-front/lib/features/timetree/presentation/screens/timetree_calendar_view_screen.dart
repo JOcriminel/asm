@@ -22,6 +22,7 @@ import 'package:dux_front/features/timetree/presentation/widgets/dynamic_event_f
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_event_details_dialog.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_notification_center.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/mes_agendas_bottom_sheet.dart';
+import 'package:dux_front/core/theme/theme_controller.dart';
 import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
 import 'package:go_router/go_router.dart';
 
@@ -182,6 +183,13 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                       builder: (context) => const TimetreeNotificationCenter(),
                     ),
                   );
+                } else if (val == 'theme_toggle') {
+                  final themeMode = ref.read(themeControllerProvider);
+                  final isDark = themeMode == ThemeMode.dark || 
+                      (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
+                  ref.read(themeControllerProvider.notifier).setThemeMode(
+                        isDark ? ThemeMode.light : ThemeMode.dark,
+                      );
                 }
               },
               itemBuilder: (context) => [
@@ -211,6 +219,20 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                           child: const Icon(Icons.notifications_rounded),
                         ),
                         title: const Text('Notifications'),
+                      );
+                    },
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'theme_toggle',
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final themeMode = ref.watch(themeControllerProvider);
+                      final isDark = themeMode == ThemeMode.dark || 
+                          (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
+                      return ListTile(
+                        leading: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
+                        title: Text(isDark ? 'Mode sombre/clair'),
                       );
                     },
                   ),
