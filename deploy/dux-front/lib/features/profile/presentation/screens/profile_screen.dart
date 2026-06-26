@@ -1,14 +1,13 @@
 import 'dart:convert';
-import 'dart:io' as io;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/core/widgets/info_card.dart';
 import 'package:dux_front/core/widgets/section_header.dart';
 import 'package:dux_front/core/widgets/primary_button.dart';
@@ -32,7 +31,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _obscurePassword = true;
 
   Future<void> _pickAndUploadProfilePicture(
-    BuildContext context,
     WidgetRef ref,
     TimetreeMember? currentMember,
   ) async {
@@ -46,35 +44,69 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return;
     }
 
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        withData: true,
-      );
-      if (result != null) {
-        final file = result.files.single;
-        Uint8List? bytes = file.bytes;
-        if (bytes == null && file.path != null) {
-          bytes = await io.File(file.path!).readAsBytes();
-        }
-        if (bytes != null) {
-          final base64String = base64Encode(bytes);
-          await ref.read(timetreeMembersProvider.notifier).updateMember(
-            id: currentMember.id,
-            username: currentMember.username,
-            fullName: currentMember.fullName,
-            email: currentMember.email,
-            role: currentMember.role,
-            profilePicture: base64String,
-          );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Photo de profil mise à jour avec succès.'),
-                backgroundColor: Colors.green,
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const Text(
+                'Modifier la photo de profil',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-            );
-          }
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded),
+                title: const Text('Prendre une photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Choisir depuis la galerie'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    try {
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        final bytes = await pickedFile.readAsBytes();
+        final base64String = base64Encode(bytes);
+        await ref.read(timetreeMembersProvider.notifier).updateMember(
+          id: currentMember.id,
+          username: currentMember.username,
+          fullName: currentMember.fullName,
+          email: currentMember.email,
+          role: currentMember.role,
+          profilePicture: base64String,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Photo de profil mise à jour avec succès.'),
+              backgroundColor: Colors.green,
+            ),
+          );
         }
       }
     } catch (e) {
@@ -325,7 +357,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               bottom: 0,
                               right: 0,
                               child: InkWell(
-                                onTap: () => _pickAndUploadProfilePicture(context, ref, currentMember),
+                                onTap: () => _pickAndUploadProfilePicture(ref, currentMember),
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
@@ -515,7 +547,119 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   AppSpacing.gapL,
 
-                  // (Theme Settings Card removed)
+                  // Mes Agendas Section
+                  SectionHeader(title: 'Mes Agendas / Calendriers'),
+                  ref.watch(timetreeCalendarsProvider).when(
+                    loading: () => const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(AppSpacing.l),
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                    error: (err, _) => InfoCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.l),
+                        child: Text(
+                          'Impossible de charger les agendas : $err',
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                      ),
+                    ),
+                    data: (calendars) {
+                      if (currentMember == null || currentMember.username.isEmpty) {
+                        return const InfoCard(
+                          child: Padding(
+                            padding: EdgeInsets.all(AppSpacing.l),
+                            child: Text('Chargement des informations de compte...'),
+                          ),
+                        );
+                      }
+                      
+                      final myCalendars = calendars.where((cal) {
+                        return cal.members.any((m) =>
+                            m.username.toLowerCase() ==
+                            currentMember.username.toLowerCase());
+                      }).toList();
+
+                      if (myCalendars.isEmpty) {
+                        return const InfoCard(
+                          child: Padding(
+                            padding: EdgeInsets.all(AppSpacing.l),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded, color: Colors.orange),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text('Vous n\'êtes affecté à aucun agenda.'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: myCalendars.map((cal) {
+                          final memberInCal = cal.members.firstWhere((m) =>
+                              m.username.toLowerCase() ==
+                              currentMember.username.toLowerCase());
+                          final isChef = memberInCal.role.toUpperCase() == 'CHEF' ||
+                              memberInCal.role.toUpperCase() == 'ADMIN' ||
+                              memberInCal.role.toUpperCase() == 'ADMINISTRATEUR';
+
+                          return Card(
+                            elevation: 0,
+                            margin: const EdgeInsets.only(bottom: AppSpacing.m),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: ListTile(
+                              leading: Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Color(int.tryParse(cal.color.replaceAll('#', '0xFF')) ?? 0xFF42A5F5),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              title: Text(
+                                cal.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: cal.description.isNotEmpty
+                                  ? Text(cal.description)
+                                  : null,
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isChef
+                                      ? theme.colorScheme.primaryContainer
+                                      : theme.colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  isChef ? 'Chef d\'agenda' : 'Membre',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isChef
+                                        ? theme.colorScheme.onPrimaryContainer
+                                        : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                   AppSpacing.gapXxl,
                 ],
               ),

@@ -27,7 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to scan barcodes and serial numbers</string>
+	<string>Cette application requiert l'accès à la caméra pour changer votre photo de profil ou scanner des codes-barres.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Cette application requiert l'accès à la galerie pour changer votre photo de profil.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
