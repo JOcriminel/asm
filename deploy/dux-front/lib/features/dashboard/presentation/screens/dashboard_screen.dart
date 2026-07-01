@@ -1,18 +1,98 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/routing/page_route_registry.dart';
 import 'package:dux_front/core/widgets/dux_notification_badge.dart';
+import 'package:dux_front/core/widgets/dux_tutorial_helper.dart';
+import 'package:dux_front/core/services/tutorial_service.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  final GlobalKey _menuCardKey = GlobalKey();
+  final GlobalKey _appBarHomeKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowTutorial();
+    });
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final tutorialService = ref.read(tutorialServiceProvider);
+    final hasSeen = await tutorialService.hasSeenDashboardTour();
+    if (!hasSeen && mounted) {
+      _showDashboardTutorial();
+    }
+  }
+
+  void _showDashboardTutorial() {
+    final targets = <TargetFocus>[
+      TargetFocus(
+        identify: "appBarHomeKey",
+        keyTarget: _appBarHomeKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return DuxTutorialHelper.buildTooltipContent(
+                context: context,
+                title: "Raccourci Accueil",
+                description: "Appuyez sur cette icône pour revenir instantanément à l'écran d'accueil depuis n'importe quel sous-menu.",
+                onNext: () => controller.next(),
+                onSkip: () => controller.skip(),
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "menuCardKey",
+        keyTarget: _menuCardKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return DuxTutorialHelper.buildTooltipContent(
+                context: context,
+                title: "Modules DUX",
+                description: "Voici vos modules opérationnels. Cliquez sur n'importe quelle carte pour commencer une action (KPI, Clients, ou Bons de Préparation).",
+                onNext: () => controller.next(),
+                onSkip: () => controller.skip(),
+                isLastStep: true,
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    DuxTutorialHelper.showTutorial(
+      context: context,
+      targets: targets,
+      onFinish: () {
+        ref.read(tutorialServiceProvider).setSeenDashboardTour(true);
+      },
+      onSkip: () {
+        ref.read(tutorialServiceProvider).setSeenDashboardTour(true);
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final configState = ref.watch(screenConfigControllerProvider);
 
@@ -21,7 +101,6 @@ class DashboardScreen extends ConsumerWidget {
     }
 
     final configs = configState.configs;
-
     final List<Map<String, dynamic>> menuItems = [];
 
     // 1. Add active categories as home cards dynamically
@@ -140,6 +219,7 @@ class DashboardScreen extends ConsumerWidget {
                 ],
               ),
               child: IconButton(
+                key: _appBarHomeKey,
                 icon: Icon(Icons.home_outlined, color: theme.colorScheme.primary),
                 onPressed: () {},
               ),
@@ -158,7 +238,7 @@ class DashboardScreen extends ConsumerWidget {
         itemCount: menuItems.length,
         itemBuilder: (context, index) {
           final item = menuItems[index];
-          return _MenuCard(
+          final card = _MenuCard(
             title: item['title'] as String,
             icon: item['icon'] as IconData,
             color: item['color'] as Color,
@@ -172,6 +252,14 @@ class DashboardScreen extends ConsumerWidget {
               }
             },
           );
+
+          if (index == 0) {
+            return KeyedSubtree(
+              key: _menuCardKey,
+              child: card,
+            );
+          }
+          return card;
         },
       ),
     );
@@ -271,4 +359,3 @@ class _MenuCardState extends State<_MenuCard> {
     );
   }
 }
-

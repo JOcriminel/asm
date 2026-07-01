@@ -27,10 +27,20 @@ class TimetreeCategoriesNotifier extends StateNotifier<AsyncValue<List<TimetreeC
   }
 
   /// Creates a new category and inserts it into the state list.
-  Future<void> createCategory(String name, int displayOrder) async {
+  Future<void> createCategory({
+    required String name,
+    required int displayOrder,
+    String? allowedRoles,
+    String? allowedUsers,
+  }) async {
     final currentList = state.value ?? [];
     try {
-      final newCategory = await _repository.createCategory(name, displayOrder);
+      final newCategory = await _repository.createCategory(
+        name: name,
+        displayOrder: displayOrder,
+        allowedRoles: allowedRoles,
+        allowedUsers: allowedUsers,
+      );
       final updatedList = List<TimetreeCategory>.from(currentList)..add(newCategory);
       updatedList.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
       state = AsyncValue.data(updatedList);
@@ -42,10 +52,22 @@ class TimetreeCategoriesNotifier extends StateNotifier<AsyncValue<List<TimetreeC
   }
 
   /// Updates an existing category in the state list.
-  Future<void> updateCategory(String id, String name, int displayOrder) async {
+  Future<void> updateCategory({
+    required String id,
+    required String name,
+    required int displayOrder,
+    String? allowedRoles,
+    String? allowedUsers,
+  }) async {
     final currentList = state.value ?? [];
     try {
-      final updatedCategory = await _repository.updateCategory(id, name, displayOrder);
+      final updatedCategory = await _repository.updateCategory(
+        id: id,
+        name: name,
+        displayOrder: displayOrder,
+        allowedRoles: allowedRoles,
+        allowedUsers: allowedUsers,
+      );
       final updatedList = currentList.map((item) {
         return item.id == id ? updatedCategory : item;
       }).toList();

@@ -14,53 +14,18 @@ import 'package:dux_front/features/timetree/presentation/provider/timetree_calen
 /// Organized into two tabs:
 ///   1. Matrice des Permissions: Permissions Matrix mapping categories and pages.
 ///   2. Accès Utilisateurs: Member role management.
-class TimetreeRolesPermissionsScreen extends ConsumerStatefulWidget {
+class TimetreeRolesPermissionsScreen extends ConsumerWidget {
   const TimetreeRolesPermissionsScreen({super.key});
 
   @override
-  ConsumerState<TimetreeRolesPermissionsScreen> createState() => _TimetreeRolesPermissionsScreenState();
-}
-
-class _TimetreeRolesPermissionsScreenState extends ConsumerState<TimetreeRolesPermissionsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        drawer: const DuxDrawer(),
-        appBar: AppBar(
-          title: const Text('Dux Calender – Rôles & Permissions'),
-          bottom: TabBar(
-            controller: _tabController,
-            tabs: const [
-              Tab(icon: Icon(Icons.grid_on_outlined), text: 'Matrice des Permissions'),
-              Tab(icon: Icon(Icons.person_pin_rounded), text: 'Accès Utilisateurs'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          controller: _tabController,
-          children: const [
-            _PermissionsTab(),
-            _UserAccessTab(),
-          ],
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      drawer: const DuxDrawer(),
+      appBar: AppBar(
+        title: const Text('Dux Calender – Rôles & Permissions'),
+        elevation: 0,
       ),
+      body: const _UserAccessTab(),
     );
   }
 }

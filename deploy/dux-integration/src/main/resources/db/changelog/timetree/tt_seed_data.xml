@@ -71,16 +71,7 @@
             <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
         </insert>
 
-        <insert tableName="TT_PAGE" schemaName="dbo">
-            <column name="CATEGORY_ID"     valueNumeric="1"/>
-            <column name="NAME"            value="Recherche Globale"/>
-            <column name="ROUTE"           value="/timetree/search"/>
-            <column name="ICON"            value="search_outlined"/>
-            <column name="COMPONENT_NAME"  value="TimetreeSearchScreen"/>
-            <column name="DISPLAY_ORDER"   valueNumeric="2"/>
-            <column name="ACTIVE"          valueBoolean="true"/>
-            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
-        </insert>
+
 
         <!-- Pages under "Gestion" (ID 2) -->
         <insert tableName="TT_PAGE" schemaName="dbo">
@@ -94,16 +85,7 @@
             <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
         </insert>
 
-        <insert tableName="TT_PAGE" schemaName="dbo">
-            <column name="CATEGORY_ID"     valueNumeric="2"/>
-            <column name="NAME"            value="Membres &amp; Agendas"/>
-            <column name="ROUTE"           value="/timetree/membership-calendars"/>
-            <column name="ICON"            value="contact_mail_outlined"/>
-            <column name="COMPONENT_NAME"  value="TimetreeMembershipCalendarsScreen"/>
-            <column name="DISPLAY_ORDER"   valueNumeric="2"/>
-            <column name="ACTIVE"          valueBoolean="true"/>
-            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
-        </insert>
+
 
         <insert tableName="TT_PAGE" schemaName="dbo">
             <column name="CATEGORY_ID"     valueNumeric="2"/>

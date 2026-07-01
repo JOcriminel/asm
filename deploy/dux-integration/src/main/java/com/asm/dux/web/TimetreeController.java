@@ -57,6 +57,8 @@ public class TimetreeController {
             catMap.put("title", cat.getName());
             catMap.put("path", cat.getCode() != null ? cat.getCode() : "");
             catMap.put("displayOrder", cat.getDisplayOrder() != null ? cat.getDisplayOrder() : 0);
+            catMap.put("allowedRoles", cat.getAllowedRoles());
+            catMap.put("allowedUsers", cat.getAllowedUsers());
 
             List<Map<String, Object>> children = new ArrayList<>();
             if (cat.getPages() != null) {
@@ -216,6 +218,8 @@ public class TimetreeController {
         m.put("color", c.getColor());
         m.put("displayOrder", c.getDisplayOrder() != null ? c.getDisplayOrder() : 0);
         m.put("active", c.getActive() != null ? c.getActive() : false);
+        m.put("allowedRoles", c.getAllowedRoles());
+        m.put("allowedUsers", c.getAllowedUsers());
         m.put("createdAt", c.getCreatedAt());
         m.put("updatedAt", c.getUpdatedAt());
         return m;
@@ -261,6 +265,8 @@ public class TimetreeController {
             existing.setColor(request.getColor());
             existing.setDisplayOrder(request.getDisplayOrder());
             existing.setActive(request.getActive());
+            existing.setAllowedRoles(request.getAllowedRoles());
+            existing.setAllowedUsers(request.getAllowedUsers());
             existing.setUpdatedAt(LocalDateTime.now());
             existing.setUpdatedBy("admin");
             Category saved = categoryRepository.save(existing);

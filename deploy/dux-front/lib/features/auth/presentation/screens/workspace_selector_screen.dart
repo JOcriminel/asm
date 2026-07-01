@@ -5,12 +5,21 @@ import 'package:dux_front/core/theme/app_sizes.dart';
 import 'package:dux_front/core/theme/theme_controller.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/profile/presentation/controllers/profile_controller.dart';
+import 'package:dux_front/core/services/tutorial_service.dart';
 
 class WorkspaceSelectorScreen extends ConsumerWidget {
   const WorkspaceSelectorScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Check if onboarding was completed, redirect if not
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final hasSeen = await ref.read(tutorialServiceProvider).hasSeenIntro();
+      if (!hasSeen && context.mounted) {
+        context.go('/intro-walkthrough');
+      }
+    });
+
     final theme = Theme.of(context);
     final profileState = ref.watch(profileControllerProvider);
     final themeMode = ref.watch(themeControllerProvider);

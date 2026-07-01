@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_page.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_categories_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_pages_provider.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 
 /// TimeTree Pages CRUD Screen.
 ///
@@ -420,8 +422,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _orderController;
-  late TextEditingController _allowedRolesController;
-  late TextEditingController _allowedUsersController;
+  List<String> _selectedRoles = [];
+  List<String> _selectedUsers = [];
   String? _selectedCategoryId;
   bool _active = true;
   bool _submitting = false;
@@ -433,19 +435,203 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
     _orderController = TextEditingController(
       text: widget.page != null ? '${widget.page!.displayOrder}' : '1',
     );
-    _allowedRolesController = TextEditingController(text: widget.page?.allowedRoles ?? '');
-    _allowedUsersController = TextEditingController(text: widget.page?.allowedUsers ?? '');
+    _selectedRoles = widget.page?.allowedRoles?.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList() ?? [];
+    _selectedUsers = widget.page?.allowedUsers?.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList() ?? [];
     _selectedCategoryId = widget.page?.categoryId;
     _active = widget.page?.active ?? true;
+
+    Future.microtask(() {
+      if (ref.read(timetreeMembersProvider).value == null) {
+        ref.read(timetreeMembersProvider.notifier).loadMembers();
+      }
+    });
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _orderController.dispose();
-    _allowedRolesController.dispose();
-    _allowedUsersController.dispose();
     super.dispose();
+  }
+
+  void _showRolesSelectorDialog() {
+    List<String> tempRoles = List.from(_selectedRoles);
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Rôles autorisés'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: ['ADMIN', 'CHEF', 'MEMBER'].map((role) {
+                  final checked = tempRoles.contains(role);
+                  return CheckboxListTile(
+                    title: Text(role),
+                    value: checked,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        if (val == true) {
+                          tempRoles.add(role);
+                        } else {
+                          tempRoles.remove(role);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedRoles = tempRoles;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showUsersSelectorDialog() {
+    List<String> tempUsers = List.from(_selectedUsers);
+    String searchQuery = '';
+    int currentPage = 0;
+    const int pageSize = 5;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final allMembers = ref.watch(timetreeMembersProvider).value ?? [];
+            final filteredMembers = allMembers.where((m) {
+              final term = searchQuery.toLowerCase();
+              return m.fullName.toLowerCase().contains(term) ||
+                     m.username.toLowerCase().contains(term) ||
+                     m.email.toLowerCase().contains(term);
+            }).toList();
+
+            final totalItems = filteredMembers.length;
+            final totalPages = (totalItems / pageSize).ceil();
+            final startIdx = currentPage * pageSize;
+            final endIdx = (startIdx + pageSize) > totalItems ? totalItems : (startIdx + pageSize);
+            final currentPageItems = totalItems > 0 ? filteredMembers.sublist(startIdx, endIdx) : <TimetreeMember>[];
+
+            return AlertDialog(
+              title: const Text('Utilisateurs autorisés'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Rechercher un utilisateur...',
+                        prefixIcon: Icon(Icons.search),
+                        isDense: true,
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          searchQuery = val;
+                          currentPage = 0;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (currentPageItems.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Text('Aucun utilisateur trouvé'),
+                      )
+                    else
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: currentPageItems.map((m) {
+                            final isChecked = tempUsers.contains(m.username);
+                            return CheckboxListTile(
+                              title: Text(m.fullName),
+                              subtitle: Text('@${m.username}'),
+                              value: isChecked,
+                              onChanged: (val) {
+                                setDialogState(() {
+                                  if (val == true) {
+                                    if (!tempUsers.contains(m.username)) {
+                                      tempUsers.add(m.username);
+                                    }
+                                  } else {
+                                    tempUsers.remove(m.username);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    if (totalPages > 1) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left),
+                            onPressed: currentPage > 0
+                                ? () {
+                                    setDialogState(() {
+                                      currentPage--;
+                                    });
+                                  }
+                                : null,
+                          ),
+                          Text('Page ${currentPage + 1} sur $totalPages'),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right),
+                            onPressed: currentPage < totalPages - 1
+                                ? () {
+                                    setDialogState(() {
+                                      currentPage++;
+                                    });
+                                  }
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedUsers = tempUsers;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _submit() async {
@@ -460,8 +646,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
     setState(() => _submitting = true);
     final title = _titleController.text.trim();
     final order = int.tryParse(_orderController.text) ?? 1;
-    final allowedRoles = _allowedRolesController.text.trim();
-    final allowedUsers = _allowedUsersController.text.trim();
+    final allowedRoles = _selectedRoles.join(', ');
+    final allowedUsers = _selectedUsers.join(', ');
 
     try {
       if (widget.page == null) {
@@ -600,22 +786,44 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
               ),
               const SizedBox(height: 16),
 
-              TextFormField(
-                controller: _allowedRolesController,
-                decoration: const InputDecoration(
-                  labelText: 'Rôles autorisés',
-                  hintText: 'Séparés par des virgules, ex. ADMIN, CHEF',
-                  helperText: 'Laissez vide pour autoriser tous les rôles',
+              InkWell(
+                onTap: _showRolesSelectorDialog,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Rôles autorisés',
+                    helperText: 'Laissez vide pour autoriser tous les rôles',
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(
+                    _selectedRoles.isEmpty
+                        ? 'Tous les rôles'
+                        : _selectedRoles.join(', '),
+                    style: TextStyle(
+                      color: _selectedRoles.isEmpty ? Colors.grey : null,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
 
-              TextFormField(
-                controller: _allowedUsersController,
-                decoration: const InputDecoration(
-                  labelText: 'Utilisateurs autorisés',
-                  hintText: 'Emails/Noms d\'utilisateurs séparés par des virgules',
-                  helperText: 'Laissez vide pour autoriser tous les utilisateurs',
+              InkWell(
+                onTap: _showUsersSelectorDialog,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Utilisateurs autorisés',
+                    helperText: 'Laissez vide pour autoriser tous les utilisateurs',
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(
+                    _selectedUsers.isEmpty
+                        ? 'Tous les utilisateurs'
+                        : _selectedUsers.join(', '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _selectedUsers.isEmpty ? Colors.grey : null,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

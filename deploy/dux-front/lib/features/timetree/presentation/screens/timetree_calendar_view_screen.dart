@@ -10,7 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 import 'package:dux_front/core/widgets/dux_notification_badge.dart';
+import 'package:dux_front/core/widgets/dux_tutorial_helper.dart';
+import 'package:dux_front/core/services/tutorial_service.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
@@ -48,6 +51,78 @@ class TimetreeCalendarViewScreen extends ConsumerStatefulWidget {
 }
 
 class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarViewScreen> {
+  final GlobalKey _fabKey = GlobalKey();
+  final GlobalKey _filterKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowTutorial();
+    });
+  }
+
+  Future<void> _checkAndShowTutorial() async {
+    final tutorialService = ref.read(tutorialServiceProvider);
+    final hasSeen = await tutorialService.hasSeenCalendarTour();
+    if (!hasSeen && mounted) {
+      _showCalendarTutorial();
+    }
+  }
+
+  void _showCalendarTutorial() {
+    final targets = <TargetFocus>[
+      TargetFocus(
+        identify: "filterKey",
+        keyTarget: _filterKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            builder: (context, controller) {
+              return DuxTutorialHelper.buildTooltipContent(
+                context: context,
+                title: "Filtrer le Calendrier",
+                description: "Appuyez ici pour filtrer les événements par catégorie ou par membre afin de clarifier votre vue.",
+                onNext: () => controller.next(),
+                onSkip: () => controller.skip(),
+              );
+            },
+          ),
+        ],
+      ),
+      TargetFocus(
+        identify: "fabKey",
+        keyTarget: _fabKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            builder: (context, controller) {
+              return DuxTutorialHelper.buildTooltipContent(
+                context: context,
+                title: "Ajouter un Événement",
+                description: "Appuyez sur ce bouton plus (ou cliquez directement sur une date du calendrier) pour planifier une nouvelle livraison, une réunion, ou une tâche.",
+                onNext: () => controller.next(),
+                onSkip: () => controller.skip(),
+                isLastStep: true,
+              );
+            },
+          ),
+        ],
+      ),
+    ];
+
+    DuxTutorialHelper.showTutorial(
+      context: context,
+      targets: targets,
+      onFinish: () {
+        ref.read(tutorialServiceProvider).setSeenCalendarTour(true);
+      },
+      onSkip: () {
+        ref.read(tutorialServiceProvider).setSeenCalendarTour(true);
+      },
+    );
+  }
+
   // Static Palette for Calendar/Group Colors
   final List<Color> _colorPalette = [
     Colors.blue,
@@ -152,6 +227,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
             const DuxNotificationBadge(),
             IconButton(
               icon: Icon(
+                key: _filterKey,
                 Icons.filter_list_rounded,
                 color: ref.watch(calendarFilterProvider).isEmpty ? null : themeSeedColor,
               ),
@@ -380,6 +456,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                     right: 16,
                     bottom: 16,
                     child: FloatingActionButton(
+                      key: _fabKey,
                       backgroundColor: theme.brightness == Brightness.dark ? const Color(0xFF2C2C2C) : const Color(0xFFEBEBEB),
                       foregroundColor: theme.brightness == Brightness.dark ? Colors.white : Colors.black87,
                       shape: const CircleBorder(),

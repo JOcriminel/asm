@@ -49,12 +49,19 @@ class TimetreeCategoriesRepository {
   }
 
   /// Creates a new category.
-  Future<TimetreeCategory> createCategory(String name, int displayOrder) async {
+  Future<TimetreeCategory> createCategory({
+    required String name,
+    required int displayOrder,
+    String? allowedRoles,
+    String? allowedUsers,
+  }) async {
     try {
       final response = await _api.createCategory({
         'name': name,
         'displayOrder': displayOrder,
         'active': true,
+        'allowedRoles': allowedRoles,
+        'allowedUsers': allowedUsers,
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {
@@ -68,12 +75,20 @@ class TimetreeCategoriesRepository {
     }
   }
 
-  /// Updates an existing category name and/or display order.
-  Future<TimetreeCategory> updateCategory(String id, String name, int displayOrder) async {
+  /// Updates an existing category.
+  Future<TimetreeCategory> updateCategory({
+    required String id,
+    required String name,
+    required int displayOrder,
+    String? allowedRoles,
+    String? allowedUsers,
+  }) async {
     try {
       final response = await _api.updateCategory(id, {
         'name': name,
         'displayOrder': displayOrder,
+        'allowedRoles': allowedRoles,
+        'allowedUsers': allowedUsers,
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {

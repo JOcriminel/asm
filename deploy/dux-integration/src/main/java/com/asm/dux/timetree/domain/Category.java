@@ -53,6 +53,12 @@ public class Category {
     @Column(name = "UPDATED_BY", length = 100)
     private String updatedBy;
 
+    @Column(name = "ALLOWED_ROLES", length = 500)
+    private String allowedRoles;
+
+    @Column(name = "ALLOWED_USERS", length = 500)
+    private String allowedUsers;
+
     @OneToMany(mappedBy = "category", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<Page> pages;
 

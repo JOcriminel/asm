@@ -159,14 +159,14 @@ class TimetreeAccueilScreen extends ConsumerWidget {
           data: (categories) {
             final user = authState.user;
 
-            bool isPageAccessible(TimetreeMenuItem page) {
+            bool isItemAccessible(TimetreeMenuItem item) {
               if (user == null) return false;
               final userRole = user.role.toUpperCase();
               if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR') {
                 return true;
               }
-              if (page.allowedRoles != null && page.allowedRoles!.trim().isNotEmpty) {
-                final rolesList = page.allowedRoles!
+              if (item.allowedRoles != null && item.allowedRoles!.trim().isNotEmpty) {
+                final rolesList = item.allowedRoles!
                     .split(',')
                     .map((r) => r.trim().toUpperCase())
                     .where((r) => r.isNotEmpty);
@@ -174,8 +174,8 @@ class TimetreeAccueilScreen extends ConsumerWidget {
                   return false;
                 }
               }
-              if (page.allowedUsers != null && page.allowedUsers!.trim().isNotEmpty) {
-                final usersList = page.allowedUsers!
+              if (item.allowedUsers != null && item.allowedUsers!.trim().isNotEmpty) {
+                final usersList = item.allowedUsers!
                     .split(',')
                     .map((u) => u.trim().toLowerCase())
                     .where((u) => u.isNotEmpty);
@@ -190,8 +190,8 @@ class TimetreeAccueilScreen extends ConsumerWidget {
               return true;
             }
 
-            final filteredCategories = categories.map((cat) {
-              final filteredPages = cat.children.where(isPageAccessible).toList();
+            final filteredCategories = categories.where(isItemAccessible).map((cat) {
+              final filteredPages = cat.children.where(isItemAccessible).toList();
               return TimetreeMenuItem(
                 id: cat.id,
                 title: cat.title,

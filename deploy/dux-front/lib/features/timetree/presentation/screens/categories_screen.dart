@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_category.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_categories_provider.dart';
+import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 
 /// TimeTree Categories CRUD Screen.
 ///
@@ -325,16 +327,41 @@ class _CategoryTile extends ConsumerWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        subtitle: Text(
-          'Ordre d\'affichage : ${category.displayOrder}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ordre d\'affichage : ${category.displayOrder}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (category.allowedRoles != null && category.allowedRoles!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Rôles autorisés : ${category.allowedRoles}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.blueAccent,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+            if (category.allowedUsers != null && category.allowedUsers!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Utilisateurs autorisés : ${category.allowedUsers}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.purple,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Switch for active/inactive status toggle
             Switch(
               value: category.active,
               onChanged: (active) async {
@@ -386,6 +413,8 @@ class _CategoryFormDialogState extends ConsumerState<_CategoryFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _orderController;
+  List<String> _selectedRoles = [];
+  List<String> _selectedUsers = [];
   bool _submitting = false;
 
   @override
@@ -395,6 +424,14 @@ class _CategoryFormDialogState extends ConsumerState<_CategoryFormDialog> {
     _orderController = TextEditingController(
       text: widget.category != null ? '${widget.category!.displayOrder}' : '1',
     );
+    _selectedRoles = widget.category?.allowedRoles?.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList() ?? [];
+    _selectedUsers = widget.category?.allowedUsers?.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList() ?? [];
+
+    Future.microtask(() {
+      if (ref.read(timetreeMembersProvider).value == null) {
+        ref.read(timetreeMembersProvider.notifier).loadMembers();
+      }
+    });
   }
 
   @override
@@ -404,22 +441,213 @@ class _CategoryFormDialogState extends ConsumerState<_CategoryFormDialog> {
     super.dispose();
   }
 
+  void _showRolesSelectorDialog() {
+    List<String> tempRoles = List.from(_selectedRoles);
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Rôles autorisés'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: ['ADMIN', 'CHEF', 'MEMBER'].map((role) {
+                  final checked = tempRoles.contains(role);
+                  return CheckboxListTile(
+                    title: Text(role),
+                    value: checked,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        if (val == true) {
+                          tempRoles.add(role);
+                        } else {
+                          tempRoles.remove(role);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedRoles = tempRoles;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showUsersSelectorDialog() {
+    List<String> tempUsers = List.from(_selectedUsers);
+    String searchQuery = '';
+    int currentPage = 0;
+    const int pageSize = 5;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final allMembers = ref.watch(timetreeMembersProvider).value ?? [];
+            final filteredMembers = allMembers.where((m) {
+              final term = searchQuery.toLowerCase();
+              return m.fullName.toLowerCase().contains(term) ||
+                     m.username.toLowerCase().contains(term) ||
+                     m.email.toLowerCase().contains(term);
+            }).toList();
+
+            final totalItems = filteredMembers.length;
+            final totalPages = (totalItems / pageSize).ceil();
+            final startIdx = currentPage * pageSize;
+            final endIdx = (startIdx + pageSize) > totalItems ? totalItems : (startIdx + pageSize);
+            final currentPageItems = totalItems > 0 ? filteredMembers.sublist(startIdx, endIdx) : <TimetreeMember>[];
+
+            return AlertDialog(
+              title: const Text('Utilisateurs autorisés'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Rechercher un utilisateur...',
+                        prefixIcon: Icon(Icons.search),
+                        isDense: true,
+                      ),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          searchQuery = val;
+                          currentPage = 0;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (currentPageItems.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Text('Aucun utilisateur trouvé'),
+                      )
+                    else
+                      Flexible(
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: currentPageItems.map((m) {
+                            final isChecked = tempUsers.contains(m.username);
+                            return CheckboxListTile(
+                              title: Text(m.fullName),
+                              subtitle: Text('@${m.username}'),
+                              value: isChecked,
+                              onChanged: (val) {
+                                setDialogState(() {
+                                  if (val == true) {
+                                    if (!tempUsers.contains(m.username)) {
+                                      tempUsers.add(m.username);
+                                    }
+                                  } else {
+                                    tempUsers.remove(m.username);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    if (totalPages > 1) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.chevron_left),
+                            onPressed: currentPage > 0
+                                ? () {
+                                    setDialogState(() {
+                                      currentPage--;
+                                    });
+                                  }
+                                : null,
+                          ),
+                          Text('Page ${currentPage + 1} sur $totalPages'),
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right),
+                            onPressed: currentPage < totalPages - 1
+                                ? () {
+                                    setDialogState(() {
+                                      currentPage++;
+                                    });
+                                  }
+                                : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedUsers = tempUsers;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Confirmer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _submitting = true);
     final name = _nameController.text.trim();
     final order = int.tryParse(_orderController.text) ?? 1;
+    final allowedRoles = _selectedRoles.join(', ');
+    final allowedUsers = _selectedUsers.join(', ');
 
     try {
       if (widget.category == null) {
         // Create mode
-        await ref.read(timetreeCategoriesProvider.notifier).createCategory(name, order);
+        await ref.read(timetreeCategoriesProvider.notifier).createCategory(
+              name: name,
+              displayOrder: order,
+              allowedRoles: allowedRoles.isEmpty ? null : allowedRoles,
+              allowedUsers: allowedUsers.isEmpty ? null : allowedUsers,
+            );
       } else {
         // Edit mode
-        await ref
-            .read(timetreeCategoriesProvider.notifier)
-            .updateCategory(widget.category!.id, name, order);
+        await ref.read(timetreeCategoriesProvider.notifier).updateCategory(
+              id: widget.category!.id,
+              name: name,
+              displayOrder: order,
+              allowedRoles: allowedRoles.isEmpty ? null : allowedRoles,
+              allowedUsers: allowedUsers.isEmpty ? null : allowedUsers,
+            );
       }
       if (mounted) {
         Navigator.pop(context);
@@ -449,43 +677,87 @@ class _CategoryFormDialogState extends ConsumerState<_CategoryFormDialog> {
 
     return AlertDialog(
       title: Text(title),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nom de la catégorie',
-                hintText: 'ex. Finance, Ventes',
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nom de la catégorie',
+                  hintText: 'ex. Finance, Ventes',
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Veuillez saisir un nom';
+                  }
+                  return null;
+                },
               ),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Veuillez saisir un nom';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _orderController,
-              decoration: const InputDecoration(
-                labelText: 'Ordre d\'affichage',
-                hintText: 'ex. 1, 2, 3',
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _orderController,
+                decoration: const InputDecoration(
+                  labelText: 'Ordre d\'affichage',
+                  hintText: 'ex. 1, 2, 3',
+                ),
+                keyboardType: TextInputType.number,
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Veuillez saisir un ordre';
+                  }
+                  if (int.tryParse(val) == null) {
+                    return 'Veuillez saisir un nombre valide';
+                  }
+                  return null;
+                },
               ),
-              keyboardType: TextInputType.number,
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) {
-                  return 'Veuillez saisir un ordre';
-                }
-                if (int.tryParse(val) == null) {
-                  return 'Veuillez saisir un nombre valide';
-                }
-                return null;
-              },
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              InkWell(
+                onTap: _showRolesSelectorDialog,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Rôles autorisés',
+                    helperText: 'Laissez vide pour autoriser tous les rôles',
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(
+                    _selectedRoles.isEmpty
+                        ? 'Tous les rôles'
+                        : _selectedRoles.join(', '),
+                    style: TextStyle(
+                      color: _selectedRoles.isEmpty ? Colors.grey : null,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              InkWell(
+                onTap: _showUsersSelectorDialog,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Utilisateurs autorisés',
+                    helperText: 'Laissez vide pour autoriser tous les utilisateurs',
+                    suffixIcon: Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(
+                    _selectedUsers.isEmpty
+                        ? 'Tous les utilisateurs'
+                        : _selectedUsers.join(', '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _selectedUsers.isEmpty ? Colors.grey : null,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

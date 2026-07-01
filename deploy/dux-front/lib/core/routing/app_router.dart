@@ -7,6 +7,7 @@ import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/workspace_selector_screen.dart';
+import '../../features/auth/presentation/screens/intro_walkthrough_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/dashboard/presentation/screens/kpi_dashboard_screen.dart';
 import '../../features/dashboard/presentation/screens/activity_feed_screen.dart';
@@ -101,6 +102,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.workspaceSelector,
         name: RouteNames.workspaceSelector,
         builder: (context, state) => const WorkspaceSelectorScreen(),
+      ),
+      GoRoute(
+        path: '/intro-walkthrough',
+        name: 'introWalkthrough',
+        builder: (context, state) => const IntroWalkthroughScreen(),
       ),
       
       // Detail and full-screen routes configured on the root navigator (sibling to Shells)

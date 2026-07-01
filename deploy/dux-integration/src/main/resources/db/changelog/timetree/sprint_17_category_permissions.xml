@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="sprint-17-category-permissions-001" author="antigravity">
+        <addColumn tableName="TT_CATEGORY" schemaName="dbo">
+            <column name="ALLOWED_ROLES" type="VARCHAR(500)"/>
+            <column name="ALLOWED_USERS" type="VARCHAR(500)"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

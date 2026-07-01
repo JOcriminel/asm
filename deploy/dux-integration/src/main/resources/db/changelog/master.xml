@@ -30,5 +30,7 @@
     <include file="db/changelog/timetree/sprint_15_page_permissions.xml"/>
     <include file="db/changelog/timetree/sprint_16_mute_all_except_specific.xml"/>
     <include file="db/changelog/timetree/sprint_17_document_validation_proof.xml"/>
+    <include file="db/changelog/timetree/sprint_17_disappear_search_membership_pages.xml"/>
+    <include file="db/changelog/timetree/sprint_17_category_permissions.xml"/>
 </databaseChangeLog>
 
