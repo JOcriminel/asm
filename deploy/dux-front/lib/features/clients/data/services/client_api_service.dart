@@ -73,6 +73,24 @@ class ClientApiService {
       throw ApiExceptionHandler.handle(e);
     }
   }
+
+  Future<Map<String, dynamic>> fetchClientByCode(String code) async {
+    try {
+      final response = await _dio.get('/tier/findbycode/$code');
+      if (response.data != null) {
+        dynamic data = response.data;
+        if (data is String) {
+          data = json.decode(data);
+        }
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+      }
+      throw UnknownApiException('Empty response from fetchClientByCode');
+    } catch (e) {
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
 }
 
 final clientApiServiceProvider = Provider<ClientApiService>((ref) {

@@ -34,7 +34,7 @@ public class S3Config {
         if (accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank()) {
             return StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey));
         }
-        return DefaultCredentialsProvider.create();
+        return StaticCredentialsProvider.create(AwsBasicCredentials.create("dummy-access-key", "dummy-secret-key"));
     }
 
     @Bean

@@ -30,7 +30,7 @@ public class SecurityConfig {
             // Allow preflight OPTIONS requests without authentication, protect everything else
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/ws/**", "/ws-timetree/**").permitAll()
+                .requestMatchers("/ws/**", "/ws-timetree/**", "/api/dux/tier/types", "/api/dux/tier/findbycode/**", "/api/timetree/local-download", "/api/dux/api/timetree/local-download", "/api/timetree/local-upload", "/api/dux/api/timetree/local-upload").permitAll()
                 .anyRequest().authenticated()
             )
 

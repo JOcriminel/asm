@@ -4,6 +4,7 @@ import 'package:dux_front/core/network/dio_client.dart';
 import 'package:dux_front/features/timetree/data/timetree_api.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_events_repository.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_event.dart';
+import 'package:dux_front/core/services/push_notification_service.dart';
 
 /// Provider for the calendar view mode: MONTH, WEEK, or DAY.
 final calendarViewModeProvider = StateProvider<String>((ref) => 'MONTH');
@@ -63,7 +64,7 @@ class CalendarDateRange {
 
 /// Helper to resolve the dates range based on focused date and view mode.
 CalendarDateRange getRangeForDate(DateTime date, String viewMode) {
-  if (viewMode == 'MONTH') {
+  if (viewMode == 'MONTH' || viewMode == 'ANALYTICS') {
     final monthStart = DateTime(date.year, date.month, 1);
     final monthEnd = DateTime(date.year, date.month + 1, 0);
     return CalendarDateRange(
@@ -136,10 +137,26 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
       );
       if (!_isDisposed) {
         state = AsyncValue.data(list);
+        _syncNotifications(list);
       }
     } catch (e, st) {
       if (!_isDisposed) {
         state = AsyncValue.error(e, st);
+      }
+    }
+  }
+
+  void _syncNotifications(List<TimetreeEvent> events) async {
+    final pushService = _ref.read(pushNotificationServiceProvider);
+    for (final event in events) {
+      await pushService.cancelEventReminders(event.id, event.reminders.length);
+      for (int i = 0; i < event.reminders.length; i++) {
+        await pushService.scheduleEventReminder(
+          eventId: event.id,
+          title: event.title,
+          reminderTime: event.reminders[i],
+          index: i,
+        );
       }
     }
   }
@@ -180,6 +197,12 @@ class TimetreeEventsNotifier extends StateNotifier<AsyncValue<List<TimetreeEvent
     final currentList = state.value ?? [];
     try {
       final baseId = id.split('_rec_').first;
+      
+      try {
+        final eventToDelete = currentList.firstWhere((e) => e.id.split('_rec_').first == baseId);
+        await _ref.read(pushNotificationServiceProvider).cancelEventReminders(eventToDelete.id, eventToDelete.reminders.length);
+      } catch (_) {}
+
       await _repository.deleteEvent(baseId);
       state = AsyncValue.data(currentList.where((item) {
         final itemBaseId = item.id.split('_rec_').first;
@@ -284,5 +307,83 @@ final expandedEventsProvider = Provider.autoDispose<AsyncValue<List<TimetreeEven
       expanded.addAll(event.expandRecurrence(range.start, range.end));
     }
     return expanded;
+  });
+});
+
+class CalendarFilterState {
+  final String? participantSearch;
+  final String? textSearch;
+  final String? status;
+  final Map<String, String> customFieldsSearch;
+
+  CalendarFilterState({
+    this.participantSearch,
+    this.textSearch,
+    this.status = 'ALL',
+    this.customFieldsSearch = const {},
+  });
+
+  CalendarFilterState copyWith({
+    String? participantSearch,
+    String? textSearch,
+    String? status,
+    Map<String, String>? customFieldsSearch,
+  }) {
+    return CalendarFilterState(
+      participantSearch: participantSearch ?? this.participantSearch,
+      textSearch: textSearch ?? this.textSearch,
+      status: status ?? this.status,
+      customFieldsSearch: customFieldsSearch ?? this.customFieldsSearch,
+    );
+  }
+
+  bool get isEmpty {
+    return (participantSearch == null || participantSearch!.isEmpty) &&
+        (textSearch == null || textSearch!.isEmpty) &&
+        (status == null || status == 'ALL') &&
+        customFieldsSearch.values.every((v) => v.isEmpty);
+  }
+}
+
+final calendarFilterProvider = StateProvider<CalendarFilterState>((ref) => CalendarFilterState());
+
+final filteredEventsProvider = Provider.autoDispose<AsyncValue<List<TimetreeEvent>>>((ref) {
+  final expandedAsync = ref.watch(expandedEventsProvider);
+  final filter = ref.watch(calendarFilterProvider);
+
+  return expandedAsync.whenData((events) {
+    if (filter.isEmpty) {
+      return events;
+    }
+
+    return events.where((event) {
+      // 1. Participant Filter
+      if (filter.participantSearch != null && filter.participantSearch!.isNotEmpty) {
+        final query = filter.participantSearch!.toLowerCase();
+        final matchesParticipant = event.participants.any((p) =>
+            p.fullName.toLowerCase().contains(query) ||
+            p.username.toLowerCase().contains(query) ||
+            p.email.toLowerCase().contains(query) ||
+            p.id.toLowerCase().contains(query));
+        if (!matchesParticipant) return false;
+      }
+
+      // 2. Text Search (title / description)
+      if (filter.textSearch != null && filter.textSearch!.isNotEmpty) {
+        final query = filter.textSearch!.toLowerCase();
+        final matchesText = event.title.toLowerCase().contains(query) ||
+            (event.description?.toLowerCase().contains(query) ?? false);
+        if (!matchesText) return false;
+      }
+
+      // 3. Status filter
+      if (filter.status != null && filter.status != 'ALL') {
+        if (event.status.toUpperCase() != filter.status!.toUpperCase()) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
   });
 });

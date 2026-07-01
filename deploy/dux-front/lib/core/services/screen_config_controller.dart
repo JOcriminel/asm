@@ -394,6 +394,26 @@ class ScreenConfigController extends StateNotifier<ScreenConfigState> {
     } catch (_) {}
     return [];
   }
+
+  Future<List<Map<String, dynamic>>> fetchAllDocumentClasses() async {
+    try {
+      final response = await _dio.get('/screen-configs/all-document-classes');
+      if (response.statusCode == 200 && response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> fetchAllTierTypes() async {
+    try {
+      final response = await _dio.get('/tier/types');
+      if (response.statusCode == 200 && response.data is List) {
+        return List<Map<String, dynamic>>.from(response.data);
+      }
+    } catch (_) {}
+    return [];
+  }
 }
 
 final screenConfigControllerProvider =

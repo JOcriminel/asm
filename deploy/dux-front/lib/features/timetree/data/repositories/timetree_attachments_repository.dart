@@ -105,6 +105,20 @@ class TimetreeAttachmentsRepository {
     }
   }
 
+  Future<String> getPresignedDownloadUrl(String attachmentId) async {
+    try {
+      final response = await _api.getPresignedDownloadUrl(attachmentId);
+      final downloadData = response.data;
+      if (downloadData == null || downloadData is! Map<String, dynamic>) {
+        throw Exception('Invalide reponse pour le telechargement');
+      }
+      return downloadData['downloadUrl'] as String;
+    } catch (e) {
+      AppLogger.e('TimetreeAttachmentsRepository', 'getPresignedDownloadUrl failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
   Future<void> deleteAttachment(String attachmentId) async {
     try {
       await _api.deleteAttachment(attachmentId);

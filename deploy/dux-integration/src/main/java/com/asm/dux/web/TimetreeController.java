@@ -69,6 +69,8 @@ public class TimetreeController {
                             pMap.put("title", p.getName());
                             pMap.put("path", p.getRoute() != null ? p.getRoute() : "");
                             pMap.put("displayOrder", p.getDisplayOrder() != null ? p.getDisplayOrder() : 0);
+                            pMap.put("allowedRoles", p.getAllowedRoles());
+                            pMap.put("allowedUsers", p.getAllowedUsers());
                             pMap.put("children", Collections.emptyList());
                             return pMap;
                         }).collect(Collectors.toList());
@@ -319,6 +321,8 @@ public class TimetreeController {
             pMap.put("componentName", p.getComponentName());
             pMap.put("displayOrder", p.getDisplayOrder());
             pMap.put("active", p.getActive());
+            pMap.put("allowedRoles", p.getAllowedRoles());
+            pMap.put("allowedUsers", p.getAllowedUsers());
             pMap.put("createdAt", p.getCreatedAt());
             pMap.put("updatedAt", p.getUpdatedAt());
             pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
@@ -341,6 +345,8 @@ public class TimetreeController {
             pMap.put("componentName", p.getComponentName());
             pMap.put("displayOrder", p.getDisplayOrder());
             pMap.put("active", p.getActive());
+            pMap.put("allowedRoles", p.getAllowedRoles());
+            pMap.put("allowedUsers", p.getAllowedUsers());
             pMap.put("createdAt", p.getCreatedAt());
             pMap.put("updatedAt", p.getUpdatedAt());
             pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
@@ -365,12 +371,14 @@ public class TimetreeController {
 
             Page page = Page.builder()
                     .category(categoryOpt.get())
-                    .name((String) requestBody.get("name"))
+                    .name(requestBody.containsKey("name") ? (String) requestBody.get("name") : (String) requestBody.get("title"))
                     .route((String) requestBody.get("route"))
                     .icon((String) requestBody.get("icon"))
                     .componentName((String) requestBody.get("componentName"))
                     .displayOrder(requestBody.get("displayOrder") != null ? Integer.valueOf(requestBody.get("displayOrder").toString()) : 0)
                     .active(requestBody.get("active") == null || Boolean.parseBoolean(requestBody.get("active").toString()))
+                    .allowedRoles((String) requestBody.get("allowedRoles"))
+                    .allowedUsers((String) requestBody.get("allowedUsers"))
                     .createdAt(LocalDateTime.now())
                     .build();
 
@@ -393,12 +401,32 @@ public class TimetreeController {
                 Optional<Category> catOpt = categoryRepository.findById(categoryId);
                 catOpt.ifPresent(existing::setCategory);
             }
-            existing.setName((String) requestBody.get("name"));
-            existing.setRoute((String) requestBody.get("route"));
-            existing.setIcon((String) requestBody.get("icon"));
-            existing.setComponentName((String) requestBody.get("componentName"));
-            existing.setDisplayOrder(requestBody.get("displayOrder") != null ? Integer.valueOf(requestBody.get("displayOrder").toString()) : 0);
-            existing.setActive(requestBody.get("active") == null || Boolean.parseBoolean(requestBody.get("active").toString()));
+            if (requestBody.containsKey("name")) {
+                existing.setName((String) requestBody.get("name"));
+            } else if (requestBody.containsKey("title")) {
+                existing.setName((String) requestBody.get("title"));
+            }
+            if (requestBody.containsKey("route")) {
+                existing.setRoute((String) requestBody.get("route"));
+            }
+            if (requestBody.containsKey("icon")) {
+                existing.setIcon((String) requestBody.get("icon"));
+            }
+            if (requestBody.containsKey("componentName")) {
+                existing.setComponentName((String) requestBody.get("componentName"));
+            }
+            if (requestBody.containsKey("displayOrder")) {
+                existing.setDisplayOrder(requestBody.get("displayOrder") != null ? Integer.valueOf(requestBody.get("displayOrder").toString()) : 0);
+            }
+            if (requestBody.containsKey("active")) {
+                existing.setActive(requestBody.get("active") != null && Boolean.parseBoolean(requestBody.get("active").toString()));
+            }
+            if (requestBody.containsKey("allowedRoles")) {
+                existing.setAllowedRoles((String) requestBody.get("allowedRoles"));
+            }
+            if (requestBody.containsKey("allowedUsers")) {
+                existing.setAllowedUsers((String) requestBody.get("allowedUsers"));
+            }
             existing.setUpdatedAt(LocalDateTime.now());
             Page saved = pageRepository.save(existing);
             audit("UPDATE", "Page", saved.getId(), "Updated page: " + saved.getName());
@@ -607,6 +635,7 @@ public class TimetreeController {
             existing.setName(request.getName());
             existing.setDescription(request.getDescription());
             existing.setColor(request.getColor());
+            existing.setAttachedDocuments(request.getAttachedDocuments());
             com.asm.dux.timetree.domain.Calendar saved = calendarRepository.save(existing);
             audit("UPDATE", "Calendar", saved.getId(), "Updated calendar: " + saved.getName());
             return ResponseEntity.ok(saved);

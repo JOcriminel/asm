@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="sprint-14-attached-documents-001" author="antigravity">
+        <addColumn tableName="TT_CALENDAR" schemaName="dbo">
+            <column name="ATTACHED_DOCUMENTS" type="VARCHAR(250)"/>
+        </addColumn>
+        <addColumn tableName="TT_EVENT" schemaName="dbo">
+            <column name="ATTACHED_DOCUMENT_ID" type="VARCHAR(100)"/>
+            <column name="ATTACHED_DOCUMENT_TYPE" type="VARCHAR(50)"/>
+            <column name="ATTACHED_DOCUMENT_CODE" type="VARCHAR(100)"/>
+            <column name="ATTACHED_CLIENT_NAME" type="VARCHAR(200)"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

@@ -29,10 +29,15 @@ class _DynamicDocumentListScreenState extends ConsumerState<DynamicDocumentListS
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedStatus = 'all';
+  late DateTime _startDate;
+  late DateTime _endDate;
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, 1);
+    _endDate = DateTime(now.year, now.month + 1, 0);
     _fetchDocuments();
   }
 
@@ -61,12 +66,8 @@ class _DynamicDocumentListScreenState extends ConsumerState<DynamicDocumentListS
       final authState = ref.read(authControllerProvider);
 
       final formatter = DateFormat('yyyy-MM-dd');
-      final now = DateTime.now();
-      final defaultFrom = DateTime(now.year, now.month, 1);
-      final defaultTo = DateTime(now.year, now.month + 1, 0);
-
-      final fromStr = formatter.format(defaultFrom);
-      final toStr = '${formatter.format(defaultTo)} 23:59:59'; // DUX ERP requires time suffix
+      final fromStr = formatter.format(_startDate);
+      final toStr = '${formatter.format(_endDate)} 23:59:59'; // DUX ERP requires time suffix
       
       final idTierStr = authState.user?.id != null && authState.user!.id.isNotEmpty ? authState.user!.id : 'all';
       final represStr = authState.user?.tierId != null && authState.user!.tierId.isNotEmpty ? authState.user!.tierId : 'all';
@@ -284,6 +285,103 @@ class _DynamicDocumentListScreenState extends ConsumerState<DynamicDocumentListS
     }
   }
 
+  Widget _buildDateRangePickerRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final formatter = DateFormat('dd/MM/yyyy');
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _startDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) {
+                  setState(() {
+                    _startDate = picked;
+                    if (_endDate.isBefore(_startDate)) {
+                      _endDate = _startDate;
+                    }
+                  });
+                  _fetchDocuments();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 16, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Début', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          Text(formatter.format(_startDate), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
+                  firstDate: _startDate,
+                  lastDate: DateTime(2100),
+                );
+                if (picked != null) {
+                  setState(() {
+                    _endDate = picked;
+                  });
+                  _fetchDocuments();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 16, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Fin', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          Text(formatter.format(_endDate), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -355,6 +453,7 @@ class _DynamicDocumentListScreenState extends ConsumerState<DynamicDocumentListS
               },
             ),
           ),
+          _buildDateRangePickerRow(context),
           _buildStatusFiltersRow(theme, config),
           Expanded(
             child: _isLoading

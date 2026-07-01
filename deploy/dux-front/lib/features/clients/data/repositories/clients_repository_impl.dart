@@ -35,6 +35,12 @@ class ClientsRepositoryImpl implements ClientsRepository {
     AppLogger.d('ClientsRepository', 'Fetched ${clients.length} clients');
     return clients;
   }
+
+  @override
+  Future<Client> getClientByCode(String code) async {
+    final raw = await _apiService.fetchClientByCode(code);
+    return ClientMapper.toEntity(ClientDto.fromJson(raw));
+  }
 }
 
 final clientsRepositoryProvider = Provider<ClientsRepository>((ref) {

@@ -30,6 +30,10 @@ class TimetreeEvent {
   final Map<String, String>? customFields;
   final String? nomEvent;
   final bool titleModifiedDirectly;
+  final String? attachedDocumentId;
+  final String? attachedDocumentType;
+  final String? attachedDocumentCode;
+  final String? attachedClientName;
 
   const TimetreeEvent({
     required this.id,
@@ -56,6 +60,10 @@ class TimetreeEvent {
     this.customFields,
     this.nomEvent,
     this.titleModifiedDirectly = false,
+    this.attachedDocumentId,
+    this.attachedDocumentType,
+    this.attachedDocumentCode,
+    this.attachedClientName,
   });
 
   factory TimetreeEvent.fromDto(TimetreeEventDto dto) {
@@ -83,6 +91,11 @@ class TimetreeEvent {
       reminders: dto.reminders.map((r) => DateTime.parse(r).toLocal()).toList(),
       nomEvent: dto.nomEvent,
       titleModifiedDirectly: dto.titleModifiedDirectly,
+      attachedDocumentId: dto.attachedDocumentId,
+      attachedDocumentType: dto.attachedDocumentType,
+      attachedDocumentCode: dto.attachedDocumentCode,
+      attachedClientName: dto.attachedClientName,
+      customFields: dto.customFields,
     );
   }
 
@@ -108,9 +121,13 @@ class TimetreeEvent {
       priority: priority,
       tags: tags,
       dependencies: dependencies,
-      reminders: reminders.map((r) => r.toUtc().toIso8601String()).toList(),
+      reminders: reminders.map((r) => r.toIso8601String()).toList(),
       nomEvent: nomEvent,
       titleModifiedDirectly: titleModifiedDirectly,
+      attachedDocumentId: attachedDocumentId,
+      attachedDocumentType: attachedDocumentType,
+      attachedDocumentCode: attachedDocumentCode,
+      attachedClientName: attachedClientName,
     );
   }
 
@@ -139,6 +156,10 @@ class TimetreeEvent {
     Map<String, String>? customFields,
     String? nomEvent,
     bool? titleModifiedDirectly,
+    String? attachedDocumentId,
+    String? attachedDocumentType,
+    String? attachedDocumentCode,
+    String? attachedClientName,
   }) {
     return TimetreeEvent(
       id: id ?? this.id,
@@ -165,6 +186,10 @@ class TimetreeEvent {
       customFields: customFields ?? this.customFields,
       nomEvent: nomEvent ?? this.nomEvent,
       titleModifiedDirectly: titleModifiedDirectly ?? this.titleModifiedDirectly,
+      attachedDocumentId: attachedDocumentId ?? this.attachedDocumentId,
+      attachedDocumentType: attachedDocumentType ?? this.attachedDocumentType,
+      attachedDocumentCode: attachedDocumentCode ?? this.attachedDocumentCode,
+      attachedClientName: attachedClientName ?? this.attachedClientName,
     );
   }
 

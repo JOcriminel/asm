@@ -35,12 +35,14 @@ class TimetreeCalendarsRepository {
     required String name,
     required String description,
     required String color,
+    String? attachedDocuments,
   }) async {
     try {
       final response = await _api.createCalendar({
         'name': name,
         'description': description,
         'color': color,
+        if (attachedDocuments != null) 'attachedDocuments': attachedDocuments,
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {
@@ -60,12 +62,14 @@ class TimetreeCalendarsRepository {
     required String name,
     required String description,
     required String color,
+    String? attachedDocuments,
   }) async {
     try {
       final response = await _api.updateCalendar(id, {
         'name': name,
         'description': description,
         'color': color,
+        if (attachedDocuments != null) 'attachedDocuments': attachedDocuments,
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {

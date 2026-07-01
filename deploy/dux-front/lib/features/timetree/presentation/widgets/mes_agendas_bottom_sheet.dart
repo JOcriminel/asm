@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_events_provider.dart';
@@ -75,36 +76,42 @@ class MesAgendasBottomSheet extends ConsumerWidget {
               ),
             ),
             // Header Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Mes Agendas',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                if (isAdmin)
-                  TextButton(
-                    onPressed: () => _showCreateCalendarDialog(context, ref),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, size: 16, color: Color(0xFF1E88E5)),
-                        SizedBox(width: 4),
-                        Text(
-                          'Créer un agenda',
-                          style: TextStyle(
-                            color: Color(0xFF1E88E5),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text(
+                    'Mes Agendas',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
                   ),
-              ],
+                  if (isAdmin)
+                    TextButton(
+                      onPressed: () => _showCreateCalendarDialog(context, ref),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, size: 16, color: Color(0xFF1E88E5)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Créer un agenda',
+                            style: TextStyle(
+                              color: Color(0xFF1E88E5),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             // Calendars List
@@ -293,6 +300,9 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
   late TextEditingController _descCtrl;
   late String _selectedCover;
   bool _submitting = false;
+  List<String> _selectedDocs = [];
+  List<String> _selectedTiers = [];
+  Set<String> _tierCodes = {};
 
   @override
   void initState() {
@@ -300,6 +310,39 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
     _nameCtrl = TextEditingController(text: widget.calendar?.name ?? '');
     _descCtrl = TextEditingController(text: widget.calendar != null ? _getCleanDescription(widget.calendar!) : '');
     _selectedCover = widget.calendar != null ? _getCalendarCover(widget.calendar!) : 'default';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCalendarAttachedEntities();
+    });
+  }
+
+  Future<void> _loadCalendarAttachedEntities() async {
+    try {
+      final tierTypes = await ref.read(screenConfigControllerProvider.notifier).fetchAllTierTypes();
+      _tierCodes = tierTypes
+          .map((t) => (t['typeCode'] ?? t['code'])?.toString().trim().toUpperCase())
+          .where((c) => c != null)
+          .cast<String>()
+          .toSet();
+
+      final attached = widget.calendar?.attachedDocuments?.split(',') ?? [];
+      final docs = <String>[];
+      final tiers = <String>[];
+      for (final code in attached) {
+        final trimmed = code.trim();
+        if (trimmed.isEmpty) continue;
+        if (_tierCodes.contains(trimmed.toUpperCase())) {
+          tiers.add(trimmed);
+        } else {
+          docs.add(trimmed);
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _selectedDocs = docs;
+          _selectedTiers = tiers;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -309,11 +352,102 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
     super.dispose();
   }
 
+  void _showDocumentSelectorDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    List<Map<String, dynamic>> allClasses = [];
+    try {
+      allClasses = await ref.read(screenConfigControllerProvider.notifier).fetchAllDocumentClasses();
+    } catch (e) {
+      debugPrint('Error fetching all document classes: $e');
+    }
+
+    if (context.mounted) {
+      Navigator.pop(context); // close loading
+    }
+
+    if (allClasses.isEmpty) {
+      allClasses = [
+        {'code': 'BC', 'libelle': 'Bon de Commande (BC)'},
+        {'code': 'BP', 'libelle': 'Bon de Préparation (BP)'},
+        {'code': 'BS', 'libelle': 'Bon de Sortie (BS)'},
+      ];
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return _DocumentSelectorSearchDialog(
+          allClasses: allClasses,
+          initialSelected: List<String>.from(_selectedDocs),
+          onChanged: (selected) {
+            setState(() {
+              _selectedDocs = selected;
+            });
+          },
+        );
+      },
+    );
+  }
+
+  void _showTierSelectorDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    List<Map<String, dynamic>> allClasses = [];
+    try {
+      allClasses = await ref.read(screenConfigControllerProvider.notifier).fetchAllTierTypes();
+    } catch (e) {
+      debugPrint('Error fetching all tier types: $e');
+    }
+
+    if (context.mounted) {
+      Navigator.pop(context); // close loading
+    }
+
+    if (allClasses.isEmpty) {
+      allClasses = [
+        {'code': '1', 'libelle': 'Client'},
+      ];
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return _DocumentSelectorSearchDialog(
+          allClasses: allClasses,
+          initialSelected: List<String>.from(_selectedTiers),
+          onChanged: (selected) {
+            setState(() {
+              _selectedTiers = selected;
+            });
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.calendar != null;
 
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(isEdit ? 'Modifier l\'agenda' : 'Créer un agenda'),
       content: Form(
@@ -423,6 +557,76 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
                   ],
                 ],
               ),
+              const SizedBox(height: 24),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Documents associés', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () => _showDocumentSelectorDialog(context),
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Sélectionner des documents',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    suffixIcon: const Icon(Icons.arrow_drop_down),
+                  ),
+                  child: _selectedDocs.isEmpty
+                      ? const Text('Aucun document associé')
+                      : Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: _selectedDocs.map((docType) {
+                            return Chip(
+                              label: Text(docType),
+                              deleteIcon: const Icon(Icons.close, size: 16),
+                              onDeleted: () {
+                                setState(() {
+                                  _selectedDocs.remove(docType);
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Tiers associés', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () => _showTierSelectorDialog(context),
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Sélectionner des tiers',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    suffixIcon: const Icon(Icons.arrow_drop_down),
+                  ),
+                  child: _selectedTiers.isEmpty
+                      ? const Text('Aucun tiers associé')
+                      : Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: _selectedTiers.map((tierType) {
+                            return Chip(
+                              label: Text(tierType),
+                              deleteIcon: const Icon(Icons.close, size: 16),
+                              onDeleted: () {
+                                setState(() {
+                                  _selectedTiers.remove(tierType);
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ),
               if (isEdit) ...[
                 const SizedBox(height: 24),
                 const Align(
@@ -430,8 +634,10 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
                   child: Text('Membres de l\'agenda', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.spaceBetween,
                   children: [
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
@@ -451,7 +657,7 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
                       ),
                       onPressed: () => _showManageMembersSelection(context, ref, widget.calendar!),
                       icon: const Icon(Icons.people_outline, size: 18),
-                      label: const Text('Manage members'),
+                      label: Text('Manage members (${widget.calendar!.members.length})'),
                     ),
                   ],
                 ),
@@ -473,18 +679,21 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
                   setState(() => _submitting = true);
                   try {
                     final descWithCover = _formatDescriptionWithCover(_descCtrl.text, _selectedCover);
+                    final joinedAttached = [..._selectedDocs, ..._selectedTiers].join(',');
                     if (isEdit) {
                       await ref.read(timetreeCalendarsProvider.notifier).updateCalendar(
                             id: widget.calendar!.id,
                             name: _nameCtrl.text,
                             description: descWithCover,
                             color: widget.calendar!.color,
+                            attachedDocuments: joinedAttached,
                           );
                     } else {
                       await ref.read(timetreeCalendarsProvider.notifier).createCalendar(
                             name: _nameCtrl.text,
                             description: descWithCover,
                             color: '#2196F3',
+                            attachedDocuments: joinedAttached,
                           );
                     }
                     if (context.mounted) {
@@ -575,9 +784,12 @@ class _DropdownSearchDialogState extends State<_DropdownSearchDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
@@ -696,9 +908,10 @@ void _showManageMembersSelection(BuildContext context, WidgetRef ref, TimetreeCa
           final calendars = ref.watch(timetreeCalendarsProvider).value ?? [];
           final currentCal = calendars.firstWhere((c) => c.id == calendar.id, orElse: () => calendar);
           final currentMembers = currentCal.members;
+          final totalMembers = currentMembers.length;
 
           return _DropdownSearchDialog(
-            title: 'Gérer les membres',
+            title: 'Gérer les membres ($totalMembers)',
             hintText: 'Rechercher un membre...',
             items: currentMembers,
             itemBuilder: (itemCtx, item, query) {
@@ -706,8 +919,8 @@ void _showManageMembersSelection(BuildContext context, WidgetRef ref, TimetreeCa
               final isChef = m.role.toUpperCase() == 'CHEF';
 
               return ListTile(
-                title: Text(m.fullName),
-                subtitle: Text(m.role),
+                title: Text(m.fullName, overflow: TextOverflow.ellipsis, maxLines: 1),
+                subtitle: Text(m.role, overflow: TextOverflow.ellipsis, maxLines: 1),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -810,4 +1023,151 @@ void _showManageMembersSelection(BuildContext context, WidgetRef ref, TimetreeCa
       );
     },
   );
+}
+
+class _DocumentSelectorSearchDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> allClasses;
+  final List<String> initialSelected;
+  final ValueChanged<List<String>> onChanged;
+
+  const _DocumentSelectorSearchDialog({
+    required this.allClasses,
+    required this.initialSelected,
+    required this.onChanged,
+  });
+
+  @override
+  State<_DocumentSelectorSearchDialog> createState() => _DocumentSelectorSearchDialogState();
+}
+
+class _DocumentSelectorSearchDialogState extends State<_DocumentSelectorSearchDialog> {
+  late List<String> _tempSelected;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tempSelected = List<String>.from(widget.initialSelected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final filtered = widget.allClasses.where((doc) {
+      final code = (doc['code'] ?? '').toString().toLowerCase();
+      final libelle = (doc['libelle'] ?? '').toString().toLowerCase();
+      return code.contains(_searchQuery.toLowerCase()) || libelle.contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Documents associés',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Rechercher un document...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Aucun document trouvé',
+                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final code = (item['code'] ?? '').toString();
+                        final libelle = (item['libelle'] ?? '').toString();
+                        final isChecked = _tempSelected.contains(code);
+
+                        return CheckboxListTile(
+                          title: Text(
+                            libelle,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          subtitle: Text(
+                            code,
+                            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                          value: isChecked,
+                          activeColor: theme.colorScheme.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                if (!_tempSelected.contains(code)) {
+                                  _tempSelected.add(code);
+                                }
+                              } else {
+                                _tempSelected.remove(code);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    widget.onChanged(_tempSelected);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Valider'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

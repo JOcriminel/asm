@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="sprint-15-notifications-001" author="antigravity">
+        <!-- 1. Create User Device Table for FCM tokens -->
+        <createTable tableName="TT_USER_DEVICE" schemaName="dbo">
+            <column name="ID" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="MEMBER_ID" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="FK_TT_UD_MEMBER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="DEVICE_TOKEN" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="PLATFORM" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="LAST_ACTIVE" type="DATETIME"/>
+        </createTable>
+
+        <!-- 2. Add sender and metadata to TT_NOTIFICATION -->
+        <addColumn tableName="TT_NOTIFICATION" schemaName="dbo">
+            <column name="SENDER_ID" type="BIGINT">
+                <constraints foreignKeyName="FK_TT_N_SENDER" referencedTableName="TT_MEMBER" referencedColumnNames="ID"/>
+            </column>
+            <column name="METADATA" type="VARCHAR(1000)"/>
+        </addColumn>
+
+        <!-- 3. Add sound, vibration and snooze to TT_NOTIFICATION_PREFERENCE -->
+        <addColumn tableName="TT_NOTIFICATION_PREFERENCE" schemaName="dbo">
+            <column name="SOUND_ENABLED" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="VIBRATION_ENABLED" type="BIT" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="SNOOZE_UNTIL" type="DATETIME"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="sprint-15-notifications-002" author="antigravity">
+        <addColumn tableName="TT_NOTIFICATION_PREFERENCE" schemaName="dbo">
+            <column name="NOTIFY_OWN_ACTIONS" type="BIT" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

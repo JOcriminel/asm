@@ -8,6 +8,8 @@ class TimetreeMenuItem {
   final String path;
   final int displayOrder;
   final List<TimetreeMenuItem> children;
+  final String? allowedRoles;
+  final String? allowedUsers;
 
   const TimetreeMenuItem({
     required this.id,
@@ -15,6 +17,8 @@ class TimetreeMenuItem {
     required this.path,
     required this.displayOrder,
     this.children = const [],
+    this.allowedRoles,
+    this.allowedUsers,
   });
 
   factory TimetreeMenuItem.fromJson(Map<String, dynamic> json) {
@@ -23,6 +27,8 @@ class TimetreeMenuItem {
       title: json['title'] as String? ?? '',
       path: json['path'] as String? ?? '',
       displayOrder: json['displayOrder'] as int? ?? 0,
+      allowedRoles: json['allowedRoles'] as String?,
+      allowedUsers: json['allowedUsers'] as String?,
       children: (json['children'] as List<dynamic>?)
               ?.map((e) =>
                   TimetreeMenuItem.fromJson(e as Map<String, dynamic>))
@@ -36,6 +42,8 @@ class TimetreeMenuItem {
         'title': title,
         'path': path,
         'displayOrder': displayOrder,
+        'allowedRoles': allowedRoles,
+        'allowedUsers': allowedUsers,
         'children': children.map((c) => c.toJson()).toList(),
       };
 

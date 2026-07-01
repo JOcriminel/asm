@@ -17,6 +17,7 @@ import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/core/widgets/error_state_widget.dart';
 import 'package:dux_front/features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
 import 'package:dux_front/core/routing/route_constants.dart';
+import 'package:dux_front/core/widgets/document_validation_proof_widget.dart';
 import '../controllers/bon_preparation_detail_controller.dart';
 import '../../domain/models/bon_preparation.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
@@ -27,11 +28,13 @@ import 'package:dux_front/features/auth/presentation/controllers/auth_controller
 class BonPreparationDetailScreen extends ConsumerWidget {
   final String preparationId;
   final String docType;
+  final bool isFromCalendar;
 
   const BonPreparationDetailScreen({
     super.key,
     required this.preparationId,
     this.docType = 'BP',
+    this.isFromCalendar = false,
   });
 
   @override
@@ -89,11 +92,12 @@ class BonPreparationDetailScreen extends ConsumerWidget {
             icon: const Icon(Icons.wifi, color: Colors.green),
             onPressed: () {},
           ),
-          IconButton(
-            icon: const Icon(Icons.home_outlined),
-            onPressed: () => context.go('/dashboard'),
-          ),
-        ],
+            if (!isFromCalendar)
+              IconButton(
+                icon: const Icon(Icons.home_outlined),
+                onPressed: () => context.go('/dashboard'),
+              ),
+          ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -198,6 +202,9 @@ class BonPreparationDetailScreen extends ConsumerWidget {
                     _buildSummarySection(theme, preparation),
                     AppSpacing.gapXxl,
                   ],
+
+                  DocumentValidationProofWidget(documentId: preparation.id),
+                  AppSpacing.gapL,
                   
                   // Finaliser button
                   if (isAllowed) ...[
@@ -722,14 +729,16 @@ class BonPreparationDetailScreen extends ConsumerWidget {
     bool requirePhoto,
     String? customFinalizeMessage,
   ) async {
+    String? signatureBase64;
     if (requireSignature) {
-      final signature = await SignaturePadDialog.show(context);
-      if (signature == null) return;
+      signatureBase64 = await SignaturePadDialog.show(context);
+      if (signatureBase64 == null) return;
     }
 
+    String? photoBase64;
     if (requirePhoto) {
-      final photo = await PhotoProofOverlay.show(context);
-      if (photo == null) return;
+      photoBase64 = await PhotoProofOverlay.show(context);
+      if (photoBase64 == null) return;
     }
 
     final confirm = await showDialog<bool>(
@@ -754,7 +763,11 @@ class BonPreparationDetailScreen extends ConsumerWidget {
 
     try {
       final repository = ref.read(bonPreparationRepositoryProvider);
-      await repository.updateDocumentStatus(preparationId, '12', {});
+      await repository.updateDocumentStatus(preparationId, '12', {
+        'signatureBase64': signatureBase64,
+        'photoBase64': photoBase64,
+        'docType': docType,
+      });
       
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

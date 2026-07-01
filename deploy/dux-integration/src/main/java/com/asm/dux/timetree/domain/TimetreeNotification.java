@@ -44,6 +44,13 @@ public class TimetreeNotification {
     @Builder.Default
     private boolean read = false;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "SENDER_ID")
+    private Member sender;
+
+    @Column(name = "METADATA", length = 1000)
+    private String metadata;
+
     @Column(name = "CREATED_AT", nullable = false)
     private LocalDateTime createdAt;
 }

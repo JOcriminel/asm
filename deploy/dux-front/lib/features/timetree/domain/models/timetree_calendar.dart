@@ -8,6 +8,7 @@ class TimetreeCalendar {
   final String description;
   final String color;
   final List<TimetreeMember> members;
+  final String? attachedDocuments;
 
   const TimetreeCalendar({
     required this.id,
@@ -15,6 +16,7 @@ class TimetreeCalendar {
     required this.description,
     required this.color,
     required this.members,
+    this.attachedDocuments,
   });
 
   factory TimetreeCalendar.fromDto(TimetreeCalendarDto dto) {
@@ -24,6 +26,7 @@ class TimetreeCalendar {
       description: dto.description,
       color: dto.color,
       members: dto.members.map(TimetreeMember.fromDto).toList(),
+      attachedDocuments: dto.attachedDocuments,
     );
   }
 
@@ -33,6 +36,7 @@ class TimetreeCalendar {
     String? description,
     String? color,
     List<TimetreeMember>? members,
+    String? attachedDocuments,
   }) {
     return TimetreeCalendar(
       id: id ?? this.id,
@@ -40,9 +44,10 @@ class TimetreeCalendar {
       description: description ?? this.description,
       color: color ?? this.color,
       members: members ?? this.members,
+      attachedDocuments: attachedDocuments ?? this.attachedDocuments,
     );
   }
 
   @override
-  String toString() => 'TimetreeCalendar(id: $id, name: $name, color: $color, members: ${members.length})';
+  String toString() => 'TimetreeCalendar(id: $id, name: $name, color: $color, members: ${members.length}, attachedDocuments: $attachedDocuments)';
 }

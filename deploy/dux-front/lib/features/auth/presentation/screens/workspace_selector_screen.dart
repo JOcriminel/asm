@@ -154,7 +154,7 @@ class WorkspaceSelectorScreen extends ConsumerWidget {
                                       const Color(0xFF0F9D58),
                                       const Color(0xFF00796B),
                                     ],
-                                    onTap: () => context.go('/timetree/dashboard'),
+                                    onTap: () => context.go('/timetree/accueil'),
                                   ),
                                 ],
                               )
@@ -185,7 +185,7 @@ class WorkspaceSelectorScreen extends ConsumerWidget {
                                       const Color(0xFF0F9D58),
                                       const Color(0xFF00796B),
                                     ],
-                                    onTap: () => context.go('/timetree/dashboard'),
+                                    onTap: () => context.go('/timetree/accueil'),
                                   ),
                                 ],
                               ),

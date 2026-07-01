@@ -88,6 +88,57 @@ public class ScreenConfigController {
         return ResponseEntity.ok(result);
     }
 
+    @GetMapping("/all-document-classes")
+    public ResponseEntity<List<Map<String, Object>>> getAllDocumentClasses() {
+        log.info("GET /api/dux/screen-configs/all-document-classes");
+        List<Map<String, Object>> result = new ArrayList<>();
+        try {
+            String responseBody = duxHttpClient.get(classeDocUrl);
+            if (responseBody != null && !responseBody.isBlank()) {
+                JsonNode root = objectMapper.readTree(responseBody);
+                JsonNode array = null;
+                if (root.isArray()) {
+                    array = root;
+                } else if (root.isObject()) {
+                    for (String key : new String[]{"data", "content", "results", "classes"}) {
+                        if (root.has(key) && root.get(key).isArray()) {
+                            array = root.get(key);
+                            break;
+                        }
+                    }
+                }
+
+                if (array != null && array.isArray()) {
+                    for (JsonNode item : array) {
+                        String code = "";
+                        if (item.has("codeClasseDoc") && !item.get("codeClasseDoc").isNull()) {
+                            code = item.get("codeClasseDoc").asText().trim();
+                        } else if (item.has("code") && !item.get("code").isNull()) {
+                            code = item.get("code").asText().trim();
+                        }
+
+                        String libelle = code;
+                        if (item.has("libelleClasseDoc") && !item.get("libelleClasseDoc").isNull()) {
+                            libelle = item.get("libelleClasseDoc").asText().trim();
+                        } else if (item.has("libelle") && !item.get("libelle").isNull()) {
+                            libelle = item.get("libelle").asText().trim();
+                        }
+
+                        if (!code.isBlank()) {
+                            Map<String, Object> map = new HashMap<>();
+                            map.put("code", code);
+                            map.put("libelle", libelle);
+                            result.add(map);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch all document classes from DUX", e);
+        }
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping
     public ResponseEntity<Map<String, ScreenConfigDto>> getConfigs() {
         log.info("GET /api/dux/screen-configs");

@@ -376,29 +376,29 @@ public class ChatController {
         if (event.getCalendar() != null && event.getCalendar().getMembers() != null) {
             List<String> mentionedUsernames = extractMentions(text);
             for (Member m : event.getCalendar().getMembers()) {
-                if (!m.getId().equals(current.getId())) {
-                    boolean isMentioned = mentionedUsernames.contains(m.getUsername());
-                    if (isMentioned) {
-                        notificationService.triggerNotification(
-                                m,
-                                "Nouvelle mention dans " + event.getTitle(),
-                                current.getFullName() + " vous a mentionné: " + text,
-                                "MENTION",
-                                "MESSAGE",
-                                msgId,
-                                "MENTIONED"
-                        );
-                    } else {
-                        notificationService.triggerNotification(
-                                m,
-                                "Nouveau message dans " + event.getTitle(),
-                                current.getFullName() + ": " + text,
-                                "NEW_MESSAGE",
-                                "MESSAGE",
-                                msgId,
-                                "NEW"
-                        );
-                    }
+                boolean isMentioned = mentionedUsernames.contains(m.getUsername());
+                if (isMentioned) {
+                    notificationService.triggerNotification(
+                            m,
+                            current,
+                            "Nouvelle mention dans " + event.getTitle(),
+                            current.getFullName() + " vous a mentionné: " + text,
+                            "MENTION",
+                            "MESSAGE",
+                            msgId,
+                            "MENTIONED"
+                    );
+                } else {
+                    notificationService.triggerNotification(
+                            m,
+                            current,
+                            "Nouveau message dans " + event.getTitle(),
+                            current.getFullName() + ": " + text,
+                            "NEW_MESSAGE",
+                            "MESSAGE",
+                            msgId,
+                            "NEW"
+                    );
                 }
             }
         }

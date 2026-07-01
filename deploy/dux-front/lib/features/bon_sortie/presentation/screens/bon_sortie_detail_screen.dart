@@ -18,6 +18,7 @@ import '../controllers/bon_sortie_detail_controller.dart';
 import '../../domain/models/bon_sortie.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/theme/theme_helper.dart';
+import 'package:dux_front/core/widgets/document_validation_proof_widget.dart';
 
 import 'package:dux_front/features/bon_preparation/data/repositories/bon_preparation_repository_impl.dart';
 import 'package:dux_front/features/bon_preparation/presentation/screens/serial_number_entry_screen.dart';
@@ -31,10 +32,12 @@ import 'package:dux_front/features/checklist/presentation/controllers/checklist_
 
 class BonSortieDetailScreen extends ConsumerWidget {
   final String sortieId;
+  final bool isFromCalendar;
 
   const BonSortieDetailScreen({
     super.key,
     required this.sortieId,
+    this.isFromCalendar = false,
   });
 
   @override
@@ -94,10 +97,11 @@ class BonSortieDetailScreen extends ConsumerWidget {
               icon: const Icon(Icons.wifi, color: Colors.green),
               onPressed: () {},
             ),
-            IconButton(
-              icon: const Icon(Icons.home_outlined),
-              onPressed: () => context.go('/dashboard'),
-            ),
+            if (!isFromCalendar)
+              IconButton(
+                icon: const Icon(Icons.home_outlined),
+                onPressed: () => context.go('/dashboard'),
+              ),
           ],
         ),
         body: LayoutBuilder(
@@ -225,6 +229,9 @@ class BonSortieDetailScreen extends ConsumerWidget {
                       _buildSummarySection(theme, sortie),
                       AppSpacing.gapXxl,
                     ],
+
+                    DocumentValidationProofWidget(documentId: sortie.id),
+                    AppSpacing.gapL,
 
                     // Finalizer Button
                     if (sortie.status != '12' && isAllowed) ...[
@@ -381,14 +388,16 @@ class BonSortieDetailScreen extends ConsumerWidget {
     bool isChecklistEnabled,
     String? customFinalizeMessage,
   ) async {
+    String? signatureBase64;
     if (requireSignature) {
-      final signature = await SignaturePadDialog.show(context);
-      if (signature == null) return;
+      signatureBase64 = await SignaturePadDialog.show(context);
+      if (signatureBase64 == null) return;
     }
 
+    String? photoBase64;
     if (requirePhoto) {
-      final photo = await PhotoProofOverlay.show(context);
-      if (photo == null) return;
+      photoBase64 = await PhotoProofOverlay.show(context);
+      if (photoBase64 == null) return;
     }
 
     if (!context.mounted) return;
@@ -427,7 +436,11 @@ class BonSortieDetailScreen extends ConsumerWidget {
 
       try {
         final repository = ref.read(bonPreparationRepositoryProvider);
-        await repository.updateDocumentStatus(docId, '12', {});
+        await repository.updateDocumentStatus(docId, '12', {
+          'signatureBase64': signatureBase64,
+          'photoBase64': photoBase64,
+          'docType': docType,
+        });
         
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

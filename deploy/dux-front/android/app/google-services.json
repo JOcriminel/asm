@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "803415629919",
+    "project_id": "device-streaming-03f2149f",
+    "storage_bucket": "device-streaming-03f2149f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:803415629919:android:6e453cbb22bd2746953bea",
+        "android_client_info": {
+          "package_name": "com.asm.dux.dux_front"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClL43CxxpkFK_jMWVSk-f7VzWv3pZu9Ys"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

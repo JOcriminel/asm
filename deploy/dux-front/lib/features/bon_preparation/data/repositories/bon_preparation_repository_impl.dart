@@ -353,12 +353,26 @@ class BonPreparationRepositoryImpl implements BonPreparationRepository {
   Future<void> updateDocumentStatus(String documentId, String newStatusId, Map<String, dynamic> currentDocData) async {
     try {
       AppLogger.d('BonPreparationRepository', 'Changing status of doc $documentId to $newStatusId');
-      // The Java backend handles everything: fetches the document, builds the correct FormData
-      // payload with P_ClasseDocument + listLigne, and POSTs it to the PHP editDoc endpoint.
-      await _dio.post('/document/changeStatus/$documentId/$newStatusId');
+      await _dio.post(
+        '/document/changeStatus/$documentId/$newStatusId',
+        data: currentDocData,
+      );
       AppLogger.d('BonPreparationRepository', 'Successfully updated document status');
     } catch (e) {
       throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> getValidationProof(String documentId) async {
+    try {
+      final response = await _dio.get('/document/$documentId/validation-proof');
+      if (response.data != null) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }

@@ -36,7 +36,9 @@ class CommandApiService {
           (filter.representative != null && filter.representative!.isNotEmpty)
               ? filter.representative!
               : (userTierId != null && userTierId.isNotEmpty ? userTierId : 'all');
-      final codeDocStr = 'BCC'; // Always fetch 'Bon de Commande Client'
+      final codeDocStr = (filter.documentCode != null && filter.documentCode!.isNotEmpty)
+          ? filter.documentCode!
+          : 'BCC';
       final idEtatStr =
           (filter.status != null && filter.status!.isNotEmpty)
               ? filter.status!

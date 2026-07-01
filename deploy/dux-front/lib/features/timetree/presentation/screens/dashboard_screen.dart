@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_dashboard.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_dashboard_provider.dart';
+import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 
 class TimetreeDashboardScreen extends ConsumerWidget {
   const TimetreeDashboardScreen({super.key});
@@ -12,6 +13,9 @@ class TimetreeDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncDashboard = ref.watch(timetreeDashboardProvider);
+    final authState = ref.watch(authControllerProvider);
+    final role = authState.user?.role.toUpperCase() ?? 'MEMBER';
+    final isAdmin = role == 'ADMIN' || role == 'ADMINISTRATEUR';
 
     return Scaffold(
       drawer: const DuxDrawer(),
@@ -32,7 +36,7 @@ class TimetreeDashboardScreen extends ConsumerWidget {
           message: error.toString(),
           onRetry: () => ref.invalidate(timetreeDashboardProvider),
         ),
-        data: (dashboard) => _DashboardBody(dashboard: dashboard),
+        data: (dashboard) => _DashboardBody(dashboard: dashboard, isAdmin: isAdmin),
       ),
     );
   }
@@ -108,9 +112,10 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.dashboard});
+  const _DashboardBody({required this.dashboard, this.isAdmin = false});
 
   final TimetreeDashboard dashboard;
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +132,10 @@ class _DashboardBody extends StatelessWidget {
                 // ── Stat cards ─────────────────────────────────────────────
                 _StatCardRow(dashboard: dashboard),
                 const SizedBox(height: 20),
+                if (isAdmin) ...[
+                  const _AdminWorkspacePanel(),
+                  const SizedBox(height: 20),
+                ],
 
                 // ── Calendar Utilization ────────────────────────────────────
                 _UtilizationCard(utilization: dashboard.calendarUtilization),
@@ -772,6 +781,154 @@ class _EmptyActivities extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdminWorkspacePanel extends StatelessWidget {
+  const _AdminWorkspacePanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final List<Map<String, dynamic>> menuItems = [
+      {'title': 'Gérer les\nCatégories', 'icon': Icons.category_rounded, 'route': '/timetree/categories', 'color': Colors.orange},
+      {'title': 'Gérer les\nPages', 'icon': Icons.insert_drive_file_outlined, 'route': '/timetree/pages', 'color': Colors.teal},
+      {'title': 'Rôles &\nPermissions', 'icon': Icons.security_rounded, 'route': '/timetree/roles-permissions', 'color': Colors.blue},
+      {'title': 'Champs\nPersonnalisés', 'icon': Icons.settings_applications_rounded, 'route': '/timetree/custom-fields', 'color': Colors.amber},
+      {'title': 'Logs\nd\'audit', 'icon': Icons.history_rounded, 'route': '/timetree/admin/audit-logs', 'color': Colors.indigo},
+      {'title': 'Traçabilité\nActivités', 'icon': Icons.track_changes_rounded, 'route': '/timetree/traceability', 'color': Colors.pink},
+    ];
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.admin_panel_settings_rounded, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Administration du Calendrier',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: menuItems.length,
+              itemBuilder: (context, index) {
+                final item = menuItems[index];
+                return _AdminMenuCard(
+                  title: item['title'] as String,
+                  icon: item['icon'] as IconData,
+                  color: item['color'] as Color,
+                  onTap: () => context.push(item['route'] as String),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminMenuCard extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AdminMenuCard({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_AdminMenuCard> createState() => _AdminMenuCardState();
+}
+
+class _AdminMenuCardState extends State<_AdminMenuCard> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.94),
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 100),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border.all(
+              color: widget.color.withValues(alpha: 0.2),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 24,
+                  color: widget.color,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                child: Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

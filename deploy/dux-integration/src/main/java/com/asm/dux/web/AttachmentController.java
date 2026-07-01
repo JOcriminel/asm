@@ -188,17 +188,16 @@ public class AttachmentController {
             // Trigger Notifications
             if (event.getCalendar() != null && event.getCalendar().getMembers() != null) {
                 for (Member m : event.getCalendar().getMembers()) {
-                    if (!m.getId().equals(current.getId())) {
-                        notificationService.triggerNotification(
-                                m,
-                                "Nouvelle pièce jointe dans " + event.getTitle(),
-                                current.getFullName() + " a partagé un fichier: " + request.getFileName(),
-                                "NEW_ATTACHMENT",
-                                "ATTACHMENT",
-                                saved.getId(),
-                                "CREATED"
-                        );
-                    }
+                    notificationService.triggerNotification(
+                            m,
+                            current,
+                            "Nouvelle pièce jointe dans " + event.getTitle(),
+                            current.getFullName() + " a partagé un fichier: " + request.getFileName(),
+                            "NEW_ATTACHMENT",
+                            "ATTACHMENT",
+                            saved.getId(),
+                            "CREATED"
+                    );
                 }
             }
 
@@ -358,17 +357,16 @@ public class AttachmentController {
             // Trigger Notifications
             if (event.getCalendar() != null && event.getCalendar().getMembers() != null) {
                 for (Member m : event.getCalendar().getMembers()) {
-                    if (!m.getId().equals(current.getId())) {
-                        notificationService.triggerNotification(
-                                m,
-                                "Pièce jointe supprimée",
-                                current.getFullName() + " a supprimé le fichier: " + attachment.getFileName(),
-                                "EVENT_UPDATE",
-                                "ATTACHMENT",
-                                event.getId(),
-                                "DELETED"
-                        );
-                    }
+                    notificationService.triggerNotification(
+                            m,
+                            current,
+                            "Pièce jointe supprimée",
+                            current.getFullName() + " a supprimé le fichier: " + attachment.getFileName(),
+                            "EVENT_UPDATE",
+                            "ATTACHMENT",
+                            event.getId(),
+                            "DELETED"
+                    );
                 }
             }
 
@@ -397,6 +395,55 @@ public class AttachmentController {
         map.put("fileSize", a.getFileSize() != null ? a.getFileSize() : 0L);
 
         return map;
+    }
+
+    @PutMapping({"/api/timetree/local-upload", "/api/dux/api/timetree/local-upload"})
+    public ResponseEntity<?> localUpload(
+            @RequestParam("key") String key,
+            java.io.InputStream inputStream) {
+        log.info("PUT local upload for key={}", key);
+        try {
+            if (key.contains("..")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid key path");
+            }
+            java.nio.file.Path localFileStorageLocation = java.nio.file.Paths.get("uploads/attachments").toAbsolutePath().normalize();
+            java.nio.file.Path targetFilePath = localFileStorageLocation.resolve(key).normalize();
+            java.nio.file.Files.createDirectories(targetFilePath.getParent());
+            java.nio.file.Files.copy(inputStream, targetFilePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            log.info("Saved local fallback file: {}", targetFilePath);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.error("Failed local upload", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
+
+    @GetMapping({"/api/timetree/local-download", "/api/dux/api/timetree/local-download"})
+    public ResponseEntity<?> localDownload(@RequestParam("key") String key) {
+        log.info("GET local download for key={}", key);
+        try {
+            if (key.contains("..")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid key path");
+            }
+            java.nio.file.Path localFileStorageLocation = java.nio.file.Paths.get("uploads/attachments").toAbsolutePath().normalize();
+            java.nio.file.Path targetFilePath = localFileStorageLocation.resolve(key).normalize();
+            if (!java.nio.file.Files.exists(targetFilePath)) {
+                return ResponseEntity.notFound().build();
+            }
+            byte[] fileBytes = java.nio.file.Files.readAllBytes(targetFilePath);
+            String contentType = java.nio.file.Files.probeContentType(targetFilePath);
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+            String fileName = targetFilePath.getFileName().toString();
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_TYPE, contentType)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
+                    .body(fileBytes);
+        } catch (Exception e) {
+            log.error("Failed local download", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
     }
 
     // --- DTOs ---

@@ -7,6 +7,7 @@ class TimetreeCalendarDto {
   final String description;
   final String color;
   final List<TimetreeMemberDto> members;
+  final String? attachedDocuments;
 
   const TimetreeCalendarDto({
     required this.id,
@@ -14,6 +15,7 @@ class TimetreeCalendarDto {
     required this.description,
     required this.color,
     required this.members,
+    this.attachedDocuments,
   });
 
   factory TimetreeCalendarDto.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class TimetreeCalendarDto {
               ?.map((e) => TimetreeMemberDto.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
+      attachedDocuments: json['attachedDocuments'] as String?,
     );
   }
 
@@ -36,6 +39,7 @@ class TimetreeCalendarDto {
       'description': description,
       'color': color,
       'members': members.map((m) => m.toJson()).toList(),
+      if (attachedDocuments != null) 'attachedDocuments': attachedDocuments,
     };
   }
 }

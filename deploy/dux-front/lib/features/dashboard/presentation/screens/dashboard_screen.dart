@@ -6,6 +6,7 @@ import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/routing/page_route_registry.dart';
+import 'package:dux_front/core/widgets/dux_notification_badge.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -123,6 +124,7 @@ class DashboardScreen extends ConsumerWidget {
             icon: const Icon(Icons.wifi, color: Colors.green),
             onPressed: () {},
           ),
+          const DuxNotificationBadge(),
           Padding(
             padding: const EdgeInsets.only(right: 16.0, left: 8.0),
             child: Container(

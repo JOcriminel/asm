@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/client.dart';
+import '../../domain/models/client_filter.dart';
 import 'clients_controller.dart';
 import '../../../../features/commands/data/repositories/commands_repository.dart';
 import '../../../../features/commands/domain/models/command.dart';
 import '../../../../features/bon_preparation/data/repositories/bon_preparation_repository_impl.dart';
 import '../../../../features/bon_preparation/domain/models/bon_preparation.dart';
+import '../../../../features/clients/data/repositories/clients_repository_impl.dart';
 
 class ClientDetailsState {
   final Client? client;
@@ -41,18 +43,38 @@ class ClientDetailsState {
 class ClientDetailsController extends StateNotifier<ClientDetailsState> {
   final Ref _ref;
   final String _clientId;
+  final String? _typeTier;
 
-  ClientDetailsController(this._ref, this._clientId) : super(const ClientDetailsState()) {
+  ClientDetailsController(this._ref, String arg)
+      : _clientId = arg.split(':').first,
+        _typeTier = arg.contains(':') ? arg.split(':').last : null,
+        super(const ClientDetailsState()) {
     _init();
   }
 
   Future<void> _init() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      // Find client from list
-      final clientsState = _ref.read(clientsControllerProvider);
-      final client = clientsState.clients.firstWhere((c) => c.id == _clientId, orElse: () => throw Exception('Client non trouvé'));
-      
+      Client? client;
+
+      // 1. Try to find client from the in-memory clients list first
+      try {
+        final clientsState = _ref.read(clientsControllerProvider);
+        client = clientsState.clients.firstWhere((c) => c.id == _clientId);
+      } catch (_) {}
+
+      // 2. If not found in-memory, fetch it directly from the API using findbycode
+      if (client == null) {
+        final repository = _ref.read(clientsRepositoryProvider);
+        try {
+          client = await repository.getClientByCode(_clientId);
+        } catch (_) {}
+      }
+
+      if (client == null) {
+        throw Exception('Client non trouvé');
+      }
+
       state = state.copyWith(client: client);
 
       // Calculate a safe date range starting from client creation to avoid PHP API crash on massive date ranges
@@ -69,7 +91,12 @@ class ClientDetailsController extends StateNotifier<ClientDetailsState> {
           dateTo: toDate,
         ),
       );
-      final commandsList = allCommands.where((cmd) => cmd.tier == _clientId || cmd.customerName == client.nomPrenom || cmd.customerName == client.nomPrenomEdit).toList();
+      final commandsList = allCommands.where((cmd) =>
+        cmd.tier == client!.id ||
+        cmd.tier == client.code ||
+        cmd.customerName == client.nomPrenom ||
+        cmd.customerName == client.nomPrenomEdit
+      ).toList();
       
       // Fetch preparations count
       final prepRepo = _ref.read(bonPreparationRepositoryProvider);
@@ -82,7 +109,12 @@ class ClientDetailsController extends StateNotifier<ClientDetailsState> {
           dateTo: toDate,
         ),
       );
-      final prepsList = allPreps.where((prep) => prep.tier == _clientId || prep.customerName == client.nomPrenom || prep.customerName == client.nomPrenomEdit).toList();
+      final prepsList = allPreps.where((prep) =>
+        prep.tier == client!.id ||
+        prep.tier == client.code ||
+        prep.customerName == client.nomPrenom ||
+        prep.customerName == client.nomPrenomEdit
+      ).toList();
 
       state = state.copyWith(
         commandsCount: commandsList.length,
@@ -96,6 +128,6 @@ class ClientDetailsController extends StateNotifier<ClientDetailsState> {
 }
 
 final clientDetailsControllerProvider =
-    StateNotifierProvider.autoDispose.family<ClientDetailsController, ClientDetailsState, String>((ref, clientId) {
-  return ClientDetailsController(ref, clientId);
+    StateNotifierProvider.autoDispose.family<ClientDetailsController, ClientDetailsState, String>((ref, arg) {
+  return ClientDetailsController(ref, arg);
 });

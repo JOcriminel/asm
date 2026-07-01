@@ -10,12 +10,13 @@ import 'package:intl/intl.dart';
 
 class ClientDetailsScreen extends ConsumerWidget {
   final String clientId;
+  final String? typeTier;
 
-  const ClientDetailsScreen({super.key, required this.clientId});
+  const ClientDetailsScreen({super.key, required this.clientId, this.typeTier});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(clientDetailsControllerProvider(clientId));
+    final state = ref.watch(clientDetailsControllerProvider(typeTier != null ? '$clientId:$typeTier' : clientId));
     final theme = Theme.of(context);
 
     if (state.isLoading) {

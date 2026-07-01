@@ -403,28 +403,43 @@ class _AuditLogTile extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 4),
-            Row(
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
               children: [
-                Icon(Icons.person_outline_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(logItem.username ?? 'Système', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
-                const SizedBox(width: 12),
-                Icon(Icons.fingerprint_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text('${logItem.entityType} ID: ${logItem.entityId ?? 'N/A'}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(Icons.access_time_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(fmtDate, style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
-                const SizedBox(width: 12),
-                Icon(Icons.computer_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(logItem.ipAddress ?? '0.0.0.0', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_outline_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(logItem.username ?? 'Système', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.fingerprint_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text('${logItem.entityType} ID: ${logItem.entityId ?? 'N/A'}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(fmtDate, style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.computer_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(logItem.ipAddress ?? '0.0.0.0', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
               ],
             ),
           ],

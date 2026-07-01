@@ -19,7 +19,6 @@ import 'package:dux_front/features/timetree/presentation/screens/categories_scre
 import 'package:dux_front/features/timetree/presentation/screens/pages_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/dashboard_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/roles_permissions_screen.dart';
-import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/timetree_calendar_view_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/custom_fields_screen.dart';
 import 'package:dux_front/features/timetree/presentation/screens/timetree_audit_logs_screen.dart';
@@ -47,6 +46,9 @@ import '../../features/checklist/presentation/screens/tasks_admin_screen.dart';
 import '../../features/checklist/presentation/screens/articles_admin_screen.dart';
 import '../../features/bon_sortie/presentation/screens/bon_sortie_list_screen.dart';
 import '../../features/bon_sortie/presentation/screens/bon_sortie_detail_screen.dart';
+import 'package:dux_front/features/notifications/presentation/screens/notification_history_screen.dart';
+import 'package:dux_front/features/notifications/presentation/screens/notification_settings_screen.dart';
+import 'package:dux_front/features/notifications/presentation/screens/admin_announcement_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -471,6 +473,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       path: '/timetree/search',
       name: 'timetreeSearch',
       builder: (context, state) => const TimetreeSearchScreen(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      name: 'notificationsHistory',
+      builder: (context, state) => const NotificationHistoryScreen(),
+    ),
+    GoRoute(
+      path: '/notifications/settings',
+      name: 'notificationSettings',
+      builder: (context, state) => const NotificationSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/timetree/admin/announcements',
+      name: 'adminAnnouncements',
+      builder: (context, state) => const AdminAnnouncementScreen(),
     ),
     ],
   );

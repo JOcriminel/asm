@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.asm.dux.timetree.repository.UserDeviceRepository;
+
 @Slf4j
 @RestController
 @RequestMapping({"/api/dux/api/timetree/notifications", "/api/timetree/notifications"})
@@ -21,6 +23,7 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final TimetreeSecurityService securityService;
+    private final UserDeviceRepository userDeviceRepository;
 
     // GET all notifications (paginated)
     @GetMapping
@@ -112,11 +115,16 @@ public class NotificationController {
 
         NotificationPreference pref = notificationService.getPreferencesForUser(current.getId(), current);
         PreferenceDto dto = PreferenceDto.builder()
-                .emailEnabled(pref.getEmailEnabled())
-                .pushEnabled(pref.getPushEnabled())
-                .mentionsEnabled(pref.getMentionsEnabled())
-                .remindersEnabled(pref.getRemindersEnabled())
-                .chatEnabled(pref.getChatEnabled())
+                .emailEnabled(Boolean.TRUE.equals(pref.getEmailEnabled()))
+                .pushEnabled(Boolean.TRUE.equals(pref.getPushEnabled()))
+                .mentionsEnabled(Boolean.TRUE.equals(pref.getMentionsEnabled()))
+                .remindersEnabled(Boolean.TRUE.equals(pref.getRemindersEnabled()))
+                .chatEnabled(Boolean.TRUE.equals(pref.getChatEnabled()))
+                .soundEnabled(Boolean.TRUE.equals(pref.getSoundEnabled()))
+                .vibrationEnabled(Boolean.TRUE.equals(pref.getVibrationEnabled()))
+                .snoozeUntil(pref.getSnoozeUntil())
+                .muteAllExceptSpecific(Boolean.TRUE.equals(pref.getMuteAllExceptSpecific()))
+                .notifyOwnActions(Boolean.TRUE.equals(pref.getNotifyOwnActions()))
                 .build();
         return ResponseEntity.ok(dto);
     }
@@ -136,17 +144,62 @@ public class NotificationController {
                 .mentionsEnabled(dto.isMentionsEnabled())
                 .remindersEnabled(dto.isRemindersEnabled())
                 .chatEnabled(dto.isChatEnabled())
+                .soundEnabled(dto.isSoundEnabled())
+                .vibrationEnabled(dto.isVibrationEnabled())
+                .snoozeUntil(dto.getSnoozeUntil())
+                .muteAllExceptSpecific(dto.isMuteAllExceptSpecific())
+                .notifyOwnActions(dto.isNotifyOwnActions())
                 .build();
 
         NotificationPreference saved = notificationService.updatePreferences(current.getId(), newPref, current);
         PreferenceDto responseDto = PreferenceDto.builder()
-                .emailEnabled(saved.getEmailEnabled())
-                .pushEnabled(saved.getPushEnabled())
-                .mentionsEnabled(saved.getMentionsEnabled())
-                .remindersEnabled(saved.getRemindersEnabled())
-                .chatEnabled(saved.getChatEnabled())
+                .emailEnabled(Boolean.TRUE.equals(saved.getEmailEnabled()))
+                .pushEnabled(Boolean.TRUE.equals(saved.getPushEnabled()))
+                .mentionsEnabled(Boolean.TRUE.equals(saved.getMentionsEnabled()))
+                .remindersEnabled(Boolean.TRUE.equals(saved.getRemindersEnabled()))
+                .chatEnabled(Boolean.TRUE.equals(saved.getChatEnabled()))
+                .soundEnabled(Boolean.TRUE.equals(saved.getSoundEnabled()))
+                .vibrationEnabled(Boolean.TRUE.equals(saved.getVibrationEnabled()))
+                .snoozeUntil(saved.getSnoozeUntil())
+                .muteAllExceptSpecific(Boolean.TRUE.equals(saved.getMuteAllExceptSpecific()))
+                .notifyOwnActions(Boolean.TRUE.equals(saved.getNotifyOwnActions()))
                 .build();
         return ResponseEntity.ok(responseDto);
+    }
+
+    // POST register device token for push notifications
+    @PostMapping("/devices/register")
+    @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
+    public ResponseEntity<?> registerDevice(@RequestBody DeviceRegistrationRequest request) {
+        log.info("POST register device token");
+        Member current = securityService.getCurrentMember();
+        if (current == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Utilisateur non authentifié");
+        }
+
+        if (request.getDeviceToken() == null || request.getDeviceToken().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Device token cannot be empty");
+        }
+
+        // Check if token already exists to prevent duplicate entries
+        Optional<UserDevice> existing = userDeviceRepository.findByDeviceToken(request.getDeviceToken());
+        if (existing.isPresent()) {
+            UserDevice device = existing.get();
+            device.setMember(current);
+            device.setPlatform(request.getPlatform() != null ? request.getPlatform().toUpperCase() : "ANDROID");
+            device.setLastActive(java.time.LocalDateTime.now());
+            userDeviceRepository.save(device);
+        } else {
+            UserDevice newDevice = UserDevice.builder()
+                    .member(current)
+                    .deviceToken(request.getDeviceToken())
+                    .platform(request.getPlatform() != null ? request.getPlatform().toUpperCase() : "ANDROID")
+                    .lastActive(java.time.LocalDateTime.now())
+                    .build();
+            userDeviceRepository.save(newDevice);
+        }
+
+        return ResponseEntity.ok().build();
     }
 
     private Map<String, Object> mapToNotificationMap(TimetreeNotification n) {
@@ -175,5 +228,16 @@ public class NotificationController {
         private boolean mentionsEnabled;
         private boolean remindersEnabled;
         private boolean chatEnabled;
+        private boolean soundEnabled;
+        private boolean vibrationEnabled;
+        private java.time.LocalDateTime snoozeUntil;
+        private boolean muteAllExceptSpecific;
+        private boolean notifyOwnActions;
+    }
+
+    @Data
+    public static class DeviceRegistrationRequest {
+        private String deviceToken;
+        private String platform;
     }
 }

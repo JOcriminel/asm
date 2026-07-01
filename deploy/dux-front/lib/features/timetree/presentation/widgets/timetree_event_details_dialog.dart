@@ -1,7 +1,18 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:dux_front/features/timetree/data/repositories/timetree_attachments_repository.dart';
+import 'timetree_chat_tab.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_event.dart';
+import 'package:dux_front/features/command_details/presentation/screens/command_details_screen.dart';
+import 'package:dux_front/features/bon_preparation/presentation/screens/bon_preparation_detail_screen.dart';
+import 'package:dux_front/features/bon_sortie/presentation/screens/bon_sortie_detail_screen.dart';
+import 'package:dux_front/features/clients/presentation/screens/client_details_screen.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_chat_provider.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_message.dart';
@@ -10,6 +21,7 @@ import 'package:dux_front/features/timetree/data/repositories/timetree_custom_fi
 import 'package:dux_front/features/timetree/domain/models/timetree_custom_field_value.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_tag.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
+import 'package:dux_front/features/timetree/domain/models/timetree_audit_log.dart';
 
 class TimetreeEventDetailsDialog extends ConsumerStatefulWidget {
   final TimetreeEvent event;
@@ -30,6 +42,72 @@ class TimetreeEventDetailsDialog extends ConsumerStatefulWidget {
 class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetailsDialog> {
   final _scrollController = ScrollController();
   final _textController = TextEditingController();
+  Set<String> _tierCodes = {};
+  List<Map<String, dynamic>> _rawTypes = [];
+
+  Future<void> _loadTierTypes() async {
+    try {
+      final types = await ref.read(screenConfigControllerProvider.notifier).fetchAllTierTypes();
+      if (mounted) {
+        setState(() {
+          _rawTypes = types;
+          _tierCodes = types
+              .map((t) => (t['typeCode'] ?? t['code'])?.toString().trim().toUpperCase())
+              .whereType<String>()
+              .toSet();
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// Navigate to the appropriate detail screen for any document type or tier type.
+  /// BC / BCC / DevC / any other → CommandDetailsScreen (generic)
+  /// BS                           → BonSortieDetailScreen
+  /// BP / DPR / PR                → BonPreparationDetailScreen
+  /// Tier types (Client, etc.)    → ClientDetailsScreen
+  void _navigateToDocument(BuildContext ctx, String id, String type) {
+    if (id.isEmpty) return;
+    final t = type.trim().toUpperCase();
+    if (_tierCodes.contains(t)) {
+      String? resolvedTypeTier;
+      for (final rawType in _rawTypes) {
+        final typeCodeVal = (rawType['typeCode'] ?? rawType['code'])?.toString().trim().toUpperCase();
+        if (typeCodeVal == t) {
+          resolvedTypeTier = rawType['code']?.toString();
+          break;
+        }
+      }
+      Navigator.push(
+        ctx,
+        MaterialPageRoute(
+          builder: (_) => ClientDetailsScreen(clientId: id, typeTier: resolvedTypeTier),
+        ),
+      );
+    } else if (t.startsWith('BS') || t == 'BON_SORTIE') {
+      Navigator.push(
+        ctx,
+        MaterialPageRoute(
+          builder: (_) => BonSortieDetailScreen(sortieId: id, isFromCalendar: true),
+        ),
+      );
+    } else if (t.startsWith('BP') || t.startsWith('PR') || t == 'DPR' || t == 'BON_PREPARATION') {
+      Navigator.push(
+        ctx,
+        MaterialPageRoute(
+          builder: (_) => BonPreparationDetailScreen(preparationId: id, docType: type, isFromCalendar: true),
+        ),
+      );
+    } else {
+      // CommandDetailsScreen is the generic fallback — handles BC, BCC, DevC,
+      // factures, avoirs, proformas and any other doc type that the ERP returns.
+      Navigator.push(
+        ctx,
+        MaterialPageRoute(
+          builder: (_) => CommandDetailsScreen(commandId: id, isFromCalendar: true),
+        ),
+      );
+    }
+  }
   bool _sending = false;
 
   bool _isLiked = false;
@@ -42,6 +120,7 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
   void initState() {
     super.initState();
     _loadCustomFieldValues();
+    _loadTierTypes();
     // Scroll to bottom when frame is rendered
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
@@ -100,12 +179,16 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
 
   String getReminderLabel(DateTime start, List<DateTime> reminders) {
     if (reminders.isEmpty) return "Pas de rappel";
-    final diff = start.difference(reminders.first);
-    if (diff.inMinutes == 10) return "10 min avant";
-    if (diff.inMinutes == 15) return "15 min avant";
-    if (diff.inHours == 1) return "1 heure avant";
-    if (diff.inDays == 1) return "1 jour avant";
-    return "${diff.inMinutes} min avant";
+    final labels = reminders.map((rem) {
+      final diff = start.difference(rem);
+      final diffMins = diff.inMinutes;
+      if ((diffMins - 10).abs() <= 2) return "10 min avant";
+      if ((diffMins - 15).abs() <= 2) return "15 min avant";
+      if ((diffMins - 60).abs() <= 5) return "1 heure avant";
+      if ((diffMins - 1440).abs() <= 10) return "1 jour avant";
+      return "$diffMins min avant";
+    }).toList();
+    return labels.join(', ');
   }
 
   String getColorName(String? colorStr) {
@@ -268,10 +351,98 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
                                         text: ev.description!,
                                         textColor: textColor,
                                       ),
+                                    if (ev.attachedDocumentId != null && ev.attachedDocumentId!.isNotEmpty)
+                                      ...((String docIdStr, String docTypeStr, String docCodeStr, String clientNameStr) {
+                                        final docIds = docIdStr.split(',');
+                                        final docTypes = docTypeStr.split(',');
+                                        final docCodes = docCodeStr.split(',');
+                                        final clientNames = clientNameStr.split(',');
+                                        final list = <Widget>[];
+                                        for (int i = 0; i < docIds.length; i++) {
+                                          final id = docIds[i].trim();
+                                          if (id.isEmpty) continue;
+                                          final type = i < docTypes.length ? docTypes[i].trim() : 'BC';
+                                          final code = i < docCodes.length ? docCodes[i].trim() : '';
+                                          final client = i < clientNames.length ? clientNames[i].trim() : '';
+                                          list.add(
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 8),
+                                              child: InkWell(
+                                                onTap: () => _navigateToDocument(context, id, type),
+                                                borderRadius: BorderRadius.circular(12),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: iconColor.withValues(alpha: 0.08),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(
+                                                      color: iconColor.withValues(alpha: 0.15),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      Container(
+                                                        padding: const EdgeInsets.all(8),
+                                                        decoration: BoxDecoration(
+                                                          color: iconColor.withValues(alpha: 0.12),
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                        child: Icon(
+                                                          Icons.insert_drive_file_rounded,
+                                                          color: iconColor,
+                                                          size: 20,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              '$type $code',
+                                                              style: TextStyle(
+                                                                fontWeight: FontWeight.bold,
+                                                                fontSize: 15,
+                                                                color: textColor,
+                                                              ),
+                                                            ),
+                                                            if (client.isNotEmpty) ...[
+                                                              const SizedBox(height: 2),
+                                                              Text(
+                                                                client,
+                                                                style: TextStyle(
+                                                                  fontSize: 13,
+                                                                  color: textColor.withValues(alpha: 0.6),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      TextButton.icon(
+                                                        style: TextButton.styleFrom(
+                                                          foregroundColor: iconColor,
+                                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                        ),
+                                                        icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                                                        label: const Text(
+                                                          'Détails',
+                                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                        ),
+                                                        onPressed: () => _navigateToDocument(context, id, type),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        return list;
+                                      })(ev.attachedDocumentId!, ev.attachedDocumentType ?? '', ev.attachedDocumentCode ?? '', ev.attachedClientName ?? ''),
                                   ],
                                 ),
-
-                                // Card 2: Event Details (Status, Priority, Recurrence, Tags, Dependencies)
                                 _buildDetailsCard(
                                   isDark: isDark,
                                   children: [
@@ -348,6 +519,23 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
                                         final resolved = _resolveValueAndEmoji(cfv);
                                         final content = resolved['content'] ?? '';
                                         if (content.isEmpty) return const SizedBox.shrink();
+                                        
+                                        final labelLower = cfv.field.label.toLowerCase();
+                                        final isLocation = labelLower.contains('lieu') ||
+                                            labelLower.contains('adresse') ||
+                                            labelLower.contains('location') ||
+                                            labelLower.contains('coordon');
+                                            
+                                        if (isLocation) {
+                                          return _buildLocationRow(
+                                            label: cfv.field.label,
+                                            address: content,
+                                            iconColor: iconColor,
+                                            textColor: textColor,
+                                            subTextColor: subTextColor,
+                                          );
+                                        }
+
                                         final emoji = resolved['emoji'] ?? '';
                                         return _buildCustomFieldRow(
                                           label: cfv.field.label,
@@ -428,7 +616,11 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
                                 final msg = messages[idx];
                                 final isSystem = msg.messageType == TimetreeMessageType.system;
                                 final isMe = msg.sender.username == currentUsername;
+                                final isAttachment = msg.metadata != null && msg.metadata!.startsWith('ATTACHMENT_UPLOADED:');
 
+                                if (isAttachment) {
+                                  return _buildAttachmentBubble(msg, isMe, textColor, isDark);
+                                }
                                 if (isSystem) {
                                   return _buildSystemBubble(msg, subTextColor);
                                 }
@@ -512,6 +704,8 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
                   );
                 } else if (value == 'supprimer') {
                   _confirmDelete();
+                } else if (value == 'traceability') {
+                  _showTraceabilityDialog(context);
                 }
               },
               itemBuilder: (context) => [
@@ -535,6 +729,11 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
                   value: 'supprimer',
                   child: Text('Supprimer', style: TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold)),
                 ),
+                if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR' || userRole == 'CHEF')
+                  const PopupMenuItem(
+                    value: 'traceability',
+                    child: Text('Traçabilité / Historique', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
               ],
             ),
           ],
@@ -618,6 +817,109 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
       'emoji': emoji,
       'content': content,
     };
+  }
+
+  Widget _buildLocationRow({
+    required String label,
+    required String address,
+    required Color iconColor,
+    required Color textColor,
+    required Color subTextColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _launchMaps(address),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.location_on_rounded,
+                    color: iconColor,
+                    size: 16,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: subTextColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      address,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.directions_rounded,
+                color: iconColor,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchMaps(String address) async {
+    final query = Uri.encodeComponent(address);
+    final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$query';
+    final appleMapsUrl = 'https://maps.apple.com/maps?q=$query';
+
+    try {
+      if (Platform.isIOS) {
+        if (await canLaunchUrl(Uri.parse(appleMapsUrl))) {
+          await launchUrl(Uri.parse(appleMapsUrl), mode: LaunchMode.externalApplication);
+          return;
+        }
+      }
+      
+      if (await canLaunchUrl(Uri.parse(googleMapsUrl))) {
+        await launchUrl(Uri.parse(googleMapsUrl), mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Impossible d\'ouvrir l\'application Cartes.';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur lors de l\'ouverture de la carte : $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildCustomFieldRow({
@@ -1125,12 +1427,8 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
               },
             ),
             IconButton(
-              icon: const Icon(Icons.image_outlined, color: Colors.grey),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Partager une image bientôt disponible dans cette discussion.')),
-                );
-              },
+              icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.grey),
+              onPressed: _sending ? null : _showAttachmentOptions,
             ),
             Expanded(
               child: Container(
@@ -1178,4 +1476,590 @@ class _TimetreeEventDetailsDialogState extends ConsumerState<TimetreeEventDetail
       ),
     );
   }
+
+  Widget _buildAttachmentBubble(TimetreeMessage msg, bool isMe, Color textColor, bool isDark) {
+    final timeStr = DateFormat('HH:mm').format(msg.sentAt);
+    final parts = msg.metadata!.split(':');
+    final attachmentId = parts.length > 1 ? parts[1] : '';
+    final fileName = msg.message.replaceAll('A ajouté la pièce jointe: ', '');
+    final initials = msg.sender.fullName.isNotEmpty ? msg.sender.fullName.substring(0, 1).toUpperCase() : '?';
+
+    if (isMe) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              timeStr,
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 240),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                    bottomRight: Radius.zero,
+                  ),
+                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: TimetreeAttachmentPreview(
+                    attachmentId: attachmentId,
+                    fileName: fileName,
+                    eventId: widget.event.id,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: const Color(0xFF10B981),
+              child: Text(
+                initials,
+                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.purple.shade300,
+              child: Text(
+                initials,
+                style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    msg.sender.fullName,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 240),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.zero,
+                              topRight: Radius.circular(16),
+                              bottomLeft: Radius.circular(16),
+                              bottomRight: Radius.circular(16),
+                            ),
+                            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: TimetreeAttachmentPreview(
+                              attachmentId: attachmentId,
+                              fileName: fileName,
+                              eventId: widget.event.id,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        timeStr,
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _showAttachmentOptions() async {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: Colors.blue),
+                title: const Text('Galerie (Image)'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadMedia(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: Colors.green),
+                title: const Text('Prendre une photo'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadMedia(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.insert_drive_file_rounded, color: Colors.amber),
+                title: const Text('Fichier'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndUploadFile();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAndUploadMedia(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: source);
+      if (pickedFile != null) {
+        final filePath = pickedFile.path;
+        final fileName = pickedFile.name;
+        await _uploadAndNotify(filePath, fileName);
+      }
+    } catch (e) {
+      _showErrorSnackBar('Erreur d\'importation d\'image: $e');
+    }
+  }
+
+  Future<void> _pickAndUploadFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'docx', 'xlsx', 'zip', 'txt'],
+      );
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        final fileName = result.files.single.name;
+        await _uploadAndNotify(filePath, fileName);
+      }
+    } catch (e) {
+      _showErrorSnackBar('Erreur d\'importation de fichier: $e');
+    }
+  }
+
+  Future<void> _uploadAndNotify(String filePath, String fileName) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Envoi du fichier en cours...')),
+    );
+
+    try {
+      final repository = ref.read(timetreeAttachmentsRepositoryProvider);
+      await repository.uploadAttachment(widget.event.id, filePath, fileName);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fichier envoyé avec succès !')),
+        );
+        ref.read(timetreeChatProvider(widget.event.id).notifier).loadInitial();
+      }
+    } catch (e) {
+      _showErrorSnackBar('Le chargement a échoué: $e');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _showTraceabilityDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _EventHistoryDialog(
+        eventId: widget.event.id,
+        eventTitle: widget.event.nomEvent ?? widget.event.title,
+      ),
+    );
+  }
 }
+
+class _EventHistoryDialog extends ConsumerStatefulWidget {
+  final String eventId;
+  final String eventTitle;
+
+  const _EventHistoryDialog({
+    required this.eventId,
+    required this.eventTitle,
+  });
+
+  @override
+  ConsumerState<_EventHistoryDialog> createState() => _EventHistoryDialogState();
+}
+
+class _EventHistoryDialogState extends ConsumerState<_EventHistoryDialog> {
+  final _searchController = TextEditingController();
+  String? _selectedAction;
+  DateTime? _startDate;
+  DateTime? _endDate;
+
+  List<TimetreeAuditLog> _allLogs = [];
+  List<TimetreeAuditLog> _filteredLogs = [];
+  bool _loading = true;
+
+  final List<String> _actions = ['CREATE', 'UPDATE', 'DELETE', 'UPDATE_VALUES'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() => _loading = true);
+    try {
+      final repo = ref.read(timetreeEventsProviderProvider);
+      final logs = await repo.getEventHistory(widget.eventId);
+      if (mounted) {
+        setState(() {
+          _allLogs = logs;
+          _loading = false;
+          _applyFilters();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _applyFilters() {
+    final search = _searchController.text.trim().toLowerCase();
+    setState(() {
+      _filteredLogs = _allLogs.where((log) {
+        if (_selectedAction != null && log.action.toUpperCase() != _selectedAction!.toUpperCase()) {
+          return false;
+        }
+        if (_startDate != null && log.actionDate.isBefore(_startDate!)) {
+          return false;
+        }
+        if (_endDate != null) {
+          final endOfDate = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+          if (log.actionDate.isAfter(endOfDate)) {
+            return false;
+          }
+        }
+        if (search.isNotEmpty) {
+          final user = (log.username ?? '').toLowerCase();
+          final details = (log.details ?? '').toLowerCase();
+          if (!user.contains(search) && !details.contains(search)) {
+            return false;
+          }
+        }
+        return true;
+      }).toList();
+    });
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _searchController.clear();
+      _selectedAction = null;
+      _startDate = null;
+      _endDate = null;
+    });
+    _applyFilters();
+  }
+
+  Future<void> _selectStartDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? DateTime.now().subtract(const Duration(days: 7)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => _startDate = picked);
+      _applyFilters();
+    }
+  }
+
+  Future<void> _selectEndDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() => _endDate = picked);
+      _applyFilters();
+    }
+  }
+
+  Color _actionColor(String action) {
+    switch (action.toUpperCase()) {
+      case 'CREATE':
+        return Colors.green;
+      case 'UPDATE':
+        return Colors.orange;
+      case 'UPDATE_VALUES':
+        return Colors.blue;
+      case 'DELETE':
+        return Colors.red;
+      default:
+        return Colors.purple;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF121212) : Colors.white;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 650),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Historique : ${widget.eventTitle}',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const Divider(),
+
+            // Filters Section
+            ExpansionTile(
+              leading: Icon(Icons.filter_alt_outlined, color: theme.colorScheme.primary, size: 20),
+              title: const Text('Filtres de recherche', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Rechercher',
+                          prefixIcon: Icon(Icons.search_rounded, size: 18),
+                          contentPadding: EdgeInsets.symmetric(vertical: 4),
+                        ),
+                        onChanged: (_) => _applyFilters(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedAction,
+                        style: theme.textTheme.bodyMedium,
+                        decoration: const InputDecoration(
+                          labelText: 'Action',
+                          contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        ),
+                        items: [
+                          const DropdownMenuItem(value: null, child: Text('Toutes', style: TextStyle(fontSize: 13))),
+                          ..._actions.map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 13)))),
+                        ],
+                        onChanged: (val) {
+                          setState(() => _selectedAction = val);
+                          _applyFilters();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.date_range_rounded, size: 16),
+                        label: Text(
+                          _startDate == null ? 'Début' : DateFormat('dd/MM/yyyy').format(_startDate!),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () => _selectStartDate(context),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.date_range_rounded, size: 16),
+                        label: Text(
+                          _endDate == null ? 'Fin' : DateFormat('dd/MM/yyyy').format(_endDate!),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () => _selectEndDate(context),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _clearFilters,
+                      child: const Text('Réinitialiser', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Logs List
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredLogs.isEmpty
+                      ? const Center(child: Text('Aucune trace d\'activité.', style: TextStyle(fontStyle: FontStyle.italic)))
+                      : ListView.builder(
+                          itemCount: _filteredLogs.length,
+                          itemBuilder: (context, index) {
+                            final logItem = _filteredLogs[index];
+                            final fmtDate = DateFormat('dd/MM/yyyy HH:mm').format(logItem.actionDate);
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(
+                                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+                                  width: 0.8,
+                                ),
+                              ),
+                              color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFFAFAFA),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: _actionColor(logItem.action).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            logItem.action,
+                                            style: TextStyle(
+                                              color: _actionColor(logItem.action),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 9,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            logItem.details ?? '${logItem.action} ${logItem.entityType}',
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 12,
+                                      runSpacing: 4,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.person_outline_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                                            const SizedBox(width: 4),
+                                            Text(logItem.username ?? 'Système', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 10)),
+                                          ],
+                                        ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.access_time_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                                            const SizedBox(width: 4),
+                                            Text(fmtDate, style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 10)),
+                                          ],
+                                        ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.computer_rounded, size: 13, color: theme.colorScheme.onSurfaceVariant),
+                                            const SizedBox(width: 4),
+                                            Text(logItem.ipAddress ?? '0.0.0.0', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 10)),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

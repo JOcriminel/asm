@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
@@ -199,9 +200,15 @@ class _TimetreeEventTraceabilityScreenState extends ConsumerState<TimetreeEventT
       await sink.close();
 
       if (!mounted) return;
+      
+      // Share the file natively so the user can save it to Downloads or send it
+      final xFile = XFile(file.path);
+      await Share.shareXFiles([xFile], text: 'Historique de traçabilité');
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Historique exporté avec succès !\nSauvegardé dans: ${file.path}'),
+        const SnackBar(
+          content: Text('Historique exporté avec succès !'),
           backgroundColor: Colors.green,
         ),
       );
@@ -526,31 +533,36 @@ class _TraceabilityTile extends StatelessWidget {
           logItem.details ?? '${logItem.action} ${logItem.entityType}',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        subtitle: Wrap(
+          spacing: 12,
+          runSpacing: 4,
           children: [
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(Icons.person_outline_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(logItem.username ?? 'Système', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
-                const SizedBox(width: 12),
-                Icon(Icons.access_time_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(fmtDate, style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.person_outline_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(logItem.username ?? 'Système', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.access_time_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(fmtDate, style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.computer_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(logItem.ipAddress ?? '0.0.0.0', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.computer_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(logItem.ipAddress ?? '0.0.0.0', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

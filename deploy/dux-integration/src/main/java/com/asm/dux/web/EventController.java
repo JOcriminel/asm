@@ -130,9 +130,22 @@ public class EventController {
                 }
             }
 
+            String attachedDocumentId = (String) body.get("attachedDocumentId");
+            String attachedDocumentType = (String) body.get("attachedDocumentType");
+            String attachedDocumentCode = (String) body.get("attachedDocumentCode");
+            String attachedClientName = (String) body.get("attachedClientName");
+
+            if (attachedDocumentId != null && !attachedDocumentId.trim().isEmpty()) {
+                String prefix = (attachedDocumentType != null && !attachedDocumentType.trim().isEmpty())
+                        ? attachedDocumentType.trim() + " "
+                        : "";
+                nomEvent = prefix + attachedDocumentCode + " " + attachedClientName;
+                title = nomEvent;
+            }
+
             String description = (String) body.get("description");
-            LocalDateTime startDate = LocalDateTime.parse((String) body.get("startDate"));
-            LocalDateTime endDate = LocalDateTime.parse((String) body.get("endDate"));
+            LocalDateTime startDate = parseDateTimeSafely((String) body.get("startDate"));
+            LocalDateTime endDate = parseDateTimeSafely((String) body.get("endDate"));
             Boolean allDay = (Boolean) body.getOrDefault("allDay", false);
             String color = (String) body.get("color");
             Long calendarId = Long.valueOf(body.get("calendarId").toString());
@@ -140,7 +153,7 @@ public class EventController {
             String recurrenceRule = (String) body.getOrDefault("recurrenceRule", "NONE");
             LocalDateTime recurrenceEndDate = null;
             if (body.get("recurrenceEndDate") != null && !body.get("recurrenceEndDate").toString().isEmpty()) {
-                recurrenceEndDate = LocalDateTime.parse((String) body.get("recurrenceEndDate"));
+                recurrenceEndDate = parseDateTimeSafely((String) body.get("recurrenceEndDate"));
             }
 
             // Access control check
@@ -180,6 +193,10 @@ public class EventController {
                     .isPrivate(isPrivate)
                     .status(status)
                     .priority(priority)
+                    .attachedDocumentId(attachedDocumentId)
+                    .attachedDocumentType(attachedDocumentType)
+                    .attachedDocumentCode(attachedDocumentCode)
+                    .attachedClientName(attachedClientName)
                     .build();
 
 
@@ -237,7 +254,7 @@ public class EventController {
                 List<EventReminder> reminders = new ArrayList<>();
                 for (Object rObj : rawReminders) {
                     if (rObj instanceof String) {
-                        LocalDateTime rTime = LocalDateTime.parse(rObj.toString());
+                        LocalDateTime rTime = parseDateTimeSafely(rObj.toString());
                         reminders.add(EventReminder.builder().event(saved).reminderTime(rTime).build());
                     }
                 }
@@ -271,17 +288,16 @@ public class EventController {
             // Notify calendar members
             if (saved.getCalendar() != null && saved.getCalendar().getMembers() != null) {
                 for (Member m : saved.getCalendar().getMembers()) {
-                    if (!m.getId().equals(current.getId())) {
-                        notificationService.triggerNotification(
-                                m,
-                                "Nouvel événement: " + saved.getTitle(),
-                                current.getFullName() + " a planifié un nouvel événement.",
-                                "EVENT_CREATED",
-                                "EVENT",
-                                saved.getId(),
-                                "CREATED"
-                        );
-                    }
+                    notificationService.triggerNotification(
+                            m,
+                            current,
+                            "Nouvel événement: " + saved.getTitle(),
+                            current.getFullName() + " a planifié un nouvel événement.",
+                            "EVENT_CREATED",
+                            "EVENT",
+                            saved.getId(),
+                            "CREATED"
+                    );
                 }
             }
 
@@ -323,6 +339,24 @@ public class EventController {
                 String nomEvent = (String) body.get("nomEvent");
                 Boolean titleModifiedDirectly = (Boolean) body.getOrDefault("titleModifiedDirectly", false);
 
+                String attachedDocumentId = (String) body.get("attachedDocumentId");
+                String attachedDocumentType = (String) body.get("attachedDocumentType");
+                String attachedDocumentCode = (String) body.get("attachedDocumentCode");
+                String attachedClientName = (String) body.get("attachedClientName");
+
+                existing.setAttachedDocumentId(attachedDocumentId);
+                existing.setAttachedDocumentType(attachedDocumentType);
+                existing.setAttachedDocumentCode(attachedDocumentCode);
+                existing.setAttachedClientName(attachedClientName);
+
+                if (attachedDocumentId != null && !attachedDocumentId.trim().isEmpty()) {
+                    String prefix = (attachedDocumentType != null && !attachedDocumentType.trim().isEmpty())
+                            ? attachedDocumentType.trim() + " "
+                            : "";
+                    nomEvent = prefix + attachedDocumentCode + " " + attachedClientName;
+                    title = nomEvent;
+                }
+
                 boolean isAdmin = "ADMIN".equalsIgnoreCase(current.getRole()) || "ADMINISTRATEUR".equalsIgnoreCase(current.getRole()) || "CHEF".equalsIgnoreCase(current.getRole());
                 if (!isAdmin) {
                     existing.setTitleModifiedDirectly(false);
@@ -340,14 +374,14 @@ public class EventController {
 
                 existing.setDescription((String) body.get("description"));
 
-                existing.setStartDate(LocalDateTime.parse((String) body.get("startDate")));
-                existing.setEndDate(LocalDateTime.parse((String) body.get("endDate")));
+                existing.setStartDate(parseDateTimeSafely((String) body.get("startDate")));
+                existing.setEndDate(parseDateTimeSafely((String) body.get("endDate")));
                 existing.setAllDay((Boolean) body.getOrDefault("allDay", false));
                 existing.setColor((String) body.get("color"));
                 existing.setRecurrenceRule((String) body.getOrDefault("recurrenceRule", "NONE"));
                 
                 if (body.get("recurrenceEndDate") != null && !body.get("recurrenceEndDate").toString().isEmpty()) {
-                    existing.setRecurrenceEndDate(LocalDateTime.parse((String) body.get("recurrenceEndDate")));
+                    existing.setRecurrenceEndDate(parseDateTimeSafely((String) body.get("recurrenceEndDate")));
                 } else {
                     existing.setRecurrenceEndDate(null);
                 }
@@ -421,15 +455,22 @@ public class EventController {
                     List<EventReminder> reminders = new ArrayList<>();
                     for (Object rObj : rawReminders) {
                         if (rObj instanceof String) {
-                            LocalDateTime rTime = LocalDateTime.parse(rObj.toString());
+                            LocalDateTime rTime = parseDateTimeSafely(rObj.toString());
                             reminders.add(EventReminder.builder().event(existing).reminderTime(rTime).build());
                         }
                     }
                     if (!reminders.isEmpty()) {
                         eventReminderRepository.saveAll(reminders);
-                        existing.setReminders(reminders);
+                        if (existing.getReminders() != null) {
+                            existing.getReminders().clear();
+                            existing.getReminders().addAll(reminders);
+                        } else {
+                            existing.setReminders(reminders);
+                        }
                     } else {
-                        existing.getReminders().clear();
+                        if (existing.getReminders() != null) {
+                            existing.getReminders().clear();
+                        }
                     }
                 }
 
@@ -461,17 +502,16 @@ public class EventController {
                 // Notify calendar members
                 if (saved.getCalendar() != null && saved.getCalendar().getMembers() != null) {
                     for (Member m : saved.getCalendar().getMembers()) {
-                        if (!m.getId().equals(current.getId())) {
-                            notificationService.triggerNotification(
-                                    m,
-                                    "Événement mis à jour: " + saved.getTitle(),
-                                    current.getFullName() + " a modifié l'événement.",
-                                    "EVENT_UPDATED",
-                                    "EVENT",
-                                    saved.getId(),
-                                    "UPDATED"
-                            );
-                        }
+                        notificationService.triggerNotification(
+                                m,
+                                current,
+                                "Événement mis à jour: " + saved.getTitle(),
+                                current.getFullName() + " a modifié l'événement.",
+                                "EVENT_UPDATED",
+                                "EVENT",
+                                saved.getId(),
+                                "UPDATED"
+                        );
                     }
                 }
 
@@ -514,17 +554,16 @@ public class EventController {
             // Trigger Notifications
             if (existing.getCalendar() != null && existing.getCalendar().getMembers() != null) {
                 for (Member m : existing.getCalendar().getMembers()) {
-                    if (!m.getId().equals(current.getId())) {
-                        notificationService.triggerNotification(
-                                m,
-                                "Événement annulé",
-                                current.getFullName() + " a supprimé l'événement: " + existing.getTitle(),
-                                "EVENT_DELETED",
-                                "EVENT",
-                                existing.getId(),
-                                "DELETED"
-                        );
-                    }
+                    notificationService.triggerNotification(
+                            m,
+                            current,
+                            "Événement annulé",
+                            current.getFullName() + " a supprimé l'événement: " + existing.getTitle(),
+                            "EVENT_DELETED",
+                            "EVENT",
+                            existing.getId(),
+                            "DELETED"
+                    );
                 }
             }
 
@@ -637,6 +676,10 @@ public class EventController {
         map.put("nomEvent", e.getNomEvent());
         map.put("titleModifiedDirectly", e.getTitleModifiedDirectly());
         map.put("description", e.getDescription());
+        map.put("attachedDocumentId", e.getAttachedDocumentId());
+        map.put("attachedDocumentType", e.getAttachedDocumentType());
+        map.put("attachedDocumentCode", e.getAttachedDocumentCode());
+        map.put("attachedClientName", e.getAttachedClientName());
 
         map.put("startDate", e.getStartDate().toString());
         map.put("endDate", e.getEndDate().toString());
@@ -696,6 +739,17 @@ public class EventController {
             }
         }
         map.put("participants", participantsList);
+
+        List<CustomFieldValue> customFieldValuesList = customFieldValueRepository.findAllByEntityTypeAndEntityId("EVENT", e.getId().toString());
+        Map<String, String> customFieldsMap = new HashMap<>();
+        if (customFieldValuesList != null) {
+            for (CustomFieldValue cfv : customFieldValuesList) {
+                if (cfv.getField() != null && cfv.getValue() != null) {
+                    customFieldsMap.put(cfv.getField().getId().toString(), cfv.getValue());
+                }
+            }
+        }
+        map.put("customFields", customFieldsMap);
         
         return map;
     }
@@ -729,6 +783,26 @@ public class EventController {
 
         List<TimetreeAuditLog> logs = auditLogRepository.findByEntityTypeAndEntityIdOrderByActionDateDesc("EVENT", id);
         return ResponseEntity.ok(logs);
+    }
+
+    private LocalDateTime parseDateTimeSafely(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(str);
+        } catch (Exception e) {
+            try {
+                return java.time.OffsetDateTime.parse(str).toLocalDateTime();
+            } catch (Exception ex) {
+                try {
+                    return java.time.Instant.parse(str).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+                } catch (Exception exc) {
+                    log.error("Failed to parse datetime safely: {}", str, exc);
+                    throw new IllegalArgumentException("Format de date invalide: " + str);
+                }
+            }
+        }
     }
 }
 

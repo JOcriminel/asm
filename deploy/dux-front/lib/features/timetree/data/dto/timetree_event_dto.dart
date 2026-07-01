@@ -26,6 +26,11 @@ class TimetreeEventDto {
   final List<String> reminders;
   final String? nomEvent;
   final bool titleModifiedDirectly;
+  final String? attachedDocumentId;
+  final String? attachedDocumentType;
+  final String? attachedDocumentCode;
+  final String? attachedClientName;
+  final Map<String, String>? customFields;
 
   const TimetreeEventDto({
     required this.id,
@@ -51,6 +56,11 @@ class TimetreeEventDto {
     this.reminders = const [],
     this.nomEvent,
     this.titleModifiedDirectly = false,
+    this.attachedDocumentId,
+    this.attachedDocumentType,
+    this.attachedDocumentCode,
+    this.attachedClientName,
+    this.customFields,
   });
 
   factory TimetreeEventDto.fromJson(Map<String, dynamic> json) {
@@ -89,6 +99,11 @@ class TimetreeEventDto {
       reminders: (json['reminders'] as List?)?.map((e) => e.toString()).toList() ?? [],
       nomEvent: json['nomEvent'] as String?,
       titleModifiedDirectly: json['titleModifiedDirectly'] as bool? ?? false,
+      attachedDocumentId: json['attachedDocumentId'] as String?,
+      attachedDocumentType: json['attachedDocumentType'] as String?,
+      attachedDocumentCode: json['attachedDocumentCode'] as String?,
+      attachedClientName: json['attachedClientName'] as String?,
+      customFields: (json['customFields'] as Map?)?.map((k, v) => MapEntry(k.toString(), v.toString())),
     );
   }
 
@@ -115,6 +130,10 @@ class TimetreeEventDto {
       'reminders': reminders,
       'nomEvent': nomEvent,
       'titleModifiedDirectly': titleModifiedDirectly,
+      'attachedDocumentId': attachedDocumentId,
+      'attachedDocumentType': attachedDocumentType,
+      'attachedDocumentCode': attachedDocumentCode,
+      'attachedClientName': attachedClientName,
     };
   }
 }

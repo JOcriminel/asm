@@ -54,6 +54,8 @@ class TimetreePagesRepository {
     required String categoryId,
     required int displayOrder,
     required bool active,
+    String? allowedRoles,
+    String? allowedUsers,
   }) async {
     try {
       final response = await _api.createPage({
@@ -61,6 +63,8 @@ class TimetreePagesRepository {
         'categoryId': categoryId,
         'displayOrder': displayOrder,
         'active': active,
+        'allowedRoles': allowedRoles,
+        'allowedUsers': allowedUsers,
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {
@@ -81,6 +85,8 @@ class TimetreePagesRepository {
     required String categoryId,
     required int displayOrder,
     required bool active,
+    String? allowedRoles,
+    String? allowedUsers,
   }) async {
     try {
       final response = await _api.updatePage(id, {
@@ -88,6 +94,8 @@ class TimetreePagesRepository {
         'categoryId': categoryId,
         'displayOrder': displayOrder,
         'active': active,
+        'allowedRoles': allowedRoles,
+        'allowedUsers': allowedUsers,
       });
       final data = response.data;
       if (data is Map<String, dynamic>) {

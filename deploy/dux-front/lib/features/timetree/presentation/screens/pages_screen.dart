@@ -341,11 +341,37 @@ class _PageTile extends ConsumerWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        subtitle: Text(
-          'Catégorie : $catName\nOrdre : ${page.displayOrder}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Catégorie : $catName • Ordre : ${page.displayOrder}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (page.allowedRoles != null && page.allowedRoles!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Rôles autorisés : ${page.allowedRoles}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.blueAccent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            if (page.allowedUsers != null && page.allowedUsers!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Utilisateurs autorisés : ${page.allowedUsers}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.purple,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
         ),
         isThreeLine: true,
         trailing: Row(
@@ -394,6 +420,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _orderController;
+  late TextEditingController _allowedRolesController;
+  late TextEditingController _allowedUsersController;
   String? _selectedCategoryId;
   bool _active = true;
   bool _submitting = false;
@@ -405,6 +433,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
     _orderController = TextEditingController(
       text: widget.page != null ? '${widget.page!.displayOrder}' : '1',
     );
+    _allowedRolesController = TextEditingController(text: widget.page?.allowedRoles ?? '');
+    _allowedUsersController = TextEditingController(text: widget.page?.allowedUsers ?? '');
     _selectedCategoryId = widget.page?.categoryId;
     _active = widget.page?.active ?? true;
   }
@@ -413,6 +443,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
   void dispose() {
     _titleController.dispose();
     _orderController.dispose();
+    _allowedRolesController.dispose();
+    _allowedUsersController.dispose();
     super.dispose();
   }
 
@@ -428,6 +460,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
     setState(() => _submitting = true);
     final title = _titleController.text.trim();
     final order = int.tryParse(_orderController.text) ?? 1;
+    final allowedRoles = _allowedRolesController.text.trim();
+    final allowedUsers = _allowedUsersController.text.trim();
 
     try {
       if (widget.page == null) {
@@ -436,6 +470,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
               categoryId: _selectedCategoryId!,
               displayOrder: order,
               active: _active,
+              allowedRoles: allowedRoles.isEmpty ? null : allowedRoles,
+              allowedUsers: allowedUsers.isEmpty ? null : allowedUsers,
             );
       } else {
         await ref.read(timetreePagesProvider.notifier).updatePage(
@@ -444,6 +480,8 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
               categoryId: _selectedCategoryId!,
               displayOrder: order,
               active: _active,
+              allowedRoles: allowedRoles.isEmpty ? null : allowedRoles,
+              allowedUsers: allowedUsers.isEmpty ? null : allowedUsers,
             );
       }
       if (mounted) {
@@ -481,7 +519,6 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
             children: [
               TextFormField(
                 controller: _titleController,
-                enabled: false,
                 decoration: const InputDecoration(
                   labelText: 'Titre de la page',
                   hintText: 'ex. Conditions Générales, CGU',
@@ -546,7 +583,6 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
 
               TextFormField(
                 controller: _orderController,
-                enabled: false,
                 decoration: const InputDecoration(
                   labelText: 'Ordre d\'affichage',
                   hintText: 'ex. 1, 2, 3',
@@ -561,6 +597,26 @@ class _PageFormDialogState extends ConsumerState<_PageFormDialog> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _allowedRolesController,
+                decoration: const InputDecoration(
+                  labelText: 'Rôles autorisés',
+                  hintText: 'Séparés par des virgules, ex. ADMIN, CHEF',
+                  helperText: 'Laissez vide pour autoriser tous les rôles',
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              TextFormField(
+                controller: _allowedUsersController,
+                decoration: const InputDecoration(
+                  labelText: 'Utilisateurs autorisés',
+                  hintText: 'Emails/Noms d\'utilisateurs séparés par des virgules',
+                  helperText: 'Laissez vide pour autoriser tous les utilisateurs',
+                ),
               ),
               const SizedBox(height: 16),
 

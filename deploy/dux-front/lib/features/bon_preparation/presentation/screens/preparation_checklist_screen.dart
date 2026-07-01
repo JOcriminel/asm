@@ -85,21 +85,27 @@ class _PreparationChecklistScreenState extends ConsumerState<PreparationChecklis
     final requireSignature = config?.requireSignature ?? false;
     final requirePhoto = config?.requirePhoto ?? false;
 
+    String? signatureBase64;
     if (requireSignature) {
-      final signature = await SignaturePadDialog.show(context);
-      if (signature == null) return;
+      signatureBase64 = await SignaturePadDialog.show(context);
+      if (signatureBase64 == null) return;
     }
 
+    String? photoBase64;
     if (requirePhoto) {
-      final photo = await PhotoProofOverlay.show(context);
-      if (photo == null) return;
+      photoBase64 = await PhotoProofOverlay.show(context);
+      if (photoBase64 == null) return;
     }
 
     setState(() => _isSaving = true);
 
     try {
       final repository = ref.read(bonPreparationRepositoryProvider);
-      await repository.updateDocumentStatus(id, '12', {});
+      await repository.updateDocumentStatus(id, '12', {
+        'signatureBase64': signatureBase64,
+        'photoBase64': photoBase64,
+        'docType': widget.docType,
+      });
 
       if (!mounted) return;
       

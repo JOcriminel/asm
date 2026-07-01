@@ -40,6 +40,12 @@ public class Page {
     @Column(name = "ACTIVE")
     private Boolean active = true;
 
+    @Column(name = "ALLOWED_ROLES", length = 500)
+    private String allowedRoles;
+
+    @Column(name = "ALLOWED_USERS", length = 500)
+    private String allowedUsers;
+
     @Column(name = "CREATED_AT")
     private LocalDateTime createdAt;
 

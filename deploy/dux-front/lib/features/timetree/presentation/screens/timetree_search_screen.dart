@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_search_provider.dart';
 
 class TimetreeSearchScreen extends ConsumerStatefulWidget {
@@ -106,7 +107,7 @@ class _TimetreeSearchScreenState extends ConsumerState<TimetreeSearchScreen> wit
                     ),
                   )
                 : searchAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
+                    loading: () => const DuxLoadingScreen(isFullScreen: false),
                     error: (err, _) => Center(
                       child: Text('Erreur: $err', style: const TextStyle(color: Colors.red)),
                     ),

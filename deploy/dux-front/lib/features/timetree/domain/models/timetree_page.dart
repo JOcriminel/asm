@@ -9,6 +9,8 @@ class TimetreePage {
   final bool active;
   final int displayOrder;
   final String categoryId;
+  final String? allowedRoles;
+  final String? allowedUsers;
 
   const TimetreePage({
     required this.id,
@@ -16,6 +18,8 @@ class TimetreePage {
     required this.active,
     required this.displayOrder,
     required this.categoryId,
+    this.allowedRoles,
+    this.allowedUsers,
   });
 
   factory TimetreePage.fromDto(TimetreePageDto dto) {
@@ -25,6 +29,8 @@ class TimetreePage {
       active: dto.active,
       displayOrder: dto.displayOrder,
       categoryId: dto.categoryId,
+      allowedRoles: dto.allowedRoles,
+      allowedUsers: dto.allowedUsers,
     );
   }
 
@@ -34,6 +40,8 @@ class TimetreePage {
     bool? active,
     int? displayOrder,
     String? categoryId,
+    String? allowedRoles,
+    String? allowedUsers,
   }) {
     return TimetreePage(
       id: id ?? this.id,
@@ -41,9 +49,11 @@ class TimetreePage {
       active: active ?? this.active,
       displayOrder: displayOrder ?? this.displayOrder,
       categoryId: categoryId ?? this.categoryId,
+      allowedRoles: allowedRoles ?? this.allowedRoles,
+      allowedUsers: allowedUsers ?? this.allowedUsers,
     );
   }
 
   @override
-  String toString() => 'TimetreePage(id: $id, title: $title, active: $active)';
+  String toString() => 'TimetreePage(id: $id, title: $title, active: $active, allowedRoles: $allowedRoles, allowedUsers: $allowedUsers)';
 }

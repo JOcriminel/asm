@@ -123,6 +123,18 @@ public class Event {
     )
     private Set<Event> dependencies;
 
+    @Column(name = "ATTACHED_DOCUMENT_ID", length = 100)
+    private String attachedDocumentId;
+
+    @Column(name = "ATTACHED_DOCUMENT_TYPE", length = 50)
+    private String attachedDocumentType;
+
+    @Column(name = "ATTACHED_DOCUMENT_CODE", length = 100)
+    private String attachedDocumentCode;
+
+    @Column(name = "ATTACHED_CLIENT_NAME", length = 200)
+    private String attachedClientName;
+
     // Reminders One-to-Many
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<EventReminder> reminders;

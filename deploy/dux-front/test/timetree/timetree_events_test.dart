@@ -421,4 +421,10 @@ class _FakeNotificationsRepository implements TimetreeNotificationsRepository {
   }
   @override
   Future<String> resolveEventId(String type, String id) async => '';
+
+  @override
+  Future<void> registerDeviceToken(String deviceToken, String platform) async {}
+
+  @override
+  Future<void> sendAnnouncement(String title, String content, List<String> calendarIds) async {}
 }

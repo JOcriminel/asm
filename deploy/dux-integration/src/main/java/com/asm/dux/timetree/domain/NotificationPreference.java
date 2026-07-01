@@ -40,4 +40,23 @@ public class NotificationPreference {
     @Column(name = "CHAT_ENABLED", nullable = false)
     @Builder.Default
     private Boolean chatEnabled = true;
+
+    @Column(name = "SOUND_ENABLED", nullable = false)
+    @Builder.Default
+    private Boolean soundEnabled = true;
+
+    @Column(name = "VIBRATION_ENABLED", nullable = false)
+    @Builder.Default
+    private Boolean vibrationEnabled = true;
+
+    @Column(name = "SNOOZE_UNTIL")
+    private java.time.LocalDateTime snoozeUntil;
+
+    @Column(name = "MUTE_ALL_EXCEPT_SPECIFIC", nullable = false)
+    @Builder.Default
+    private Boolean muteAllExceptSpecific = false;
+
+    @Column(name = "NOTIFY_OWN_ACTIONS", nullable = false)
+    @Builder.Default
+    private Boolean notifyOwnActions = false;
 }

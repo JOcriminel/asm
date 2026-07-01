@@ -7,6 +7,8 @@ class TimetreePageDto {
   final bool active;
   final int displayOrder;
   final String categoryId;
+  final String? allowedRoles;
+  final String? allowedUsers;
 
   const TimetreePageDto({
     required this.id,
@@ -14,15 +16,19 @@ class TimetreePageDto {
     required this.active,
     required this.displayOrder,
     required this.categoryId,
+    this.allowedRoles,
+    this.allowedUsers,
   });
 
   factory TimetreePageDto.fromJson(Map<String, dynamic> json) {
     return TimetreePageDto(
       id: (json['id'] ?? '').toString(),
-      title: json['title'] as String? ?? '',
+      title: json['title'] as String? ?? json['name'] as String? ?? '',
       active: json['active'] as bool? ?? false,
       displayOrder: (json['displayOrder'] as num?)?.toInt() ?? 0,
       categoryId: (json['categoryId'] ?? '').toString(),
+      allowedRoles: json['allowedRoles'] as String?,
+      allowedUsers: json['allowedUsers'] as String?,
     );
   }
 
@@ -34,6 +40,8 @@ class TimetreePageDto {
       'active': active,
       'displayOrder': displayOrder,
       'categoryId': categoryId,
+      'allowedRoles': allowedRoles,
+      'allowedUsers': allowedUsers,
     };
   }
 }

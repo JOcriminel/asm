@@ -28,6 +28,8 @@ class TimetreePagesNotifier extends StateNotifier<AsyncValue<List<TimetreePage>>
     required String categoryId,
     required int displayOrder,
     required bool active,
+    String? allowedRoles,
+    String? allowedUsers,
   }) async {
     final currentList = state.value ?? [];
     try {
@@ -36,6 +38,8 @@ class TimetreePagesNotifier extends StateNotifier<AsyncValue<List<TimetreePage>>
         categoryId: categoryId,
         displayOrder: displayOrder,
         active: active,
+        allowedRoles: allowedRoles,
+        allowedUsers: allowedUsers,
       );
       final updatedList = List<TimetreePage>.from(currentList)..add(newPage);
       updatedList.sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
@@ -53,6 +57,8 @@ class TimetreePagesNotifier extends StateNotifier<AsyncValue<List<TimetreePage>>
     required String categoryId,
     required int displayOrder,
     required bool active,
+    String? allowedRoles,
+    String? allowedUsers,
   }) async {
     final currentList = state.value ?? [];
     try {
@@ -62,6 +68,8 @@ class TimetreePagesNotifier extends StateNotifier<AsyncValue<List<TimetreePage>>
         categoryId: categoryId,
         displayOrder: displayOrder,
         active: active,
+        allowedRoles: allowedRoles,
+        allowedUsers: allowedUsers,
       );
       final updatedList = currentList.map((item) {
         return item.id == id ? updatedPage : item;
@@ -105,6 +113,8 @@ class TimetreePagesNotifier extends StateNotifier<AsyncValue<List<TimetreePage>>
         categoryId: originalPage.categoryId,
         displayOrder: originalPage.displayOrder,
         active: active,
+        allowedRoles: originalPage.allowedRoles,
+        allowedUsers: originalPage.allowedUsers,
       );
       final updatedList = currentList.map((item) {
         return item.id == id ? updatedPage : item;

@@ -25,5 +25,10 @@
     <include file="db/changelog/timetree/sprint_13_calendar_description_max.xml"/>
     <include file="db/changelog/timetree/cf_categories.xml"/>
     <include file="db/changelog/timetree/sprint_13_nvarchar_options.xml"/>
+    <include file="db/changelog/timetree/sprint_14_attached_documents.xml"/>
+    <include file="db/changelog/timetree/sprint_15_notifications.xml"/>
+    <include file="db/changelog/timetree/sprint_15_page_permissions.xml"/>
+    <include file="db/changelog/timetree/sprint_16_mute_all_except_specific.xml"/>
+    <include file="db/changelog/timetree/sprint_17_document_validation_proof.xml"/>
 </databaseChangeLog>
 

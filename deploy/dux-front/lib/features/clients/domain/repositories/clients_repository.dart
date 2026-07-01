@@ -9,4 +9,6 @@ abstract class ClientsRepository {
     String? companyId,
     String? userId,
   });
+
+  Future<Client> getClientByCode(String code);
 }

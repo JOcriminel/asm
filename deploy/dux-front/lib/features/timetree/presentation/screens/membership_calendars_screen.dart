@@ -4,6 +4,7 @@ import 'package:dux_front/core/widgets/dux_drawer.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_member.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_members_provider.dart';
 import 'package:dux_front/features/timetree/presentation/provider/timetree_calendars_provider.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_members_repository.dart';
@@ -579,10 +580,14 @@ class _CalendarsTab extends ConsumerWidget {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.people_outline_rounded),
-                                onPressed: () => _showManageCalendarMembersDialog(context, ref, c),
-                                tooltip: 'Gérer les membres',
+                              Badge(
+                                label: Text('${c.members.length}'),
+                                backgroundColor: theme.colorScheme.primary,
+                                child: IconButton(
+                                  icon: const Icon(Icons.people_outline_rounded),
+                                  onPressed: () => _showManageCalendarMembersDialog(context, ref, c),
+                                  tooltip: 'Gérer les membres',
+                                ),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined),
@@ -673,6 +678,9 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
   late TextEditingController _descCtrl;
   late String _colorHex;
   bool _submitting = false;
+  List<String> _selectedDocs = [];
+  List<String> _selectedTiers = [];
+  Set<String> _tierCodes = {};
 
   final List<String> _colorPalette = [
     '#4CAF50', // Green
@@ -693,6 +701,39 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
     _nameCtrl = TextEditingController(text: widget.calendar?.name ?? '');
     _descCtrl = TextEditingController(text: widget.calendar?.description ?? '');
     _colorHex = widget.calendar?.color ?? '#2196F3';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCalendarAttachedEntities();
+    });
+  }
+
+  Future<void> _loadCalendarAttachedEntities() async {
+    try {
+      final tierTypes = await ref.read(screenConfigControllerProvider.notifier).fetchAllTierTypes();
+      _tierCodes = tierTypes
+          .map((t) => (t['typeCode'] ?? t['code'])?.toString().trim().toUpperCase())
+          .where((c) => c != null)
+          .cast<String>()
+          .toSet();
+
+      final attached = widget.calendar?.attachedDocuments?.split(',') ?? [];
+      final docs = <String>[];
+      final tiers = <String>[];
+      for (final code in attached) {
+        final trimmed = code.trim();
+        if (trimmed.isEmpty) continue;
+        if (_tierCodes.contains(trimmed.toUpperCase())) {
+          tiers.add(trimmed);
+        } else {
+          docs.add(trimmed);
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _selectedDocs = docs;
+          _selectedTiers = tiers;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -700,6 +741,96 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
     _nameCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
+  }
+
+  void _showDocumentSelectorDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    List<Map<String, dynamic>> allClasses = [];
+    try {
+      allClasses = await ref.read(screenConfigControllerProvider.notifier).fetchAllDocumentClasses();
+    } catch (e) {
+      debugPrint('Error fetching all document classes: $e');
+    }
+
+    if (context.mounted) {
+      Navigator.pop(context); // close loading
+    }
+
+    if (allClasses.isEmpty) {
+      allClasses = [
+        {'code': 'BC', 'libelle': 'Bon de Commande (BC)'},
+        {'code': 'BP', 'libelle': 'Bon de Préparation (BP)'},
+        {'code': 'BS', 'libelle': 'Bon de Sortie (BS)'},
+      ];
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return _DocumentSelectorSearchDialog(
+          allClasses: allClasses,
+          initialSelected: List<String>.from(_selectedDocs),
+          onChanged: (selected) {
+            setState(() {
+              _selectedDocs = selected;
+            });
+          },
+        );
+      },
+    );
+  }
+
+  void _showTierSelectorDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+
+    List<Map<String, dynamic>> allClasses = [];
+    try {
+      allClasses = await ref.read(screenConfigControllerProvider.notifier).fetchAllTierTypes();
+    } catch (e) {
+      debugPrint('Error fetching all tier types: $e');
+    }
+
+    if (context.mounted) {
+      Navigator.pop(context); // close loading
+    }
+
+    if (allClasses.isEmpty) {
+      allClasses = [
+        {'code': '1', 'libelle': 'Client'},
+      ];
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return _DocumentSelectorSearchDialog(
+          allClasses: allClasses,
+          initialSelected: List<String>.from(_selectedTiers),
+          onChanged: (selected) {
+            setState(() {
+              _selectedTiers = selected;
+            });
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -780,6 +911,76 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
                     );
                   }).toList(),
                 ),
+                const SizedBox(height: 24),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Documents associés', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => _showDocumentSelectorDialog(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Sélectionner des documents',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      suffixIcon: const Icon(Icons.arrow_drop_down),
+                    ),
+                    child: _selectedDocs.isEmpty
+                        ? const Text('Aucun document associé')
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: _selectedDocs.map((docType) {
+                              return Chip(
+                                label: Text(docType),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () {
+                                  setState(() {
+                                    _selectedDocs.remove(docType);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Tiers associés', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => _showTierSelectorDialog(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Sélectionner des tiers',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      suffixIcon: const Icon(Icons.arrow_drop_down),
+                    ),
+                    child: _selectedTiers.isEmpty
+                        ? const Text('Aucun tiers associé')
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: _selectedTiers.map((tierType) {
+                              return Chip(
+                                label: Text(tierType),
+                                deleteIcon: const Icon(Icons.close, size: 16),
+                                onDeleted: () {
+                                  setState(() {
+                                    _selectedTiers.remove(tierType);
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -798,18 +999,21 @@ class _CalendarFormDialogState extends ConsumerState<_CalendarFormDialog> {
                       _submitting = true;
                     });
                     try {
+                      final joinedAttached = [..._selectedDocs, ..._selectedTiers].join(',');
                       if (isEdit) {
                         await ref.read(timetreeCalendarsProvider.notifier).updateCalendar(
                               id: widget.calendar!.id,
                               name: _nameCtrl.text,
                               description: _descCtrl.text,
                               color: _colorHex,
+                              attachedDocuments: joinedAttached,
                             );
                       } else {
                         await ref.read(timetreeCalendarsProvider.notifier).createCalendar(
                               name: _nameCtrl.text,
                               description: _descCtrl.text,
                               color: _colorHex,
+                              attachedDocuments: joinedAttached,
                             );
                       }
                       if (mounted) {
@@ -978,12 +1182,13 @@ class _ManageCalendarMembersDialogState extends ConsumerState<_ManageCalendarMem
     final theme = Theme.of(context);
 
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       title: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
             child: Text(
-              'Membres – ${widget.calendar.name}',
+              'Membres – ${widget.calendar.name} (${_currentMembers.length})',
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1015,8 +1220,8 @@ class _ManageCalendarMembersDialogState extends ConsumerState<_ManageCalendarMem
                       final m = _currentMembers[index];
                       return ListTile(
                         leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                        title: Text(m.fullName),
-                        subtitle: Text(m.role),
+                        title: Text(m.fullName, overflow: TextOverflow.ellipsis, maxLines: 1),
+                        subtitle: Text(m.role, overflow: TextOverflow.ellipsis, maxLines: 1),
                         trailing: IconButton(
                           icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
                           onPressed: () => _removeMember(m),
@@ -1031,6 +1236,153 @@ class _ManageCalendarMembersDialogState extends ConsumerState<_ManageCalendarMem
           child: const Text('Fermer'),
         ),
       ],
+    );
+  }
+}
+
+class _DocumentSelectorSearchDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> allClasses;
+  final List<String> initialSelected;
+  final ValueChanged<List<String>> onChanged;
+
+  const _DocumentSelectorSearchDialog({
+    required this.allClasses,
+    required this.initialSelected,
+    required this.onChanged,
+  });
+
+  @override
+  State<_DocumentSelectorSearchDialog> createState() => _DocumentSelectorSearchDialogState();
+}
+
+class _DocumentSelectorSearchDialogState extends State<_DocumentSelectorSearchDialog> {
+  late List<String> _tempSelected;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tempSelected = List<String>.from(widget.initialSelected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final filtered = widget.allClasses.where((doc) {
+      final code = (doc['code'] ?? '').toString().toLowerCase();
+      final libelle = (doc['libelle'] ?? '').toString().toLowerCase();
+      return code.contains(_searchQuery.toLowerCase()) || libelle.contains(_searchQuery.toLowerCase());
+    }).toList();
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Documents associés',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Rechercher un document...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Aucun document trouvé',
+                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final code = (item['code'] ?? '').toString();
+                        final libelle = (item['libelle'] ?? '').toString();
+                        final isChecked = _tempSelected.contains(code);
+
+                        return CheckboxListTile(
+                          title: Text(
+                            libelle,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          subtitle: Text(
+                            code,
+                            style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                          value: isChecked,
+                          activeColor: theme.colorScheme.primary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          onChanged: (val) {
+                            setState(() {
+                              if (val == true) {
+                                if (!_tempSelected.contains(code)) {
+                                  _tempSelected.add(code);
+                                }
+                              } else {
+                                _tempSelected.remove(code);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Annuler'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    widget.onChanged(_tempSelected);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Valider'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

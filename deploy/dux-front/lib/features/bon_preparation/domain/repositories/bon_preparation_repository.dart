@@ -29,4 +29,5 @@ abstract class BonPreparationRepository {
   Future<void> deleteSerialNumber(String id);
 
   Future<void> updateDocumentStatus(String documentId, String newStatusId, Map<String, dynamic> currentDocData);
+  Future<Map<String, dynamic>?> getValidationProof(String documentId);
 }

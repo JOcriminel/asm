@@ -470,6 +470,21 @@ class TimetreeApi {
       options: Options(responseType: ResponseType.bytes),
     );
   }
+
+  Future<Response> registerDevice(String deviceToken, String platform) async {
+    return _dio.post('/api/timetree/notifications/devices/register', data: {
+      'deviceToken': deviceToken,
+      'platform': platform,
+    });
+  }
+
+  Future<Response> sendAnnouncement(String title, String content, List<String> calendarIds) async {
+    return _dio.post('/api/timetree/admin/announcements', data: {
+      'title': title,
+      'content': content,
+      'calendarIds': calendarIds.map(int.parse).toList(),
+    });
+  }
 }
 
 

@@ -13,6 +13,11 @@ class NotificationPreferences {
   final bool mentionsEnabled;
   final bool remindersEnabled;
   final bool chatEnabled;
+  final bool soundEnabled;
+  final bool vibrationEnabled;
+  final DateTime? snoozeUntil;
+  final bool muteAllExceptSpecific;
+  final bool notifyOwnActions;
 
   const NotificationPreferences({
     this.emailEnabled = false,
@@ -20,6 +25,11 @@ class NotificationPreferences {
     this.mentionsEnabled = true,
     this.remindersEnabled = true,
     this.chatEnabled = true,
+    this.soundEnabled = true,
+    this.vibrationEnabled = true,
+    this.snoozeUntil,
+    this.muteAllExceptSpecific = false,
+    this.notifyOwnActions = false,
   });
 
   factory NotificationPreferences.fromJson(Map<String, dynamic> json) {
@@ -29,6 +39,11 @@ class NotificationPreferences {
       mentionsEnabled: json['mentionsEnabled'] as bool? ?? true,
       remindersEnabled: json['remindersEnabled'] as bool? ?? true,
       chatEnabled: json['chatEnabled'] as bool? ?? true,
+      soundEnabled: json['soundEnabled'] as bool? ?? true,
+      vibrationEnabled: json['vibrationEnabled'] as bool? ?? true,
+      snoozeUntil: json['snoozeUntil'] != null ? DateTime.parse(json['snoozeUntil'] as String) : null,
+      muteAllExceptSpecific: json['muteAllExceptSpecific'] as bool? ?? false,
+      notifyOwnActions: json['notifyOwnActions'] as bool? ?? false,
     );
   }
 
@@ -38,6 +53,11 @@ class NotificationPreferences {
         'mentionsEnabled': mentionsEnabled,
         'remindersEnabled': remindersEnabled,
         'chatEnabled': chatEnabled,
+        'soundEnabled': soundEnabled,
+        'vibrationEnabled': vibrationEnabled,
+        'snoozeUntil': snoozeUntil?.toIso8601String(),
+        'muteAllExceptSpecific': muteAllExceptSpecific,
+        'notifyOwnActions': notifyOwnActions,
       };
 
   NotificationPreferences copyWith({
@@ -46,6 +66,12 @@ class NotificationPreferences {
     bool? mentionsEnabled,
     bool? remindersEnabled,
     bool? chatEnabled,
+    bool? soundEnabled,
+    bool? vibrationEnabled,
+    DateTime? snoozeUntil,
+    bool resetSnooze = false,
+    bool? muteAllExceptSpecific,
+    bool? notifyOwnActions,
   }) {
     return NotificationPreferences(
       emailEnabled: emailEnabled ?? this.emailEnabled,
@@ -53,6 +79,11 @@ class NotificationPreferences {
       mentionsEnabled: mentionsEnabled ?? this.mentionsEnabled,
       remindersEnabled: remindersEnabled ?? this.remindersEnabled,
       chatEnabled: chatEnabled ?? this.chatEnabled,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
+      snoozeUntil: resetSnooze ? null : (snoozeUntil ?? this.snoozeUntil),
+      muteAllExceptSpecific: muteAllExceptSpecific ?? this.muteAllExceptSpecific,
+      notifyOwnActions: notifyOwnActions ?? this.notifyOwnActions,
     );
   }
 }
@@ -226,6 +257,24 @@ class TimetreeNotificationsRepository {
       throw Exception('Format de réponse invalide');
     } catch (e) {
       AppLogger.e('TimetreeNotificationsRepository', 'resolveEventId failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  Future<void> registerDeviceToken(String deviceToken, String platform) async {
+    try {
+      await _api.registerDevice(deviceToken, platform);
+    } catch (e) {
+      AppLogger.e('TimetreeNotificationsRepository', 'registerDeviceToken failed', e);
+      throw ApiExceptionHandler.handle(e);
+    }
+  }
+
+  Future<void> sendAnnouncement(String title, String content, List<String> calendarIds) async {
+    try {
+      await _api.sendAnnouncement(title, content, calendarIds);
+    } catch (e) {
+      AppLogger.e('TimetreeNotificationsRepository', 'sendAnnouncement failed', e);
       throw ApiExceptionHandler.handle(e);
     }
   }

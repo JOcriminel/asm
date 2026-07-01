@@ -329,7 +329,7 @@ class DuxDrawer extends ConsumerWidget {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    context.go('/timetree/dashboard');
+                    context.go('/timetree/accueil');
                   },
                 ),
                 ListTile(
@@ -432,7 +432,9 @@ class _TimetreeDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileState = ref.watch(profileControllerProvider);
     final membersAsync = ref.watch(timetreeMembersProvider);
-    final currentUsername = ref.watch(authControllerProvider).user?.username;
+    final authState = ref.watch(authControllerProvider);
+    final user = authState.user;
+    final currentUsername = user?.username;
     final currentMember = currentUsername == null
         ? null
         : membersAsync.when(
@@ -443,6 +445,56 @@ class _TimetreeDrawer extends ConsumerWidget {
             loading: () => null,
             error: (_, __) => null,
           );
+
+    final themeMode = ref.watch(themeControllerProvider);
+    final isDark = themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system &&
+            MediaQuery.of(context).platformBrightness == Brightness.dark);
+
+    // Helper to determine if a page is accessible to the logged in user
+    bool isPageAccessible(TimetreeMenuItem page) {
+      if (user == null) return false;
+      final userRole = user.role.toUpperCase();
+      if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR') {
+        return true;
+      }
+      if (page.allowedRoles != null && page.allowedRoles!.trim().isNotEmpty) {
+        final rolesList = page.allowedRoles!
+            .split(',')
+            .map((r) => r.trim().toUpperCase())
+            .where((r) => r.isNotEmpty);
+        if (rolesList.isNotEmpty && !rolesList.contains(userRole)) {
+          return false;
+        }
+      }
+      if (page.allowedUsers != null && page.allowedUsers!.trim().isNotEmpty) {
+        final usersList = page.allowedUsers!
+            .split(',')
+            .map((u) => u.trim().toLowerCase())
+            .where((u) => u.isNotEmpty);
+        if (usersList.isNotEmpty) {
+          final lowerUsername = user.username.toLowerCase();
+          final lowerEmail = user.email.toLowerCase();
+          if (!usersList.contains(lowerUsername) && !usersList.contains(lowerEmail)) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    final filteredItems = menuItems.map((cat) {
+      final filteredPages = cat.children.where(isPageAccessible).toList();
+      return TimetreeMenuItem(
+        id: cat.id,
+        title: cat.title,
+        path: cat.path,
+        displayOrder: cat.displayOrder,
+        allowedRoles: cat.allowedRoles,
+        allowedUsers: cat.allowedUsers,
+        children: filteredPages,
+      );
+    }).where((cat) => cat.children.isNotEmpty).toList();
 
     return Drawer(
       backgroundColor: theme.colorScheme.surface,
@@ -464,12 +516,25 @@ class _TimetreeDrawer extends ConsumerWidget {
                     size: 28,
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'Dux Calender',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
+                  Expanded(
+                    child: Text(
+                      'Dux Calender',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    icon: Text(
+                      isDark ? '🌞' : '🌙',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    tooltip: isDark ? 'Passer au thème clair' : 'Passer au thème sombre',
+                    onPressed: () {
+                      final nextTheme = isDark ? ThemeMode.light : ThemeMode.dark;
+                      ref.read(themeControllerProvider.notifier).setThemeMode(nextTheme);
+                    },
                   ),
                 ],
               ),
@@ -486,6 +551,33 @@ class _TimetreeDrawer extends ConsumerWidget {
                 vertical: AppSpacing.s,
               ),
               children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.home_outlined,
+                    color: currentRoute == '/timetree/accueil'
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    'Accueil',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: currentRoute == '/timetree/accueil'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: currentRoute == '/timetree/accueil'
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  selected: currentRoute == '/timetree/accueil',
+                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
+                  onTap: () {
+                    Navigator.pop(context);
+                    context.go('/timetree/accueil');
+                  },
+                ),
                 ListTile(
                   leading: Icon(
                     Icons.dashboard_outlined,
@@ -513,240 +605,8 @@ class _TimetreeDrawer extends ConsumerWidget {
                     context.go('/timetree/dashboard');
                   },
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.calendar_month_outlined,
-                    color: currentRoute == '/timetree/calendar-view'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Calendrier Combiné',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/calendar-view'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/calendar-view'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/calendar-view',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/calendar-view');
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.search_outlined,
-                    color: currentRoute == '/timetree/search'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Recherche Globale',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/search'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/search'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/search',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/search');
-                  },
-                ),
                 const Divider(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.l, vertical: AppSpacing.s),
-                  child: Text(
-                    'Administration',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.category_outlined,
-                    color: currentRoute == '/timetree/categories'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Catégories',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/categories'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/categories'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/categories',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/categories');
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    Icons.insert_drive_file_outlined,
-                    color: currentRoute == '/timetree/pages'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Pages',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/pages'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/pages'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/pages',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/pages');
-                  },
-                ),
-
-                ListTile(
-                  leading: Icon(
-                    Icons.security_outlined,
-                    color: currentRoute == '/timetree/roles-permissions'
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    'Rôles & Permissions',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: currentRoute == '/timetree/roles-permissions'
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      color: currentRoute == '/timetree/roles-permissions'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  selected: currentRoute == '/timetree/roles-permissions',
-                  selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.go('/timetree/roles-permissions');
-                  },
-                ),
-
-                if (userRole == 'ADMIN' || userRole == 'CHEF')
-                  ListTile(
-                    leading: Icon(
-                      Icons.settings_outlined,
-                      color: currentRoute == '/timetree/custom-fields'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Champs Personnalisés',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: currentRoute == '/timetree/custom-fields'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: currentRoute == '/timetree/custom-fields'
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    selected: currentRoute == '/timetree/custom-fields',
-                    selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.go('/timetree/custom-fields');
-                    },
-                  ),
-                if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR')
-                  ListTile(
-                    leading: Icon(
-                      Icons.history_outlined,
-                      color: currentRoute == '/timetree/admin/audit-logs'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Logs d\'audit',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: currentRoute == '/timetree/admin/audit-logs'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: currentRoute == '/timetree/admin/audit-logs'
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    selected: currentRoute == '/timetree/admin/audit-logs',
-                    selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.go('/timetree/admin/audit-logs');
-                    },
-                  ),
-                if (userRole == 'ADMIN' || userRole == 'ADMINISTRATEUR' || userRole == 'CHEF')
-                  ListTile(
-                    leading: Icon(
-                      Icons.track_changes_outlined,
-                      color: currentRoute == '/timetree/traceability'
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(
-                      'Traçabilité',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: currentRoute == '/timetree/traceability'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: currentRoute == '/timetree/traceability'
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    selected: currentRoute == '/timetree/traceability',
-                    selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.l),
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.go('/timetree/traceability');
-                    },
-                  ),
-                const Divider(),
-                ...menuItems.map((item) => _buildItem(context, item)),
+                ...filteredItems.map((item) => _buildItem(context, item)),
                 const Divider(),
                 ListTile(
                   leading: Icon(

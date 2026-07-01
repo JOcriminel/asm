@@ -338,9 +338,10 @@ public class CustomFieldController {
                     if (event.getCalendar() != null && event.getCalendar().getMembers() != null) {
                         Member current = getCurrentMember();
                         for (Member m : event.getCalendar().getMembers()) {
-                            if (current != null && !m.getId().equals(current.getId())) {
+                            if (current != null) {
                                 notificationService.triggerNotification(
                                         m,
+                                        current,
                                         "Champs personnalisés mis à jour dans " + event.getTitle(),
                                         current.getFullName() + " a mis à jour les informations complémentaires.",
                                         "EVENT_UPDATE",

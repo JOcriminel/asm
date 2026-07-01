@@ -32,6 +32,7 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
     required String name,
     required String description,
     required String color,
+    String? attachedDocuments,
   }) async {
     final currentList = state.value ?? [];
     try {
@@ -39,6 +40,7 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
         name: name,
         description: description,
         color: color,
+        attachedDocuments: attachedDocuments,
       );
       final updatedList = List<TimetreeCalendar>.from(currentList)..add(newCalendar);
       updatedList.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -59,6 +61,7 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
     required String name,
     required String description,
     required String color,
+    String? attachedDocuments,
   }) async {
     final currentList = state.value ?? [];
     try {
@@ -67,6 +70,7 @@ class TimetreeCalendarsNotifier extends StateNotifier<AsyncValue<List<TimetreeCa
         name: name,
         description: description,
         color: color,
+        attachedDocuments: attachedDocuments,
       );
       final updatedList = currentList.map((item) {
         return item.id == id ? updatedCalendar : item;

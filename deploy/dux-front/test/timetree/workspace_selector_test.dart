@@ -61,7 +61,7 @@ void main() {
 
     // Verify option cards are rendered
     expect(find.text('DUX Mobile'), findsOneWidget);
-    expect(find.text('DUX TimeTree'), findsOneWidget);
+    expect(find.text('Dux Calender'), findsOneWidget);
 
     // Verify buttons are rendered
     expect(find.text('Accéder à l\'espace'), findsNWidgets(2));

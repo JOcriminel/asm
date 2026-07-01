@@ -31,6 +31,9 @@ public class Calendar {
     @Column(name = "COLOR", length = 50)
     private String color;
 
+    @Column(name = "ATTACHED_DOCUMENTS", length = 250)
+    private String attachedDocuments;
+
     @Column(name = "DELETED", nullable = false)
     @Builder.Default
     private Boolean deleted = false;

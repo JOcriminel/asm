@@ -2,12 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:dux_front/features/timetree/data/repositories/timetree_events_repository.dart';
+import 'package:dux_front/core/network/dio_client.dart';
+import 'package:dux_front/core/services/screen_config_controller.dart';
 import 'package:dux_front/core/utils/logger.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_tag.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:dux_front/core/widgets/dux_notification_badge.dart';
 import 'package:dux_front/core/widgets/dux_drawer.dart';
+import 'package:dux_front/core/widgets/dux_loading_screen.dart';
 import 'package:dux_front/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_calendar.dart';
 import 'package:dux_front/features/timetree/domain/models/timetree_event.dart';
@@ -22,9 +27,8 @@ import 'package:dux_front/features/timetree/presentation/widgets/dynamic_event_f
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_event_details_dialog.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/timetree_notification_center.dart';
 import 'package:dux_front/features/timetree/presentation/widgets/mes_agendas_bottom_sheet.dart';
-import 'package:dux_front/core/theme/theme_controller.dart';
-import 'package:dux_front/features/timetree/presentation/screens/membership_calendars_screen.dart';
-import 'package:go_router/go_router.dart';
+import 'package:dux_front/features/timetree/presentation/widgets/timetree_analytics_view.dart';
+
 
 String _getCalendarCover(TimetreeCalendar cal) {
   if (cal.description.contains('|[cover:')) {
@@ -92,7 +96,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
     final username = user?.username ?? '';
 
     final calendarsAsync = ref.watch(timetreeCalendarsProvider);
-    final eventsAsync = ref.watch(expandedEventsProvider);
+    final eventsAsync = ref.watch(filteredEventsProvider);
     final viewMode = ref.watch(calendarViewModeProvider);
     final focusedDate = ref.watch(currentCalendarDateProvider);
     final selectedCalendarIds = ref.watch(selectedCalendarIdsProvider);
@@ -138,13 +142,22 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
               children: [
                 Text(
                   formattedTitle.toLowerCase(),
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Icon(Icons.arrow_drop_down),
               ],
             ),
           ),
           actions: [
+            const DuxNotificationBadge(),
+            IconButton(
+              icon: Icon(
+                Icons.filter_list_rounded,
+                color: ref.watch(calendarFilterProvider).isEmpty ? null : themeSeedColor,
+              ),
+              tooltip: 'Filtrer les événements',
+              onPressed: () => _showFiltersBottomSheet(context, eventsAsync.value ?? []),
+            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.tune_rounded),
               tooltip: 'Choisir la vue',
@@ -165,6 +178,10 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                   value: 'DAY',
                   child: Text('Jour'),
                 ),
+                const PopupMenuItem(
+                  value: 'ANALYTICS',
+                  child: Text('Statistiques'),
+                ),
               ],
             ),
             PopupMenuButton<String>(
@@ -177,19 +194,11 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                 } else if (val == 'export') {
                   _showExportBottomSheet(context);
                 } else if (val == 'notifications') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (context) => const TimetreeNotificationCenter(),
-                    ),
-                  );
-                } else if (val == 'theme_toggle') {
-                  final themeMode = ref.read(themeControllerProvider);
-                  final isDark = themeMode == ThemeMode.dark || 
-                      (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
-                  ref.read(themeControllerProvider.notifier).setThemeMode(
-                        isDark ? ThemeMode.light : ThemeMode.dark,
-                      );
+                  context.push('/notifications');
+                } else if (val == 'settings') {
+                  context.push('/notifications/settings');
+                } else if (val == 'announcements') {
+                  context.push('/timetree/admin/announcements');
                 }
               },
               itemBuilder: (context) => [
@@ -223,27 +232,28 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                     },
                   ),
                 ),
-                PopupMenuItem(
-                  value: 'theme_toggle',
-                  child: Consumer(
-                    builder: (context, ref, child) {
-                      final themeMode = ref.watch(themeControllerProvider);
-                      final isDark = themeMode == ThemeMode.dark || 
-                          (themeMode == ThemeMode.system && MediaQuery.of(context).platformBrightness == Brightness.dark);
-                      return ListTile(
-                        leading: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded),
-                        title: Text(isDark ? 'Mode clair' : 'Mode sombre'),
-                      );
-                    },
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: ListTile(
+                    leading: Icon(Icons.settings_outlined),
+                    title: Text('Paramètres'),
                   ),
                 ),
+                if (role == 'ADMIN' || role == 'ADMINISTRATEUR')
+                  const PopupMenuItem(
+                    value: 'announcements',
+                    child: ListTile(
+                      leading: Icon(Icons.campaign_rounded),
+                      title: Text('Annonces'),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(width: 8),
           ],
         ),
         body: calendarsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const DuxLoadingScreen(isFullScreen: false),
           error: (err, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -308,7 +318,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
             }
 
             final calendarGrid = eventsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const DuxLoadingScreen(isFullScreen: false),
               error: (err, _) => Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -321,6 +331,11 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                     return _buildWeekView(context, events, calendars);
                   case 'DAY':
                     return _buildDayView(context, events, calendars);
+                  case 'ANALYTICS':
+                    return TimetreeAnalyticsView(
+                      events: events,
+                      calendars: calendars,
+                    );
                   case 'MONTH':
                   default:
                     return _buildMonthView(context, events, calendars);
@@ -328,9 +343,11 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
               },
             );
 
+            final enableSwipeGestures = viewMode != 'ANALYTICS';
+
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onVerticalDragEnd: (details) {
+              onVerticalDragEnd: !enableSwipeGestures ? null : (details) {
                 if (details.primaryVelocity != null && details.primaryVelocity! < -300) {
                   showModalBottomSheet<void>(
                     context: context,
@@ -340,7 +357,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                   );
                 }
               },
-              onHorizontalDragEnd: (details) {
+              onHorizontalDragEnd: !enableSwipeGestures ? null : (details) {
                 if (details.primaryVelocity != null) {
                   if (details.primaryVelocity! < -300) {
                     // Swipe left -> Next Month
@@ -595,8 +612,8 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                 final cellWidth = totalWidth / 7;
                 final cellHeight = totalHeight / 6;
 
-                const double dayHeaderHeight = 20.0;
-                const double slotHeight = 14.0;
+                const double dayHeaderHeight = 18.0;
+                const double slotHeight = 18.0;
                 const double slotSpacing = 2.0;
 
                 final unreadCounts = ref.watch(timetreeChatUnreadCountsProvider);
@@ -606,14 +623,14 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                     final weekStart = w * 7;
                     final List<Widget> weekEventWidgets = [];
 
-                    // Scan event slots (0 to 4) for this week
-                    for (int idx = 0; idx < 5; idx++) {
+                    // Scan event slots (0 to 3) for this week
+                    for (int idx = 0; idx < 4; idx++) {
                       int d = 0;
                       while (d < 7) {
                         final index = weekStart + d;
 
-                        // Check if slot 4 is used for "+X de plus" on this day
-                        final isMoreIndicatorSlot = idx == 4 && cellEventCounts[index] > 5;
+                        // Check if slot 3 is used for "+X de plus" on this day
+                        final isMoreIndicatorSlot = idx == 3 && cellEventCounts[index] > 4;
 
                         if (isMoreIndicatorSlot) {
                           final cellDate = cellDates[index];
@@ -635,8 +652,8 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                                 child: InkWell(
                                   onTap: () => _showDayEventsBottomSheet(context, cellDate, dayEvents, calendars),
                                   child: Text(
-                                    '+${cellEventCounts[index] - 4} de plus',
-                                    style: theme.textTheme.labelSmall?.copyWith(fontSize: 8, color: Colors.blueAccent),
+                                    '+${cellEventCounts[index] - 3} de plus',
+                                    style: theme.textTheme.labelSmall?.copyWith(fontSize: 8.5, color: Colors.blueAccent, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ),
@@ -654,7 +671,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                           // Find how long this event continues in this week at this slot
                           while (endCol < 6) {
                             final nextIndex = weekStart + endCol + 1;
-                            final nextIsMoreIndicator = idx == 4 && cellEventCounts[nextIndex] > 5;
+                            final nextIsMoreIndicator = idx == 3 && cellEventCounts[nextIndex] > 4;
                             if (nextIsMoreIndicator) break;
 
                             final nextEvent = (idx < cellSlots[nextIndex].length) ? cellSlots[nextIndex][idx] : null;
@@ -692,6 +709,7 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
 
                           final bool isSpanning = event.endDate.difference(event.startDate).inHours > 24;
                           final bool isSpanningOrAllDay = event.allDay || isSpanning;
+                          final bool isMultiDay = isSpanning || segmentLength > 1;
 
                           final chipBgColor = isSpanningOrAllDay ? color : color.withValues(alpha: 0.15);
                           final chipTextColor = isSpanningOrAllDay ? Colors.white : color;
@@ -705,43 +723,64 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                               top: 1,
                               bottom: 1,
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: chipBgColor,
+                              color: color.withValues(alpha: 0.12),
                               borderRadius: borderRadius,
                             ),
                             height: slotHeight,
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    event.title,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 8.2, 
-                                      color: chipTextColor, 
-                                      fontWeight: isSpanningOrAllDay ? FontWeight.bold : FontWeight.w600,
-                                      letterSpacing: -0.3,
-                                      height: 1.0,
+                                Container(
+                                  width: 2.5,
+                                  height: slotHeight,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    borderRadius: BorderRadius.only(
+                                      topLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
+                                      bottomLeft: isStartCell ? const Radius.circular(4) : Radius.zero,
                                     ),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
                                   ),
                                 ),
-                                if (unreadCount > 0)
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 2),
-                                    width: 4,
-                                    height: 4,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: isMultiDay ? MainAxisAlignment.center : MainAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      if (event.attachedDocumentId != null && event.attachedDocumentId!.isNotEmpty) ...[
+                                        Icon(Icons.attachment, size: 9.5, color: color),
+                                        const SizedBox(width: 2.0),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          event.title,
+                                          textAlign: isMultiDay ? TextAlign.center : TextAlign.left,
+                                          style: TextStyle(
+                                            fontSize: 10.5, 
+                                            color: color, 
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: -0.3,
+                                            height: 1.0,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
+                                        ),
+                                      ),
+                                      if (unreadCount > 0)
+                                        Container(
+                                          margin: const EdgeInsets.only(left: 2),
+                                          width: 4,
+                                          height: 4,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.red,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                    ],
                                   ),
+                                ),
+                                const SizedBox(width: 4),
                               ],
                             ),
                           );
@@ -929,16 +968,27 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
 
                         return ListTile(
                           leading: Container(
-                            width: 12,
-                            height: 12,
+                            width: 4,
+                            height: 28,
                             decoration: BoxDecoration(
                               color: color,
-                              shape: BoxShape.circle,
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
-                          title: Text(
-                            event.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          title: Row(
+                            children: [
+                              if (event.attachedDocumentId != null && event.attachedDocumentId!.isNotEmpty) ...[
+                                Icon(Icons.attachment, size: 14, color: Colors.grey.shade600),
+                                const SizedBox(width: 4),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  event.title,
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                           subtitle: Text(startStr),
                           onTap: () {
@@ -952,6 +1002,152 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+
+  void _showFiltersBottomSheet(BuildContext context, List<TimetreeEvent> events) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final filter = ref.watch(calendarFilterProvider);
+            
+            final selectedCalendarIds = ref.watch(selectedCalendarIdsProvider);
+            final calendarsAsync = ref.watch(timetreeCalendarsProvider);
+            final allCalendars = calendarsAsync.value ?? [];
+            final activeCalendarId = selectedCalendarIds.isNotEmpty ? selectedCalendarIds.first : (allCalendars.isNotEmpty ? allCalendars.first.id : '');
+            
+            final theme = Theme.of(context);
+            final isDark = theme.brightness == Brightness.dark;
+
+            return FutureBuilder<List<TimetreeCustomField>>(
+              future: activeCalendarId.isNotEmpty
+                  ? ref.read(timetreeCustomFieldsRepositoryProvider).getEventFields(calendarId: activeCalendarId)
+                  : Future.value(<TimetreeCustomField>[]),
+              builder: (context, snapshot) {
+                final customFieldsList = snapshot.data ?? [];
+
+                return DraggableScrollableSheet(
+                  initialChildSize: 0.65,
+                  minChildSize: 0.4,
+                  maxChildSize: 0.9,
+                  expand: false,
+                  builder: (context, scrollController) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.white,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Header
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Filtrer les Événements',
+                                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                if (!filter.isEmpty)
+                                  TextButton(
+                                    onPressed: () {
+                                      ref.read(calendarFilterProvider.notifier).state = CalendarFilterState();
+                                    },
+                                    child: const Text('Réinitialiser'),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          // Filter fields scrollable area
+                          Expanded(
+                            child: ListView(
+                              controller: scrollController,
+                              padding: const EdgeInsets.all(16.0),
+                              children: [
+                                // Text Search
+                                TextField(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Titre ou description',
+                                    prefixIcon: Icon(Icons.search),
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  controller: TextEditingController(text: filter.textSearch)
+                                    ..selection = TextSelection.collapsed(offset: filter.textSearch?.length ?? 0),
+                                  onChanged: (val) {
+                                    ref.read(calendarFilterProvider.notifier).update((state) => state.copyWith(textSearch: val));
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                
+                                // Participant Search
+                                TextField(
+                                  decoration: const InputDecoration(
+                                    labelText: 'Participant (Nom ou Email)',
+                                    prefixIcon: Icon(Icons.person_outline),
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  controller: TextEditingController(text: filter.participantSearch)
+                                    ..selection = TextSelection.collapsed(offset: filter.participantSearch?.length ?? 0),
+                                  onChanged: (val) {
+                                    ref.read(calendarFilterProvider.notifier).update((state) => state.copyWith(participantSearch: val));
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Status Dropdown
+                                DropdownButtonFormField<String>(
+                                  value: filter.status,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Statut de l\'événement',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'ALL', child: Text('Tous les statuts')),
+                                    DropdownMenuItem(value: 'DRAFT', child: Text('Brouillon')),
+                                    DropdownMenuItem(value: 'PLANNED', child: Text('À faire')),
+                                    DropdownMenuItem(value: 'IN_PROGRESS', child: Text('En cours')),
+                                    DropdownMenuItem(value: 'COMPLETED', child: Text('Terminé')),
+                                    DropdownMenuItem(value: 'CANCELLED', child: Text('Annulé')),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      ref.read(calendarFilterProvider.notifier).update((state) => state.copyWith(status: val));
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          
+                          // Bottom close button
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Appliquer les filtres'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -1204,65 +1400,91 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
 
                                         final chip = Container(
                                           margin: const EdgeInsets.all(2),
-                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: color,
+                                            color: color.withValues(alpha: 0.12),
                                             borderRadius: BorderRadius.circular(4),
                                           ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      event.title,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 8,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                      overflow: TextOverflow.ellipsis,
+                                          child: IntrinsicHeight(
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 2.5,
+                                                  decoration: BoxDecoration(
+                                                    color: color,
+                                                    borderRadius: const BorderRadius.only(
+                                                      topLeft: Radius.circular(4),
+                                                      bottomLeft: Radius.circular(4),
                                                     ),
                                                   ),
-                                                  if (unreadCount > 0)
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                                      decoration: const BoxDecoration(
-                                                        color: Colors.red,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                      child: Text(
-                                                        '$unreadCount',
-                                                        style: const TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.bold),
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                              if (event.participants.isNotEmpty)
-                                                Row(
-                                                  children: event.participants.take(3).map((p) {
-                                                    final initials = p.fullName.isNotEmpty
-                                                        ? p.fullName.substring(0, 1).toUpperCase()
-                                                        : '?';
-                                                    return Container(
-                                                      margin: const EdgeInsets.only(right: 2, top: 1),
-                                                      width: 10,
-                                                      height: 10,
-                                                      decoration: const BoxDecoration(
-                                                        color: Colors.white24,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                      child: Center(
-                                                        child: Text(
-                                                          initials,
-                                                          style: const TextStyle(fontSize: 6, color: Colors.white),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }).toList(),
                                                 ),
-                                            ],
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Row(
+                                                          children: [
+                                                            if (event.attachedDocumentId != null && event.attachedDocumentId!.isNotEmpty) ...[
+                                                              Icon(Icons.attachment, size: 10, color: color),
+                                                              const SizedBox(width: 2),
+                                                            ],
+                                                            Expanded(
+                                                              child: Text(
+                                                                event.title,
+                                                                style: TextStyle(
+                                                                  color: color,
+                                                                  fontSize: 10.5,
+                                                                  fontWeight: FontWeight.bold,
+                                                                ),
+                                                                overflow: TextOverflow.ellipsis,
+                                                              ),
+                                                            ),
+                                                            if (unreadCount > 0)
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                                                decoration: const BoxDecoration(
+                                                                  color: Colors.red,
+                                                                  shape: BoxShape.circle,
+                                                                ),
+                                                                child: Text(
+                                                                  '$unreadCount',
+                                                                  style: const TextStyle(fontSize: 6, color: Colors.white, fontWeight: FontWeight.bold),
+                                                                ),
+                                                              ),
+                                                          ],
+                                                        ),
+                                                        if (event.participants.isNotEmpty)
+                                                          Row(
+                                                            children: event.participants.take(3).map((p) {
+                                                              final initials = p.fullName.isNotEmpty
+                                                                  ? p.fullName.substring(0, 1).toUpperCase()
+                                                                  : '?';
+                                                              return Container(
+                                                                margin: const EdgeInsets.only(right: 2, top: 1),
+                                                                width: 10,
+                                                                height: 10,
+                                                                decoration: BoxDecoration(
+                                                                  color: color.withValues(alpha: 0.25),
+                                                                  shape: BoxShape.circle,
+                                                                ),
+                                                                child: Center(
+                                                                  child: Text(
+                                                                    initials,
+                                                                    style: TextStyle(fontSize: 6, color: color, fontWeight: FontWeight.bold),
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            }).toList(),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 2),
+                                              ],
+                                            ),
                                           ),
                                         );
 
@@ -1360,36 +1582,60 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
 
                                   final card = Container(
                                     margin: const EdgeInsets.all(4),
-                                    padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      color: color.withValues(alpha: 0.9),
+                                      color: color.withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                event.title,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
+                                    child: IntrinsicHeight(
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 4,
+                                            decoration: BoxDecoration(
+                                              color: color,
+                                              borderRadius: const BorderRadius.only(
+                                                topLeft: Radius.circular(6),
+                                                bottomLeft: Radius.circular(6),
                                               ),
-                                              if (event.description != null && event.description!.isNotEmpty)
-                                                Text(
-                                                  event.description!,
-                                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                            ],
+                                            ),
                                           ),
-                                        ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 6),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      if (event.attachedDocumentId != null && event.attachedDocumentId!.isNotEmpty) ...[
+                                                        Icon(Icons.attachment, size: 12, color: color),
+                                                        const SizedBox(width: 4),
+                                                      ],
+                                                      Expanded(
+                                                        child: Text(
+                                                          event.title,
+                                                          style: TextStyle(
+                                                            color: color,
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 12,
+                                                          ),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  if (event.description != null && event.description!.isNotEmpty)
+                                                    Text(
+                                                      event.description!,
+                                                      style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 10),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
                                         if (unreadCount > 0)
                                           Container(
                                             margin: const EdgeInsets.only(right: 8),
@@ -1428,7 +1674,8 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
                                           ),
                                       ],
                                     ),
-                                  );
+                                  ),
+                                 );
 
                                   return Expanded(
                                     child: InkWell(
@@ -1470,19 +1717,21 @@ class _TimetreeCalendarViewScreenState extends ConsumerState<TimetreeCalendarVie
 
   // Create / Edit Event dialog integrating Custom Fields
   void _showEventDialog(TimetreeEvent? event, List<TimetreeCalendar> calendars, {DateTime? initialDate}) {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return _EventFormDialog(
-          event: event,
-          calendars: calendars,
-          initialDate: initialDate,
-          onSuccess: () {
-            ref.read(timetreeEventsProvider.notifier).loadEvents();
-          },
-        );
-      },
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (context) {
+          return _EventFormDialog(
+            event: event,
+            calendars: calendars,
+            initialDate: initialDate,
+            onSuccess: () {
+              ref.read(timetreeEventsProvider.notifier).loadEvents();
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -1635,8 +1884,9 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
   bool _rem15m = false;
   bool _rem1h = false;
   bool _rem1d = false;
-  List<DateTime> _customReminders = [];
+   List<DateTime> _customReminders = [];
   final _tagInputController = TextEditingController();
+  late final TextEditingController _nomEventController;
 
   // Dynamic Custom Fields State
   List<TimetreeCustomField> _customFields = [];
@@ -1644,9 +1894,22 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
   Map<String, bool> _customFieldEmojiValues = {};
   bool _loadingFields = false;
 
+  String? _attachedDocumentId;
+  String? _attachedDocumentType;
+  String? _attachedDocumentCode;
+  String? _attachedClientName;
+  List<dynamic> _availableDocuments = [];
+  bool _loadingDocs = false;
+  DateTime? _assocDocsStartDate;
+  DateTime? _assocDocsEndDate;
+
+  DateTime get assocDocsStartDate => _assocDocsStartDate ??= DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime get assocDocsEndDate => _assocDocsEndDate ??= DateTime(DateTime.now().year, DateTime.now().month + 1, 0);
+
   @override
   void dispose() {
     _tagInputController.dispose();
+    _nomEventController.dispose();
     super.dispose();
   }
 
@@ -1657,6 +1920,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
     _title = ev?.title ?? '';
     _nomEvent = ev?.nomEvent ?? ev?.title ?? '';
+    _nomEventController = TextEditingController(text: _nomEvent);
     _titleModifiedDirectly = ev?.titleModifiedDirectly ?? false;
     _description = ev?.description;
     _startDate = ev?.startDate ?? widget.initialDate ?? DateTime.now();
@@ -1673,6 +1937,11 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
     _priority = ev?.priority ?? 'NORMAL';
     _selectedTags = ev?.tags != null ? List<TimetreeTag>.from(ev!.tags) : [];
     _selectedDependencies = ev?.dependencies != null ? List<Map<String, dynamic>>.from(ev!.dependencies) : [];
+ 
+    _attachedDocumentId = ev?.attachedDocumentId;
+    _attachedDocumentType = ev?.attachedDocumentType;
+    _attachedDocumentCode = ev?.attachedDocumentCode;
+    _attachedClientName = ev?.attachedClientName;
 
     if (ev != null) {
       _selectedCalendarId = ev.calendarId;
@@ -1684,11 +1953,12 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       // Parse reminders
       for (final rem in ev.reminders) {
         final diff = ev.startDate.difference(rem);
-        if (diff.inMinutes == 15) {
+        final diffMins = diff.inMinutes;
+        if ((diffMins - 15).abs() <= 2) {
           _rem15m = true;
-        } else if (diff.inHours == 1) {
+        } else if ((diffMins - 60).abs() <= 5) {
           _rem1h = true;
-        } else if (diff.inDays == 1) {
+        } else if ((diffMins - 1440).abs() <= 10) {
           _rem1d = true;
         } else {
           _customReminders.add(rem);
@@ -1781,6 +2051,11 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       _customFields = [];
       _customFieldValues = {};
       _customFieldEmojiValues = {};
+      _attachedDocumentId = null;
+      _attachedDocumentType = null;
+      _attachedDocumentCode = null;
+      _attachedClientName = null;
+      _availableDocuments = [];
     });
     _loadCustomFields();
   }
@@ -1833,6 +2108,210 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       },
     );
   }
+ 
+  Future<void> _fetchAssociatedDocuments() async {
+    final selectedCalendar = widget.calendars.firstWhere(
+      (c) => c.id == _selectedCalendarId,
+      orElse: () => widget.calendars.first,
+    );
+    final attachedDocTypes = (selectedCalendar.attachedDocuments != null && selectedCalendar.attachedDocuments!.isNotEmpty)
+        ? selectedCalendar.attachedDocuments!.split(',')
+        : <String>[];
+
+    if (attachedDocTypes.isEmpty) {
+      if (mounted) setState(() => _availableDocuments = []);
+      return;
+    }
+
+    if (mounted) setState(() => _loadingDocs = true);
+
+    try {
+      final authState = ref.read(authControllerProvider);
+      final dio = ref.read(dioProvider);
+      final formatter = DateFormat('yyyy-MM-dd');
+      final fromStr = formatter.format(assocDocsStartDate);
+      final toStr = '${formatter.format(assocDocsEndDate)} 23:59:59';
+      final idTierStr = (authState.user?.id != null && authState.user!.id.isNotEmpty) ? authState.user!.id : 'all';
+      final represStr = (authState.user?.tierId != null && authState.user!.tierId.isNotEmpty) ? authState.user!.tierId : 'all';
+      final stationId = authState.user?.station;
+
+      // Fetch all tier types to identify which ones are tiers
+      final tierTypesList = await ref.read(screenConfigControllerProvider.notifier).fetchAllTierTypes();
+      final Map<String, String> typeCodeToIdMap = {};
+      final Set<String> tierCodes = {};
+      for (final t in tierTypesList) {
+        final code = t['code']?.toString().trim();
+        final typeCode = t['typeCode']?.toString().trim();
+        if (code != null) {
+          tierCodes.add(code.toUpperCase());
+          if (typeCode != null) {
+            typeCodeToIdMap[typeCode.toUpperCase()] = code;
+            tierCodes.add(typeCode.toUpperCase());
+          }
+        }
+      }
+
+      final requestBody = {
+        'idDocCommercial': [],
+        'idTierModal': null,
+        'event': {'first': 0, 'rows': 500, 'sortOrder': 1, 'filters': {}, 'globalFilter': null},
+      };
+
+      List<dynamic> allDocs = [];
+      for (final type in attachedDocTypes) {
+        final trimmedType = type.trim();
+        if (trimmedType.isEmpty) continue;
+
+        final isTier = tierCodes.contains(trimmedType.toUpperCase());
+
+        if (isTier) {
+          final apiType = typeCodeToIdMap[trimmedType.toUpperCase()] ?? trimmedType;
+          final cId = '11249';
+          final uId = '11';
+          final tierFromStr = '${formatter.format(assocDocsStartDate)} 00:00:00';
+          final tierToStr = '${formatter.format(assocDocsEndDate)} 23:59:59';
+          final path = '/tier/getAllTierByType/$apiType/$cId/$uId/$tierFromStr/$tierToStr/false/false/false/false/false/false/dateTrans/false';
+          final tierRequestBody = {
+            "first": 0,
+            "rows": 500,
+            "sortOrder": 1,
+            "filters": {},
+            "globalFilter": null,
+            "typeTier": [apiType],
+            "checkMail": false
+          };
+
+          try {
+            final response = await dio.post(path, data: tierRequestBody);
+            dynamic data = response.data;
+            if (data is String && data.trim().isNotEmpty) {
+              try { data = json.decode(data.trim()); } catch (_) { continue; }
+            }
+            List<dynamic> rawList = [];
+            if (data is Map<String, dynamic>) {
+              final inner = data['data'] ?? data['content'] ?? data['results'] ?? data['tiers'];
+              if (inner is List) rawList = inner;
+            } else if (data is List) {
+              rawList = data;
+            }
+
+            for (final doc in rawList) {
+              if (doc is Map<String, dynamic>) {
+                final mutableDoc = Map<String, dynamic>.from(doc);
+                mutableDoc['attachedDocType'] = trimmedType;
+                mutableDoc['isTier'] = true;
+                // Map tier fields to expected document keys
+                mutableDoc['id'] = mutableDoc['id']?.toString() ?? mutableDoc['idTier']?.toString() ?? '';
+                mutableDoc['code'] = mutableDoc['code']?.toString() ?? mutableDoc['codeTier']?.toString() ?? mutableDoc['idTier']?.toString() ?? '';
+                mutableDoc['nomPrenomTier'] = mutableDoc['nomPrenom']?.toString() ?? mutableDoc['nomPrenomTier']?.toString() ?? mutableDoc['raisonSociale']?.toString() ?? mutableDoc['libelle']?.toString() ?? '';
+                allDocs.add(mutableDoc);
+              }
+            }
+          } catch (e) {
+            AppLogger.e('EventFormDialogState', 'Error fetching tiers for type $trimmedType', e);
+          }
+        } else {
+          // BC and BP have internal ERP codes that differ from their display codes.
+          // For any other type (DevC, RECLA, BL, Facture, etc.) use the code as-is.
+          final codeDocStr = trimmedType == 'BC'
+              ? 'BCC'
+              : trimmedType == 'BP'
+                  ? 'DPR'
+                  : trimmedType;
+
+          final path = '/list-documents/$fromStr/$toStr/$idTierStr/$represStr/$codeDocStr/all/false/false/null/false';
+          try {
+            final response = await dio.post(
+              path,
+              data: requestBody,
+              queryParameters: stationId != null && stationId.isNotEmpty && stationId != 'Default Station'
+                  ? {'stationId': stationId}
+                  : null,
+            );
+            dynamic data = response.data;
+            if (data is String && data.trim().isNotEmpty) {
+              try { data = json.decode(data.trim()); } catch (_) { continue; }
+            }
+            List<dynamic> rawList = [];
+            if (data is Map<String, dynamic>) {
+              final inner = data['data'] ?? data['content'] ?? data['results'] ?? data['documents'];
+              if (inner is List) rawList = inner;
+            } else if (data is List) {
+              rawList = data;
+            }
+            for (final doc in rawList) {
+              if (doc is Map<String, dynamic>) {
+                final mutableDoc = Map<String, dynamic>.from(doc);
+                mutableDoc['attachedDocType'] = trimmedType;
+                allDocs.add(mutableDoc);
+              }
+            }
+          } catch (e) {
+            AppLogger.e('EventFormDialogState', 'Error fetching docs for type $trimmedType', e);
+          }
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _availableDocuments = allDocs;
+          _loadingDocs = false;
+        });
+      }
+    } catch (e) {
+      AppLogger.e('EventFormDialogState', 'Error fetching associated documents', e);
+      if (mounted) setState(() => _loadingDocs = false);
+    }
+  }
+
+  void _showSearchableDropdownPopupForType(BuildContext context, String targetType) async {
+    final selectedCalendar = widget.calendars.firstWhere(
+      (c) => c.id == _selectedCalendarId,
+      orElse: () => widget.calendars.first,
+    );
+    Color dialogThemeColor = Colors.blue;
+    try {
+      final cleanHex = selectedCalendar.color.replaceAll('#', '');
+      dialogThemeColor = Color(int.parse('FF$cleanHex', radix: 16));
+    } catch (_) {}
+
+    final filteredDocs = _availableDocuments.where((doc) => doc['attachedDocType'] == targetType).toList();
+
+    final doc = await showDialog<dynamic>(
+      context: context,
+      builder: (context) {
+        return _SearchableDropdownDialog(
+          documents: filteredDocs,
+          themeColor: dialogThemeColor,
+        );
+      },
+    );
+
+    if (doc != null && mounted) {
+      final code = doc['code']?.toString() ??
+          doc['documentCode']?.toString() ??
+          doc['codeDoc']?.toString() ??
+          doc['numDoc']?.toString() ??
+          '';
+      final client = doc['nomPrenomTier']?.toString() ??
+          doc['customerName']?.toString() ??
+          doc['client']?.toString() ??
+          doc['raisonSociale']?.toString() ??
+          doc['libTier']?.toString() ??
+          '';
+      final type = doc['attachedDocType']?.toString() ?? '';
+      setState(() {
+        _attachedDocumentId = doc['id']?.toString() ?? doc['idDoc']?.toString() ?? '';
+        _attachedDocumentType = type;
+        _attachedDocumentCode = code;
+        _attachedClientName = client;
+        _nomEvent = '${type.isNotEmpty ? '$type ' : ''}$code${client.isNotEmpty ? ' $client' : ''}';
+        _nomEventController.text = _nomEvent;
+        if (!_titleModifiedDirectly) {
+          _title = _nomEvent;
+        }
+      });
+    }
+  }
 
   Future<void> _pickDateTime(bool isStart) async {
     final initialDate = isStart ? _startDate : _endDate;
@@ -1845,6 +2324,20 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
     if (pickedDate != null) {
       if (!mounted) return;
+      if (_allDay) {
+        setState(() {
+          if (isStart) {
+            _startDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, 0, 0, 0);
+            if (_endDate.isBefore(_startDate)) {
+              _endDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, 23, 59, 59);
+            }
+          } else {
+            _endDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, 23, 59, 59);
+          }
+        });
+        return;
+      }
+
       final pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(initialDate),
@@ -1936,6 +2429,10 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       reminders: compiledReminders,
       nomEvent: _nomEvent,
       titleModifiedDirectly: _titleModifiedDirectly,
+      attachedDocumentId: _attachedDocumentId,
+      attachedDocumentType: _attachedDocumentType,
+      attachedDocumentCode: _attachedDocumentCode,
+      attachedClientName: _attachedClientName,
     );
 
     try {
@@ -1991,6 +2488,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final authState = ref.watch(authControllerProvider);
     final user = authState.user;
     final role = user?.role.toUpperCase() ?? 'MEMBER';
@@ -1999,6 +2497,9 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
       (c) => c.id == _selectedCalendarId,
       orElse: () => widget.calendars.isNotEmpty ? widget.calendars.first : const TimetreeCalendar(id: '', name: '', description: '', color: '#2196F3', members: []),
     );
+    final attachedDocTypes = (selectedCalendar.attachedDocuments != null && selectedCalendar.attachedDocuments!.isNotEmpty)
+        ? selectedCalendar.attachedDocuments!.split(',')
+        : <String>[];
     final calendarMembers = selectedCalendar.members;
     final memberInCal = calendarMembers.firstWhere(
       (m) => m.username.toLowerCase() == user?.username.toLowerCase(),
@@ -2024,21 +2525,67 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
           brightness: Theme.of(context).brightness,
         ),
       ),
-      child: AlertDialog(
-        title: Text(widget.event == null ? 'Nouvel Événement' : 'Modifier l\'Événement'),
-        content: SizedBox(
-          width: 600,
-          child: SingleChildScrollView(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.event == null ? 'Nouvel Événement' : 'Modifier l\'Événement'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+          actions: [
+            if (widget.event != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                tooltip: 'Supprimer',
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Supprimer l\'événement ?'),
+                      content: const Text('Cette action supprimera également toutes les occurrences de cet événement récurrent.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+                        FilledButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx); // Close warning dialog
+                            try {
+                              await ref.read(timetreeEventsProvider.notifier).deleteEvent(widget.event!.id);
+                              widget.onSuccess();
+                              if (context.mounted) Navigator.pop(context); // Close edit screen
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+                                );
+                              }
+                            }
+                          },
+                          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                          child: const Text('Supprimer'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            TextButton(
+              onPressed: _saveEvent,
+              child: const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                   Row(
                     children: [
                       Expanded(
                         child: TextFormField(
-                          initialValue: _nomEvent,
+                          controller: _nomEventController,
                           decoration: const InputDecoration(labelText: "Nom de l'événement", border: OutlineInputBorder()),
                           validator: (val) => val == null || val.trim().isEmpty ? "Nom de l'événement requis" : null,
                           onSaved: (val) => _nomEvent = val ?? '',
@@ -2062,6 +2609,238 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                       ],
                     ],
                   ),
+                  if (_attachedDocumentId != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.insert_drive_file_rounded,
+                              color: theme.colorScheme.primary,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$_attachedDocumentType $_attachedDocumentCode',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                if (_attachedClientName != null && _attachedClientName!.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _attachedClientName!,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                _attachedDocumentId = null;
+                                _attachedDocumentType = null;
+                                _attachedDocumentCode = null;
+                                _attachedClientName = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (attachedDocTypes.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: theme.dividerColor.withValues(alpha: 0.1),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: ExpansionTile(
+                        initiallyExpanded: false,
+                        onExpansionChanged: (expanded) {
+                          if (expanded && _availableDocuments.isEmpty) {
+                            _fetchAssociatedDocuments();
+                          }
+                        },
+                        leading: Icon(
+                          Icons.attachment_rounded,
+                          color: dialogThemeColor,
+                        ),
+                        title: Text(
+                          'Associer un document / tiers',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () async {
+                                          final picked = await showDatePicker(
+                                            context: context,
+                                            initialDate: assocDocsStartDate,
+                                            firstDate: DateTime(2020),
+                                            lastDate: DateTime(2100),
+                                          );
+                                          if (picked != null) {
+                                            setState(() {
+                                              _assocDocsStartDate = picked;
+                                              if (assocDocsEndDate.isBefore(picked)) {
+                                                _assocDocsEndDate = picked;
+                                              }
+                                            });
+                                            _fetchAssociatedDocuments();
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.date_range_rounded, size: 14, color: Colors.blue),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    const Text('Date début', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                                                    Text(
+                                                      DateFormat('dd/MM/yyyy').format(assocDocsStartDate),
+                                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () async {
+                                          final picked = await showDatePicker(
+                                            context: context,
+                                            initialDate: assocDocsEndDate.isBefore(assocDocsStartDate) ? assocDocsStartDate : assocDocsEndDate,
+                                            firstDate: assocDocsStartDate,
+                                            lastDate: DateTime(2100),
+                                          );
+                                          if (picked != null) {
+                                            setState(() {
+                                              _assocDocsEndDate = picked;
+                                            });
+                                            _fetchAssociatedDocuments();
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.3)),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.date_range_rounded, size: 14, color: Colors.blue),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    const Text('Date fin', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                                                    Text(
+                                                      DateFormat('dd/MM/yyyy').format(assocDocsEndDate),
+                                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Sélectionnez une catégorie pour associer :',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                _loadingDocs
+                                    ? const Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                      )
+                                    : Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: attachedDocTypes.map((type) {
+                                          return ActionChip(
+                                            avatar: const Icon(Icons.add_rounded, size: 16),
+                                            label: Text(
+                                              type,
+                                              style: const TextStyle(fontWeight: FontWeight.bold),
+                                            ),
+                                            onPressed: () => _showSearchableDropdownPopupForType(context, type),
+                                          );
+                                        }).toList(),
+                                      ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   if (isChefOrAdmin) ...[
                     TextFormField(
@@ -2121,7 +2900,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Début', style: TextStyle(fontSize: 12)),
-                        subtitle: Text(DateFormat('dd/MM/yyyy HH:mm', 'fr_FR').format(_startDate)),
+                        subtitle: Text(DateFormat(_allDay ? 'dd/MM/yyyy' : 'dd/MM/yyyy HH:mm', 'fr_FR').format(_startDate)),
                         trailing: const Icon(Icons.calendar_month),
                         onTap: () => _pickDateTime(true),
                       ),
@@ -2130,7 +2909,7 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Fin', style: TextStyle(fontSize: 12)),
-                        subtitle: Text(DateFormat('dd/MM/yyyy HH:mm', 'fr_FR').format(_endDate)),
+                        subtitle: Text(DateFormat(_allDay ? 'dd/MM/yyyy' : 'dd/MM/yyyy HH:mm', 'fr_FR').format(_endDate)),
                         trailing: const Icon(Icons.calendar_month),
                         onTap: () => _pickDateTime(false),
                       ),
@@ -2140,7 +2919,15 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
                 SwitchListTile(
                   title: const Text('Toute la journée', style: TextStyle(fontSize: 14)),
                   value: _allDay,
-                  onChanged: (val) => setState(() => _allDay = val),
+                  onChanged: (val) {
+                    setState(() {
+                      _allDay = val;
+                      if (_allDay) {
+                        _startDate = DateTime(_startDate.year, _startDate.month, _startDate.day, 0, 0, 0);
+                        _endDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
+                      }
+                    });
+                  },
                 ),
                 const SizedBox(height: 12),
 
@@ -2548,51 +3335,6 @@ class _EventFormDialogState extends ConsumerState<_EventFormDialog> {
           ),
         ),
       ),
-      actions: [
-        if (widget.event != null)
-          TextButton(
-            onPressed: () {
-              showDialog<void>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Supprimer l\'événement ?'),
-                  content: const Text('Cette action supprimera également toutes les occurrences de cet événement récurrent.'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-                    FilledButton(
-                      onPressed: () async {
-                        Navigator.pop(ctx); // Close warning dialog
-                        try {
-                          await ref.read(timetreeEventsProvider.notifier).deleteEvent(widget.event!.id);
-                          widget.onSuccess();
-                          if (context.mounted) Navigator.pop(context); // Close edit dialog
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
-                            );
-                          }
-                        }
-                      },
-                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                      child: const Text('Supprimer'),
-                    ),
-                  ],
-                ),
-              );
-            },
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _saveEvent,
-          child: const Text('Enregistrer'),
-        ),
-      ],
-    ),
     );
   }
 }
@@ -2943,6 +3685,151 @@ class _CustomDatePickerDialogState extends State<_CustomDatePickerDialog> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SearchableDropdownDialog extends StatefulWidget {
+  final List<dynamic> documents;
+  final Color themeColor;
+
+  const _SearchableDropdownDialog({
+    required this.documents,
+    required this.themeColor,
+  });
+
+  @override
+  State<_SearchableDropdownDialog> createState() => _SearchableDropdownDialogState();
+}
+
+class _SearchableDropdownDialogState extends State<_SearchableDropdownDialog> {
+  final _searchController = TextEditingController();
+  List<dynamic> _filteredDocuments = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredDocuments = widget.documents;
+    _searchController.addListener(_filterDocs);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterDocs() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredDocuments = widget.documents.where((doc) {
+        final code = (doc['code']?.toString() ??
+                doc['documentCode']?.toString() ??
+                doc['codeDoc']?.toString() ??
+                doc['numDoc']?.toString() ??
+                '')
+            .toLowerCase();
+        final name = (doc['nomPrenomTier']?.toString() ??
+                doc['customerName']?.toString() ??
+                doc['client']?.toString() ??
+                doc['raisonSociale']?.toString() ??
+                doc['libTier']?.toString() ??
+                '')
+            .toLowerCase();
+        final type = (doc['attachedDocType']?.toString() ?? '').toLowerCase();
+        return code.contains(query) || name.contains(query) || type.contains(query);
+      }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.search, color: widget.themeColor),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Rechercher un document',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Code, client ou type (BC, BP, BS)...',
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => _searchController.clear(),
+                      )
+                    : null,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _filteredDocuments.isEmpty
+                  ? const Center(child: Text('Aucun document trouvé'))
+                  : ListView.separated(
+                      itemCount: _filteredDocuments.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final doc = _filteredDocuments[index];
+                        final code = doc['code']?.toString() ??
+                            doc['documentCode']?.toString() ??
+                            doc['codeDoc']?.toString() ??
+                            doc['numDoc']?.toString() ??
+                            '';
+                        final client = doc['nomPrenomTier']?.toString() ??
+                            doc['customerName']?.toString() ??
+                            doc['client']?.toString() ??
+                            doc['raisonSociale']?.toString() ??
+                            doc['libTier']?.toString() ??
+                            '';
+                        final type = doc['attachedDocType']?.toString() ?? '';
+                        return ListTile(
+                          leading: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: widget.themeColor,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              type,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                          title: Text(code, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(client),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.pop(context, doc),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fermer'),
+        ),
+      ],
     );
   }
 }
