@@ -313,28 +313,30 @@ public class TimetreeController {
     }
 
     // ─── PAGES CRUD ──────────────────────────────────────────────────────────
+    private Map<String, Object> pageToMap(Page p) {
+        Map<String, Object> pMap = new LinkedHashMap<>();
+        pMap.put("id", p.getId() != null ? p.getId().toString() : null);
+        pMap.put("name", p.getName());
+        pMap.put("route", p.getRoute());
+        pMap.put("icon", p.getIcon());
+        pMap.put("componentName", p.getComponentName());
+        pMap.put("displayOrder", p.getDisplayOrder());
+        pMap.put("active", p.getActive());
+        pMap.put("allowedRoles", p.getAllowedRoles());
+        pMap.put("allowedUsers", p.getAllowedUsers());
+        pMap.put("createdAt", p.getCreatedAt());
+        pMap.put("updatedAt", p.getUpdatedAt());
+        pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
+        pMap.put("categoryName", p.getCategory() != null ? p.getCategory().getName() : null);
+        return pMap;
+    }
+
     @GetMapping("/pages")
     @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<List<Map<String, Object>>> getPages() {
         log.info("GET /api/timetree/pages");
         List<Page> pages = pageRepository.findAllByOrderByDisplayOrderAsc();
-        List<Map<String, Object>> response = pages.stream().map(p -> {
-            Map<String, Object> pMap = new LinkedHashMap<>();
-            pMap.put("id", p.getId() != null ? p.getId().toString() : null);
-            pMap.put("name", p.getName());
-            pMap.put("route", p.getRoute());
-            pMap.put("icon", p.getIcon());
-            pMap.put("componentName", p.getComponentName());
-            pMap.put("displayOrder", p.getDisplayOrder());
-            pMap.put("active", p.getActive());
-            pMap.put("allowedRoles", p.getAllowedRoles());
-            pMap.put("allowedUsers", p.getAllowedUsers());
-            pMap.put("createdAt", p.getCreatedAt());
-            pMap.put("updatedAt", p.getUpdatedAt());
-            pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
-            pMap.put("categoryName", p.getCategory() != null ? p.getCategory().getName() : null);
-            return pMap;
-        }).collect(Collectors.toList());
+        List<Map<String, Object>> response = pages.stream().map(this::pageToMap).collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
@@ -342,23 +344,8 @@ public class TimetreeController {
     @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager", readOnly = true)
     public ResponseEntity<Map<String, Object>> getPage(@PathVariable Long id) {
         log.info("GET /api/timetree/pages/{}", id);
-        return pageRepository.findById(id).map(p -> {
-            Map<String, Object> pMap = new LinkedHashMap<>();
-            pMap.put("id", p.getId() != null ? p.getId().toString() : null);
-            pMap.put("name", p.getName());
-            pMap.put("route", p.getRoute());
-            pMap.put("icon", p.getIcon());
-            pMap.put("componentName", p.getComponentName());
-            pMap.put("displayOrder", p.getDisplayOrder());
-            pMap.put("active", p.getActive());
-            pMap.put("allowedRoles", p.getAllowedRoles());
-            pMap.put("allowedUsers", p.getAllowedUsers());
-            pMap.put("createdAt", p.getCreatedAt());
-            pMap.put("updatedAt", p.getUpdatedAt());
-            pMap.put("categoryId", p.getCategory() != null && p.getCategory().getId() != null ? p.getCategory().getId().toString() : null);
-            pMap.put("categoryName", p.getCategory() != null ? p.getCategory().getName() : null);
-            return ResponseEntity.ok(pMap);
-        }).orElse(ResponseEntity.notFound().build());
+        return pageRepository.findById(id).map(p -> ResponseEntity.ok(pageToMap(p)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/pages")
@@ -390,7 +377,7 @@ public class TimetreeController {
 
             Page saved = pageRepository.save(page);
             audit("CREATE", "Page", saved.getId(), "Created page: " + saved.getName());
-            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+            return ResponseEntity.status(HttpStatus.CREATED).body(pageToMap(saved));
         } catch (Exception e) {
             log.error("Failed to create page", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -436,8 +423,8 @@ public class TimetreeController {
             existing.setUpdatedAt(LocalDateTime.now());
             Page saved = pageRepository.save(existing);
             audit("UPDATE", "Page", saved.getId(), "Updated page: " + saved.getName());
-            return ResponseEntity.ok(saved);
-        }).orElse(ResponseEntity.notFound().<Page>build());
+            return ResponseEntity.ok(pageToMap(saved));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/pages/{id}")
