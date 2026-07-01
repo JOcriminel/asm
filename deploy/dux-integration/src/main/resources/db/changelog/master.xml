@@ -32,5 +32,5 @@
     <include file="db/changelog/timetree/sprint_17_document_validation_proof.xml"/>
     <include file="db/changelog/timetree/sprint_17_disappear_search_membership_pages.xml"/>
     <include file="db/changelog/timetree/sprint_17_category_permissions.xml"/>
+    <include file="db/changelog/timetree/sprint_17_move_roles_permissions.xml"/>
 </databaseChangeLog>
-

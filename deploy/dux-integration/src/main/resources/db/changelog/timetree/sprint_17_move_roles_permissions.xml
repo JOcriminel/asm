@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="tt-move-roles-permissions-page-001" author="system">
+        <update tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID" valueNumeric="3"/>
+            <column name="DISPLAY_ORDER" valueNumeric="5"/>
+            <where>ROUTE = '/timetree/roles-permissions'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>
