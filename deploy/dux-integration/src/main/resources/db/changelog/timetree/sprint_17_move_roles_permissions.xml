@@ -4,6 +4,24 @@
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
 
+    <!-- 1. Insert Roles & Permissions page if missing in older databases -->
+    <changeSet id="tt-insert-roles-permissions-page-001" author="system">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM dbo.TT_PAGE WHERE ROUTE = '/timetree/roles-permissions'</sqlCheck>
+        </preConditions>
+        <insert tableName="TT_PAGE" schemaName="dbo">
+            <column name="CATEGORY_ID"     valueNumeric="3"/>
+            <column name="NAME"            value="Rôles &amp; Permissions"/>
+            <column name="ROUTE"           value="/timetree/roles-permissions"/>
+            <column name="ICON"            value="security_outlined"/>
+            <column name="COMPONENT_NAME"  value="TimetreeRolesPermissionsScreen"/>
+            <column name="DISPLAY_ORDER"   valueNumeric="5"/>
+            <column name="ACTIVE"          valueBoolean="true"/>
+            <column name="CREATED_AT"      valueDate="2026-06-24T00:00:00"/>
+        </insert>
+    </changeSet>
+
+    <!-- 2. Relocate Roles & Permissions page to Category 3 (Administration) if seeded under Category 2 -->
     <changeSet id="tt-move-roles-permissions-page-001" author="system">
         <update tableName="TT_PAGE" schemaName="dbo">
             <column name="CATEGORY_ID" valueNumeric="3"/>
