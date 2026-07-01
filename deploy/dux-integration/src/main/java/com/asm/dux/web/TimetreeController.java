@@ -256,17 +256,33 @@ public class TimetreeController {
 
     @PutMapping("/categories/{id}")
     @org.springframework.transaction.annotation.Transactional(value = "timertreeTransactionManager")
-    public ResponseEntity<Map<String, Object>> updateCategory(@PathVariable Long id, @RequestBody Category request) {
+    public ResponseEntity<Map<String, Object>> updateCategory(@PathVariable Long id, @RequestBody Map<String, Object> requestBody) {
         log.info("PUT /api/timetree/categories/{}", id);
         return categoryRepository.findById(id).map(existing -> {
-            existing.setName(request.getName());
-            existing.setCode(request.getCode());
-            existing.setIcon(request.getIcon());
-            existing.setColor(request.getColor());
-            existing.setDisplayOrder(request.getDisplayOrder());
-            existing.setActive(request.getActive());
-            existing.setAllowedRoles(request.getAllowedRoles());
-            existing.setAllowedUsers(request.getAllowedUsers());
+            if (requestBody.containsKey("name")) {
+                existing.setName((String) requestBody.get("name"));
+            }
+            if (requestBody.containsKey("code")) {
+                existing.setCode((String) requestBody.get("code"));
+            }
+            if (requestBody.containsKey("icon")) {
+                existing.setIcon((String) requestBody.get("icon"));
+            }
+            if (requestBody.containsKey("color")) {
+                existing.setColor((String) requestBody.get("color"));
+            }
+            if (requestBody.containsKey("displayOrder")) {
+                existing.setDisplayOrder(requestBody.get("displayOrder") != null ? Integer.valueOf(requestBody.get("displayOrder").toString()) : 0);
+            }
+            if (requestBody.containsKey("active")) {
+                existing.setActive(requestBody.get("active") != null && Boolean.parseBoolean(requestBody.get("active").toString()));
+            }
+            if (requestBody.containsKey("allowedRoles")) {
+                existing.setAllowedRoles((String) requestBody.get("allowedRoles"));
+            }
+            if (requestBody.containsKey("allowedUsers")) {
+                existing.setAllowedUsers((String) requestBody.get("allowedUsers"));
+            }
             existing.setUpdatedAt(LocalDateTime.now());
             existing.setUpdatedBy("admin");
             Category saved = categoryRepository.save(existing);
